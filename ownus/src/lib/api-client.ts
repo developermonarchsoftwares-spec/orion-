@@ -2,7 +2,18 @@
  * Orion API Client - Production Frontend Integration
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+const getApiBaseUrl = (): string => {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  // In the browser, use same-origin relative path /api/v1 to avoid CORS and mixed-content issues
+  if (typeof window !== 'undefined') {
+    return '/api/v1';
+  }
+  return 'http://localhost:4000/api/v1';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -42,6 +53,10 @@ class ApiClient {
     }
   }
 
+  getBaseUrl(): string {
+    return getApiBaseUrl();
+  }
+
   getAccessToken() {
     return this.accessToken;
   }
@@ -50,7 +65,8 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {},
   ): Promise<T> {
-    const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+    const baseUrl = this.getBaseUrl();
+    const url = `${baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
     const headers = new Headers(options.headers || {});
 
     if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
@@ -78,8 +94,15 @@ class ApiClient {
       }
 
       return this.parseResponse<T>(response);
-    } catch (error) {
+    } catch (error: any) {
       console.error(`API Error on [${options.method || 'GET'}] ${endpoint}:`, error);
+      if (error?.message === 'Failed to fetch' || error?.name === 'TypeError') {
+        const enhancedError = new Error(
+          'Unable to connect to the authentication service. Please check your internet connection or try again shortly.'
+        );
+        (enhancedError as any).statusCode = 503;
+        throw enhancedError;
+      }
       throw error;
     }
   }
@@ -87,7 +110,8 @@ class ApiClient {
   private async tryRefreshToken(): Promise<boolean> {
     if (!this.refreshToken) return false;
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      const baseUrl = this.getBaseUrl();
+      const res = await fetch(`${baseUrl}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: this.refreshToken }),
@@ -145,10 +169,10 @@ class ApiClient {
     changePassword: (dto: any) => this.request('/auth/change-password', { method: 'POST', body: JSON.stringify(dto) }),
     forgotPassword: (email: string) => this.request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
     resetPassword: (dto: any) => this.request('/auth/reset-password', { method: 'POST', body: JSON.stringify(dto) }),
-    getGoogleUrl: (prompt?: string) => `${API_BASE_URL}/auth/google${prompt ? `?prompt=${prompt}` : ''}`,
-    getMicrosoftUrl: (prompt?: string) => `${API_BASE_URL}/auth/microsoft${prompt ? `?prompt=${prompt}` : ''}`,
-    getLinkGoogleUrl: () => `${API_BASE_URL}/auth/google?link=true`,
-    getLinkMicrosoftUrl: () => `${API_BASE_URL}/auth/microsoft?link=true`,
+    getGoogleUrl: (prompt?: string) => `${this.getBaseUrl()}/auth/google${prompt ? `?prompt=${prompt}` : ''}`,
+    getMicrosoftUrl: (prompt?: string) => `${this.getBaseUrl()}/auth/microsoft${prompt ? `?prompt=${prompt}` : ''}`,
+    getLinkGoogleUrl: () => `${this.getBaseUrl()}/auth/google?link=true`,
+    getLinkMicrosoftUrl: () => `${this.getBaseUrl()}/auth/microsoft?link=true`,
     exchangeOAuthToken: (dto: { code: string; state?: string }) =>
       this.request('/auth/oauth/token', { method: 'POST', body: JSON.stringify(dto) }),
     linkProvider: (dto: { provider: 'google' | 'microsoft'; code: string; state?: string }) =>
