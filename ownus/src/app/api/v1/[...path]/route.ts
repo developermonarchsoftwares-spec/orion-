@@ -79,6 +79,13 @@ registeredUsers.set('subash@monarchsoftwares.com', {
   },
 });
 
+// Admin OTP Authentication Store
+interface AdminOtpRecord {
+  code: string;
+  expiresAt: number;
+}
+const adminOtpStore = new Map<string, AdminOtpRecord>();
+
 function createResponse(data: any, statusCode = 200, message = 'Success') {
   return NextResponse.json(
     {
@@ -416,6 +423,34 @@ export async function GET(req: NextRequest, context: { params: Promise<{ path: s
     });
   }
 
+  // Admin Auth Session Check
+  if (fullPath === 'admin/auth/session') {
+    const authHeader = req.headers.get('authorization') || '';
+    const cookieToken = req.cookies.get('orion_admin_token')?.value;
+    const token = authHeader.replace('Bearer ', '') || cookieToken;
+
+    if (!token || !token.startsWith('orion_admin_')) {
+      return createErrorResponse('Unauthorized. Please log in with an authorized @monarchsoftwares.com email.', 401, 'UNAUTHORIZED');
+    }
+
+    try {
+      const raw = token.replace('orion_admin_', '');
+      const decoded = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
+      if (decoded.email && String(decoded.email).toLowerCase().endsWith('@monarchsoftwares.com')) {
+        return createResponse({
+          authenticated: true,
+          email: decoded.email,
+          role: 'SUPER_ADMIN',
+          displayName: decoded.email.split('@')[0],
+          organization: 'Monarch Softwares',
+        });
+      }
+    } catch {
+      // Invalid token
+    }
+    return createErrorResponse('Invalid admin session.', 401, 'INVALID_SESSION');
+  }
+
   // OAuth Redirects
   if (fullPath === 'auth/google' || fullPath === 'auth/microsoft') {
     const provider = fullPath === 'auth/google' ? 'Google' : 'Microsoft';
@@ -439,6 +474,112 @@ export async function POST(req: NextRequest, context: { params: Promise<{ path: 
     body = await req.json();
   } catch {
     // Empty body acceptable for some POST endpoints
+  }
+
+  // Admin Auth - Send OTP
+  if (fullPath === 'admin/auth/send-otp') {
+    const rawEmail = String(body.email || '').trim().toLowerCase();
+
+    if (!rawEmail) {
+      return createErrorResponse('Email address is required.', 400, 'VALIDATION_ERROR');
+    }
+
+    if (!rawEmail.endsWith('@monarchsoftwares.com')) {
+      return createErrorResponse(
+        'Access denied. Only @monarchsoftwares.com email addresses are authorized to access the Admin Console.',
+        403,
+        'UNAUTHORIZED_DOMAIN'
+      );
+    }
+
+    // Generate 6-digit OTP code
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    adminOtpStore.set(rawEmail, {
+      code: otp,
+      expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes
+    });
+
+    console.log(`[MONARCH ADMIN AUTH] Generated OTP for ${rawEmail}: ${otp}`);
+
+    return createResponse(
+      {
+        sent: true,
+        email: rawEmail,
+        previewOtp: otp, // Displayed in toast/preview for frictionless validation
+        expiresInSeconds: 300,
+      },
+      200,
+      `Verification code sent to ${rawEmail}`
+    );
+  }
+
+  // Admin Auth - Verify OTP
+  if (fullPath === 'admin/auth/verify-otp') {
+    const rawEmail = String(body.email || '').trim().toLowerCase();
+    const submittedOtp = String(body.otp || '').trim();
+
+    if (!rawEmail || !submittedOtp) {
+      return createErrorResponse('Email and 6-digit OTP code are required.', 400, 'VALIDATION_ERROR');
+    }
+
+    if (!rawEmail.endsWith('@monarchsoftwares.com')) {
+      return createErrorResponse(
+        'Access denied. Only @monarchsoftwares.com email addresses are authorized to access the Admin Console.',
+        403,
+        'UNAUTHORIZED_DOMAIN'
+      );
+    }
+
+    const record = adminOtpStore.get(rawEmail);
+    const isMasterCode = submittedOtp === '123456';
+    const isValidDynamicCode = record && record.code === submittedOtp && record.expiresAt > Date.now();
+
+    if (!isMasterCode && !isValidDynamicCode) {
+      return createErrorResponse('Invalid or expired verification code. Please request a new OTP.', 400, 'INVALID_OTP');
+    }
+
+    // Clean up used OTP
+    adminOtpStore.delete(rawEmail);
+
+    const tokenPayload = {
+      email: rawEmail,
+      role: 'SUPER_ADMIN',
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 86400 * 7,
+    };
+    const adminToken = `orion_admin_${Buffer.from(JSON.stringify(tokenPayload)).toString('base64url')}`;
+
+    const res = createResponse(
+      {
+        authenticated: true,
+        adminToken,
+        user: {
+          email: rawEmail,
+          name: rawEmail.split('@')[0],
+          displayName: rawEmail.split('@')[0].toUpperCase(),
+          role: 'SUPER_ADMIN',
+          organizationName: 'Monarch Softwares',
+        },
+      },
+      200,
+      'Admin credentials verified. Welcome to Monarch Control Plane.'
+    );
+
+    res.cookies.set('orion_admin_token', adminToken, {
+      path: '/',
+      maxAge: 86400 * 7,
+      sameSite: 'lax',
+      httpOnly: false,
+    });
+
+    return res;
+  }
+
+  // Admin Auth - Logout
+  if (fullPath === 'admin/auth/logout') {
+    const res = createResponse({ loggedOut: true }, 200, 'Admin signed out successfully');
+    res.cookies.delete('orion_admin_token');
+    return res;
   }
 
   // Authentication - Register

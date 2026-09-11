@@ -2,6 +2,19 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
+  ShieldCheck, 
+  ShieldAlert,
+  Lock, 
+  Mail, 
+  KeyRound, 
+  Loader2, 
+  ArrowRight, 
+  ArrowLeft, 
+  RefreshCw, 
+  AlertCircle,
+  CheckCircle2
+} from 'lucide-react';
+import { 
   AdminTab, 
   AdminBusinessRecord, 
   BusinessStatus,
@@ -81,6 +94,17 @@ import { MergePreviewModal } from '@/components/admin/modals/merge-preview-modal
 import { GlobalAdminSearchModal } from '@/components/admin/modals/global-admin-search-modal';
 
 export default function AdminPortalPage() {
+  // Admin Authentication & Security Gate State
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState<boolean>(true);
+  const [adminEmail, setAdminEmail] = useState<string>('');
+  const [authStep, setAuthStep] = useState<'email' | 'otp'>('email');
+  const [inputEmail, setInputEmail] = useState<string>('');
+  const [otpCode, setOtpCode] = useState<string>('');
+  const [authLoading, setAuthLoading] = useState<boolean>(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [otpCountdown, setOtpCountdown] = useState<number>(300);
+
   // Navigation State
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -118,6 +142,121 @@ export default function AdminPortalPage() {
     setTimeout(() => {
       setToastMessage(null);
     }, 3500);
+  };
+
+  // Check active admin session on mount
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('orion_admin_token') : null;
+    const storedEmail = typeof window !== 'undefined' ? localStorage.getItem('orion_admin_email') : null;
+    if (token && storedEmail && storedEmail.toLowerCase().endsWith('@monarchsoftwares.com')) {
+      setAdminEmail(storedEmail);
+      setIsAdminAuthenticated(true);
+    }
+    setIsCheckingAuth(false);
+  }, []);
+
+  // OTP Countdown timer
+  useEffect(() => {
+    if (authStep !== 'otp' || otpCountdown <= 0) return;
+    const interval = setInterval(() => {
+      setOtpCountdown(prev => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [authStep, otpCountdown]);
+
+  // Handle Send OTP
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setAuthError(null);
+    const cleanEmail = inputEmail.trim().toLowerCase();
+
+    if (!cleanEmail) {
+      setAuthError('Please enter your administrator email.');
+      return;
+    }
+
+    if (!cleanEmail.endsWith('@monarchsoftwares.com')) {
+      setAuthError('Access Denied: Only @monarchsoftwares.com email addresses are authorized to access the Admin Console.');
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      const res = await fetch('/api/v1/admin/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to generate verification code.');
+      }
+      setAuthStep('otp');
+      setOtpCountdown(300);
+      showToast(`Verification code dispatched to ${cleanEmail}`);
+      if (data.data?.previewOtp) {
+        showToast(`Verification OTP: ${data.data.previewOtp}`);
+      }
+    } catch (err: any) {
+      setAuthError(err.message || 'Unable to send verification code. Please try again.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // Handle Verify OTP
+  const handleVerifyOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setAuthError(null);
+    const cleanEmail = inputEmail.trim().toLowerCase();
+    const cleanOtp = otpCode.trim();
+
+    if (!cleanOtp || cleanOtp.length < 6) {
+      setAuthError('Please enter the 6-digit verification code.');
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      const res = await fetch('/api/v1/admin/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, otp: cleanOtp }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Invalid or expired verification code.');
+      }
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('orion_admin_token', data.data.adminToken);
+        localStorage.setItem('orion_admin_email', cleanEmail);
+      }
+      setAdminEmail(cleanEmail);
+      setIsAdminAuthenticated(true);
+      showToast(`Welcome, Administrator (${cleanEmail}).`);
+    } catch (err: any) {
+      setAuthError(err.message || 'Invalid verification code. Please check and try again.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // Handle Admin Sign Out
+  const handleAdminSignOut = async () => {
+    try {
+      await fetch('/api/v1/admin/auth/logout', { method: 'POST' });
+    } catch {
+      //
+    }
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('orion_admin_token');
+      localStorage.removeItem('orion_admin_email');
+    }
+    setIsAdminAuthenticated(false);
+    setAuthStep('email');
+    setOtpCode('');
+    setAuthError(null);
+    showToast('Admin session terminated.');
   };
 
   // Keyboard shortcut for Cmd+K / Ctrl+K
@@ -754,6 +893,196 @@ export default function AdminPortalPage() {
     showToast(`Successfully restarted microservice pod ${id}`);
   };
 
+  // Render authentication loading state
+  if (isCheckingAuth) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-zinc-950 text-white">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-zinc-400" />
+          <p className="text-xs text-zinc-400 font-mono tracking-wide">INITIALIZING MONARCH SECURITY GATEWAY...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Render Security Gate if unauthenticated
+  if (!isAdminAuthenticated) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center bg-zinc-950 px-4 py-12 text-zinc-100 relative overflow-hidden">
+        {/* Ambient background glow */}
+        <div className="absolute -top-40 -left-40 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="w-full max-w-md z-10 space-y-6">
+          {/* Brand Header */}
+          <div className="text-center space-y-3">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-xl mx-auto text-amber-500">
+              <ShieldCheck className="w-7 h-7" />
+            </div>
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[10px] font-mono tracking-widest uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold">
+                Monarch Security Gateway
+              </div>
+              <h1 className="text-2xl font-bold tracking-tight text-white">
+                Admin Console Access
+              </h1>
+              <p className="text-xs text-zinc-400">
+                Restricted to authorized <span className="text-zinc-200 font-semibold font-mono">@monarchsoftwares.com</span> administrators
+              </p>
+            </div>
+          </div>
+
+          {/* Security Card */}
+          <div className="bg-zinc-900/90 border border-zinc-800 backdrop-blur-xl rounded-2xl p-6 sm:p-8 shadow-2xl space-y-6">
+            {authError && (
+              <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-start gap-2.5 animate-in fade-in-50">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
+                <div className="leading-relaxed">{authError}</div>
+              </div>
+            )}
+
+            {authStep === 'email' ? (
+              <form onSubmit={handleSendOtp} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="admin-email" className="text-xs font-semibold text-zinc-300 flex items-center justify-between">
+                    <span>Admin Username / Email</span>
+                    <span className="text-[10px] text-amber-400 font-mono font-normal">@monarchsoftwares.com only</span>
+                  </label>
+                  <div className="relative">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-zinc-500">
+                      <Mail className="h-4 w-4" />
+                    </div>
+                    <input
+                      id="admin-email"
+                      type="email"
+                      placeholder="admin@monarchsoftwares.com"
+                      value={inputEmail}
+                      onChange={(e) => {
+                        setInputEmail(e.target.value);
+                        if (authError) setAuthError(null);
+                      }}
+                      className="flex h-11 w-full rounded-xl border border-zinc-700 bg-zinc-950/80 px-3 pl-10 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all"
+                      required
+                      autoFocus
+                    />
+                  </div>
+                  {inputEmail && !inputEmail.toLowerCase().endsWith('@monarchsoftwares.com') && (
+                    <p className="text-[11px] text-amber-400/90 flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      <span>Email must end with @monarchsoftwares.com</span>
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={authLoading || !inputEmail.trim().toLowerCase().endsWith('@monarchsoftwares.com')}
+                  className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-zinc-950 text-sm font-bold shadow-lg shadow-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                >
+                  {authLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Generating OTP...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Send Verification Code</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyOtp} className="space-y-4">
+                <div className="space-y-2 text-center">
+                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-zinc-800 text-amber-400 mx-auto">
+                    <KeyRound className="w-5 h-5" />
+                  </div>
+                  <h2 className="text-sm font-semibold text-zinc-200">Enter Verification OTP</h2>
+                  <p className="text-xs text-zinc-400">
+                    A 6-digit security passcode was sent to:
+                  </p>
+                  <p className="text-xs font-mono font-bold text-amber-400 bg-zinc-950/60 py-1 px-2.5 rounded-lg border border-zinc-800 inline-block">
+                    {inputEmail}
+                  </p>
+                </div>
+
+                <div className="space-y-1.5 pt-2">
+                  <label htmlFor="otp-input" className="sr-only">6-Digit Code</label>
+                  <input
+                    id="otp-input"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    placeholder="••••••"
+                    value={otpCode}
+                    onChange={(e) => {
+                      setOtpCode(e.target.value.replace(/[^0-9]/g, ''));
+                      if (authError) setAuthError(null);
+                    }}
+                    className="flex h-12 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-center font-mono text-2xl tracking-[0.5em] text-amber-400 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all"
+                    required
+                    autoFocus
+                  />
+                  <div className="flex items-center justify-between text-[11px] text-zinc-500 pt-1">
+                    <span>Expires in {Math.floor(otpCountdown / 60)}:{(otpCountdown % 60).toString().padStart(2, '0')}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleSendOtp()}
+                      disabled={authLoading || otpCountdown > 240}
+                      className="text-amber-400 hover:text-amber-300 disabled:opacity-40 disabled:hover:text-zinc-500 transition-colors cursor-pointer"
+                    >
+                      Resend Code
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={authLoading || otpCode.length < 6}
+                  className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-zinc-950 text-sm font-bold shadow-lg shadow-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                >
+                  {authLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Verifying Code...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Verify & Launch Admin Console</span>
+                    </>
+                  )}
+                </button>
+
+                <div className="pt-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthStep('email');
+                      setOtpCode('');
+                      setAuthError(null);
+                    }}
+                    className="text-xs text-zinc-500 hover:text-zinc-300 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Change email address</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+
+          <div className="text-center text-[11px] text-zinc-600 space-y-1">
+            <p>Monarch Softwares Enterprise Security System</p>
+            <p>All administrative activities are recorded in immutable platform audit logs.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-[calc(100vh-3.5rem)] bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 overflow-hidden font-sans">
       {/* Toast Notification */}
@@ -781,6 +1110,8 @@ export default function AdminPortalPage() {
           onOpenSearch={() => setIsSearchModalOpen(true)}
           onNavigateTab={setActiveTab}
           onRefreshData={() => showToast('Platform synchronized with enterprise cluster.')}
+          adminEmail={adminEmail}
+          onSignOut={handleAdminSignOut}
         />
 
         {/* Scrollable View Container */}

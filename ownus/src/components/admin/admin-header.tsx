@@ -15,6 +15,7 @@ import {
   LifeBuoy,
   FileCheck2,
   ExternalLink,
+  LogOut,
   X
 } from 'lucide-react';
 import { AdminTab } from './admin-sidebar';
@@ -25,6 +26,8 @@ interface AdminHeaderProps {
   onNavigateTab: (tab: AdminTab) => void;
   onRefreshData?: () => void;
   isRefreshing?: boolean;
+  adminEmail?: string;
+  onSignOut?: () => void;
 }
 
 const TAB_TITLES: Record<AdminTab, { title: string; subtitle: string }> = {
@@ -194,7 +197,9 @@ export function AdminHeader({
   onOpenSearch,
   onNavigateTab,
   onRefreshData,
-  isRefreshing
+  isRefreshing,
+  adminEmail,
+  onSignOut
 }: AdminHeaderProps) {
   const current = TAB_TITLES[activeTab] || { title: 'Admin Platform', subtitle: 'Platform Operations' };
   const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
@@ -357,6 +362,27 @@ export function AdminHeader({
           <ExternalLink className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">User Portal</span>
         </Link>
+
+        {/* Admin Identity Badge */}
+        {adminEmail && (
+          <div className="hidden lg:flex items-center gap-2 px-2.5 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[11px]">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="font-medium text-zinc-700 dark:text-zinc-300 truncate max-w-[160px]">{adminEmail}</span>
+            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">ADMIN</span>
+          </div>
+        )}
+
+        {/* Admin Sign Out */}
+        {onSignOut && (
+          <button
+            onClick={onSignOut}
+            title="Sign out of Admin Portal"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 border border-red-200/60 dark:border-red-800/60 transition-colors cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Sign Out</span>
+          </button>
+        )}
 
         {/* Quick Ingest Button */}
         <button
