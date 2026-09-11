@@ -42,7 +42,9 @@ function setupApp(app: INestApplication) {
   });
 
   // Global API Prefix
-  app.setGlobalPrefix(apiPrefix.replace(/^\//, ''));
+  app.setGlobalPrefix(apiPrefix.replace(/^\//, ''), {
+    exclude: ['/'],
+  });
 
   // Global Validation Pipe
   app.useGlobalPipes(

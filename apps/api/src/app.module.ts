@@ -53,8 +53,10 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { AuthenticationMiddleware } from './auth/auth.middleware';
+import { AppController } from './app.controller';
 
 @Module({
+  controllers: [AppController],
   imports: [
     // Configuration
     ConfigModule.forRoot({
