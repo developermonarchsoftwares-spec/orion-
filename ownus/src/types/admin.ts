@@ -345,6 +345,8 @@ export interface AdminBusinessRecord {
   whatsapp?: string;
   email: string;
   website: string;
+  linkedin?: string;
+  instagram?: string;
   registrationDate?: string;
   latitude?: number;
   longitude?: number;

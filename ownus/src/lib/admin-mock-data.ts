@@ -705,6 +705,8 @@ export const ORION_SUPPORTED_FIELDS = [
   { key: 'whatsapp', label: 'WhatsApp', required: false, description: 'Direct WhatsApp enabled number' },
   { key: 'email', label: 'Email', required: false, description: 'Official business or executive email' },
   { key: 'website', label: 'Website', required: false, description: 'Official domain / landing page URL' },
+  { key: 'linkedin', label: 'LinkedIn', required: false, description: 'Official LinkedIn company profile or page URL' },
+  { key: 'instagram', label: 'Instagram', required: false, description: 'Official Instagram profile page or handle URL' },
   { key: 'registrationDate', label: 'Registration Date', required: false, description: 'Incorporation or GST registration date' },
   { key: 'latitude', label: 'Latitude', required: false, description: 'Geo coordinate coordinate latitude' },
   { key: 'longitude', label: 'Longitude', required: false, description: 'Geo coordinate longitude' },

@@ -25,11 +25,11 @@ interface ImportDataViewProps {
 }
 
 const MOCK_PREVIEW_ROWS = [
-  { 'Entity Name': 'Kaveri Precision Tools LLP', 'Sector': 'Manufacturing', 'Location': 'Bengaluru', 'Contact Mobile': '9845012345', 'State': 'Karnataka', 'Postal Code': '560058', 'Web URL': 'https://kaveriprecision.in', 'Mail ID': 'sales@kaveriprecision.in' },
-  { 'Entity Name': 'Zenith Biotech & Diagnostics', 'Sector': 'Healthcare', 'Location': 'Hyderabad', 'Contact Mobile': '9123456789', 'State': 'Telangana', 'Postal Code': '500032', 'Web URL': '', 'Mail ID': 'zenithbio@gmail.com' },
-  { 'Entity Name': 'Gujarat Organic Fertilizers', 'Sector': 'Agro', 'Location': 'Ahmedabad', 'Contact Mobile': '7925831122', 'State': 'Gujarat', 'Postal Code': '382445', 'Web URL': 'https://gujaratorganic.co', 'Mail ID': 'info@gujaratorganic.co' },
-  { 'Entity Name': 'Metro Cargo Freight Solutions', 'Sector': 'Logistics', 'Location': 'Mumbai', 'Contact Mobile': '9820098200', 'State': 'Maharashtra', 'Postal Code': '400703', 'Web URL': 'https://metrocargo.in', 'Mail ID': 'ops@metrocargo.in' },
-  { 'Entity Name': 'Sunrise Solar Systems Pvt Ltd', 'Sector': 'Renewables', 'Location': 'Jaipur', 'Contact Mobile': '9414012345', 'State': 'Rajasthan', 'Postal Code': '302001', 'Web URL': 'https://sunrisesolar.com', 'Mail ID': 'contact@sunrisesolar.com' },
+  { 'Entity Name': 'Kaveri Precision Tools LLP', 'Sector': 'Manufacturing', 'Location': 'Bengaluru', 'Contact Mobile': '9845012345', 'State': 'Karnataka', 'Postal Code': '560058', 'Website': 'https://kaveriprecision.in', 'LinkedIn': 'https://linkedin.com/company/kaveriprecision', 'Instagram': 'https://instagram.com/kaveriprecision', 'Mail ID': 'sales@kaveriprecision.in' },
+  { 'Entity Name': 'Zenith Biotech & Diagnostics', 'Sector': 'Healthcare', 'Location': 'Hyderabad', 'Contact Mobile': '9123456789', 'State': 'Telangana', 'Postal Code': '500032', 'Website': 'https://zenithbio.com', 'LinkedIn': 'https://linkedin.com/company/zenithbio', 'Instagram': 'https://instagram.com/zenithbiotech', 'Mail ID': 'zenithbio@gmail.com' },
+  { 'Entity Name': 'Gujarat Organic Fertilizers', 'Sector': 'Agro', 'Location': 'Ahmedabad', 'Contact Mobile': '7925831122', 'State': 'Gujarat', 'Postal Code': '382445', 'Website': 'https://gujaratorganic.co', 'LinkedIn': 'https://linkedin.com/company/gujaratorganic', 'Instagram': 'https://instagram.com/gujaratorganic', 'Mail ID': 'info@gujaratorganic.co' },
+  { 'Entity Name': 'Metro Cargo Freight Solutions', 'Sector': 'Logistics', 'Location': 'Mumbai', 'Contact Mobile': '9820098200', 'State': 'Maharashtra', 'Postal Code': '400703', 'Website': 'https://metrocargo.in', 'LinkedIn': 'https://linkedin.com/company/metrocargo', 'Instagram': 'https://instagram.com/metrocargoin', 'Mail ID': 'ops@metrocargo.in' },
+  { 'Entity Name': 'Sunrise Solar Systems Pvt Ltd', 'Sector': 'Renewables', 'Location': 'Jaipur', 'Contact Mobile': '9414012345', 'State': 'Rajasthan', 'Postal Code': '302001', 'Website': 'https://sunrisesolar.com', 'LinkedIn': 'https://linkedin.com/company/sunrisesolar', 'Instagram': 'https://instagram.com/sunrisesolar', 'Mail ID': 'contact@sunrisesolar.com' },
 ];
 
 export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
@@ -42,7 +42,10 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
     'Contact Mobile': 'phone',
     'State': 'state',
     'Postal Code': 'pincode',
+    'Website': 'website',
     'Web URL': 'website',
+    'LinkedIn': 'linkedin',
+    'Instagram': 'instagram',
     'Mail ID': 'email'
   });
   const [isProcessing, setIsProcessing] = useState(false);
