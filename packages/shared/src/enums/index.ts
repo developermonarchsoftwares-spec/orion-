@@ -1,0 +1,159 @@
+export enum UserRole {
+  SUPER_ADMIN = 'SUPER_ADMIN',
+  ADMIN = 'ADMIN',
+  DATA_MANAGER = 'DATA_MANAGER',
+  MEMBER = 'MEMBER',
+  USER = 'USER',
+}
+
+export enum UserStatus {
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+  SUSPENDED = 'SUSPENDED',
+  PENDING_VERIFICATION = 'PENDING_VERIFICATION',
+}
+
+export enum BusinessStatus {
+  DRAFT = 'DRAFT',
+  PENDING_VALIDATION = 'PENDING_VALIDATION',
+  VERIFIED = 'VERIFIED',
+  PUBLISHED = 'PUBLISHED',
+  ARCHIVED = 'ARCHIVED',
+  REJECTED = 'REJECTED',
+}
+
+export enum BusinessOpportunityTier {
+  HIGH = 'HIGH',
+  MEDIUM = 'MEDIUM',
+  LOW = 'LOW',
+  NONE = 'NONE',
+}
+
+export enum BusinessType {
+  PRIVATE_LIMITED = 'PRIVATE_LIMITED',
+  PUBLIC_LIMITED = 'PUBLIC_LIMITED',
+  LLP = 'LLP',
+  PROPRIETORSHIP = 'PROPRIETORSHIP',
+  PARTNERSHIP = 'PARTNERSHIP',
+  OPC = 'OPC',
+  FOREIGN_COMPANY = 'FOREIGN_COMPANY',
+  TRUST = 'TRUST',
+  SOCIETY = 'SOCIETY',
+  OTHER = 'OTHER',
+}
+
+export enum MsmeCategory {
+  MICRO = 'MICRO',
+  SMALL = 'SMALL',
+  MEDIUM = 'MEDIUM',
+  ENTERPRISE = 'ENTERPRISE',
+  NOT_APPLICABLE = 'NOT_APPLICABLE',
+}
+
+export enum IdentifierType {
+  CIN = 'CIN',
+  GSTIN = 'GSTIN',
+  PAN = 'PAN',
+  UDYAM = 'UDYAM',
+  LEI = 'LEI',
+  TAN = 'TAN',
+  REG_NO = 'REG_NO',
+  OTHER = 'OTHER',
+}
+
+export enum DigitalPlatformType {
+  WEBSITE = 'WEBSITE',
+  LINKEDIN = 'LINKEDIN',
+  TWITTER = 'TWITTER',
+  FACEBOOK = 'FACEBOOK',
+  INSTAGRAM = 'INSTAGRAM',
+  YOUTUBE = 'YOUTUBE',
+  GITHUB = 'GITHUB',
+  CRUNCHBASE = 'CRUNCHBASE',
+  OTHER = 'OTHER',
+}
+
+export enum DataSourceType {
+  GOVERNMENT_REGISTRY = 'GOVERNMENT_REGISTRY',
+  WEB_SCRAPING = 'WEB_SCRAPING',
+  MANUAL_IMPORT = 'MANUAL_IMPORT',
+  API_INTEGRATION = 'API_INTEGRATION',
+  USER_SUBMISSION = 'USER_SUBMISSION',
+  PARTNER_FEED = 'PARTNER_FEED',
+}
+
+export enum ImportStatus {
+  PENDING = 'PENDING',
+  PARSING = 'PARSING',
+  PROCESSING = 'PROCESSING',
+  ENRICHING = 'ENRICHING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+}
+
+export enum ImportRecordStatus {
+  PENDING = 'PENDING',
+  NORMALIZED = 'NORMALIZED',
+  VALIDATED = 'VALIDATED',
+  FLAGGED_DUPLICATE = 'FLAGGED_DUPLICATE',
+  NEEDS_REVIEW = 'NEEDS_REVIEW',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+  MERGED = 'MERGED',
+  PUBLISHED = 'PUBLISHED',
+  FAILED = 'FAILED',
+}
+
+export enum ValidationSeverity {
+  ERROR = 'ERROR',
+  WARNING = 'WARNING',
+  INFO = 'INFO',
+}
+
+export enum DuplicateMatchType {
+  EXACT = 'EXACT',
+  IDENTIFIER = 'IDENTIFIER',
+  FUZZY_NAME = 'FUZZY_NAME',
+  LOCATION = 'LOCATION',
+}
+
+export enum ReviewAction {
+  APPROVE = 'APPROVE',
+  REJECT = 'REJECT',
+  MERGE = 'MERGE',
+  EDIT = 'EDIT',
+  PUBLISH = 'PUBLISH',
+}
+
+export enum SearchSyncStatus {
+  PENDING = 'PENDING',
+  SYNCED = 'SYNCED',
+  FAILED = 'FAILED',
+  RETRYING = 'RETRYING',
+}
+
+export enum CreditTransactionType {
+  PURCHASE = 'PURCHASE',
+  UNLOCK_LEAD = 'UNLOCK_LEAD',
+  EXPORT_DATA = 'EXPORT_DATA',
+  REFUND = 'REFUND',
+  ADMIN_ADJUSTMENT = 'ADMIN_ADJUSTMENT',
+  BONUS = 'BONUS',
+}
+
+export enum QueueName {
+  IMPORT_PROCESSING = 'import-processing',
+  DATA_ENRICHMENT = 'data-enrichment',
+  TYPESENSE_SYNC = 'typesense-sync',
+  DUPLICATE_DETECTION = 'duplicate-detection',
+  NOTIFICATION = 'notification',
+  AUDIT_LOG = 'audit-log',
+}
+
+export enum StorageProviderType {
+  S3 = 's3',
+  R2 = 'r2',
+  MINIO = 'minio',
+  LOCAL = 'local',
+}

@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789041177967,
+      "tag": "0000_bent_johnny_storm",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789059537220,
+      "tag": "0001_blushing_loa",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789061231383,
+      "tag": "0002_typical_clint_barton",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+export const TYPESENSE_CLIENT = 'TYPESENSE_CLIENT';

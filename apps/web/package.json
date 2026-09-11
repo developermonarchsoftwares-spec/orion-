@@ -1,0 +1,12 @@
+{
+  "name": "@orion/web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Orion Lead Intelligence Platform - Web Client",
+  "scripts": {
+    "dev": "npm --prefix ../../ownus run dev",
+    "build": "npm --prefix ../../ownus run build",
+    "start": "npm --prefix ../../ownus run start",
+    "lint": "npm --prefix ../../ownus run lint"
+  }
+}

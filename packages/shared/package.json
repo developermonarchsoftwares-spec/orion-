@@ -1,0 +1,14 @@
+{
+  "name": "@orion/shared",
+  "version": "1.0.0",
+  "description": "Shared types, enums, and constants for Orion Lead Intelligence Platform",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

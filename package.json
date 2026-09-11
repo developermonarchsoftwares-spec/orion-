@@ -1,0 +1,19 @@
+{
+  "name": "orion-platform",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "start:api": "npm --prefix apps/api run start:dev",
+    "start:web": "npm --prefix ownus run dev"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.1",
+    "typescript": "^5.7.3"
+  }
+}

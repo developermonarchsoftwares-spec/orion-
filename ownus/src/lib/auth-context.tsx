@@ -1,0 +1,209 @@
+'use client';
+
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { apiClient } from './api-client';
+
+export interface User {
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  displayName?: string;
+  avatarUrl?: string;
+  role: string;
+  status: string;
+  organizationName?: string | null;
+  companyName?: string | null;
+  isEmailVerified: boolean;
+  provider?: string;
+  googleLinked?: boolean;
+  microsoftLinked?: boolean;
+  hasPassword?: boolean;
+}
+
+export interface Wallet {
+  dailyCredits: number;
+  purchasedCredits: number;
+  balance: number;
+  lifetimePurchased: number;
+  lifetimeUsed: number;
+  lastDailyCreditDate?: string | null;
+}
+
+interface AuthContextType {
+  user: User | null;
+  wallet: Wallet | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  register: (data: any) => Promise<void>;
+  logout: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
+  handleOAuthTokens: (accessToken: string, refreshToken: string) => Promise<void>;
+  setWalletBalance: (balance: number, dailyCredits?: number, purchasedCredits?: number) => void;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [wallet, setWallet] = useState<Wallet | null>({
+    dailyCredits: 5,
+    purchasedCredits: 0,
+    balance: 5,
+    lifetimePurchased: 0,
+    lifetimeUsed: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  const refreshProfile = useCallback(async () => {
+    try {
+      if (!apiClient.getAccessToken()) {
+        setIsLoading(false);
+        return;
+      }
+      const profile = await apiClient.user.getProfile();
+      if (profile) {
+        setUser({
+          id: profile.id,
+          email: profile.email,
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          name: profile.name || profile.displayName || (profile.firstName ? `${profile.firstName} ${profile.lastName || ''}`.trim() : undefined),
+          displayName: profile.displayName || (profile.firstName ? `${profile.firstName} ${profile.lastName || ''}`.trim() : undefined),
+          avatarUrl: profile.avatarUrl,
+          role: profile.role,
+          status: profile.status,
+          organizationName: profile.organizationName,
+          isEmailVerified: profile.isEmailVerified,
+          provider: profile.provider,
+          googleLinked: profile.googleLinked,
+          microsoftLinked: profile.microsoftLinked,
+          hasPassword: profile.hasPassword,
+        });
+        if (profile.wallet) {
+          setWallet({
+            dailyCredits: profile.wallet.dailyCredits ?? 5,
+            purchasedCredits: profile.wallet.purchasedCredits ?? 0,
+            balance: profile.wallet.balance ?? 5,
+            lifetimePurchased: profile.wallet.lifetimePurchased ?? 0,
+            lifetimeUsed: profile.wallet.lifetimeUsed ?? 0,
+            lastDailyCreditDate: profile.wallet.lastDailyCreditDate,
+          });
+        } else if (typeof profile.credits === 'number') {
+          setWallet((w) => ({
+            dailyCredits: w?.dailyCredits ?? 5,
+            purchasedCredits: Math.max(0, profile.credits - (w?.dailyCredits ?? 5)),
+            balance: profile.credits,
+            lifetimePurchased: w?.lifetimePurchased || 0,
+            lifetimeUsed: w?.lifetimeUsed || 0,
+          }));
+        }
+      }
+    } catch {
+      // Token might be invalid
+      apiClient.clearTokens();
+      setUser(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshProfile();
+  }, [refreshProfile]);
+
+  const handleOAuthTokens = async (accessToken: string, refreshToken: string) => {
+    setIsLoading(true);
+    try {
+      apiClient.setTokens(accessToken, refreshToken);
+      await refreshProfile();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const login = async (email: string, password: string) => {
+    setIsLoading(true);
+    try {
+      const res = await apiClient.auth.login({ email, password });
+      apiClient.setTokens(res.tokens.accessToken, res.tokens.refreshToken);
+      setUser(res.user);
+      await refreshProfile();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const register = async (data: any) => {
+    setIsLoading(true);
+    try {
+      const res = await apiClient.auth.register(data);
+      apiClient.setTokens(res.tokens.accessToken, res.tokens.refreshToken);
+      setUser(res.user);
+      await refreshProfile();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await apiClient.auth.logout();
+    } catch {
+      // Ignore
+    } finally {
+      apiClient.clearTokens();
+      setUser(null);
+      setWallet(null);
+    }
+  };
+
+  const setWalletBalance = (newBalance: number, dailyCredits?: number, purchasedCredits?: number) => {
+    setWallet((prev) => {
+      if (!prev) {
+        return {
+          dailyCredits: dailyCredits ?? 5,
+          purchasedCredits: purchasedCredits ?? Math.max(0, newBalance - 5),
+          balance: newBalance,
+          lifetimePurchased: 0,
+          lifetimeUsed: 0,
+        };
+      }
+      return {
+        ...prev,
+        balance: newBalance,
+        dailyCredits: dailyCredits !== undefined ? dailyCredits : prev.dailyCredits,
+        purchasedCredits: purchasedCredits !== undefined ? purchasedCredits : prev.purchasedCredits,
+      };
+    });
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        wallet,
+        isAuthenticated: !!user,
+        isLoading,
+        login,
+        register,
+        logout,
+        refreshProfile,
+        handleOAuthTokens,
+        setWalletBalance,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}

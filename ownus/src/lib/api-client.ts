@@ -1,0 +1,250 @@
+/**
+ * Orion API Client - Production Frontend Integration
+ */
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  statusCode: number;
+  message?: string;
+  data: T;
+  timestamp: string;
+}
+
+class ApiClient {
+  private accessToken: string | null = null;
+  private refreshToken: string | null = null;
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      this.accessToken = localStorage.getItem('orion_access_token');
+      this.refreshToken = localStorage.getItem('orion_refresh_token');
+    }
+  }
+
+  setTokens(accessToken: string, refreshToken: string) {
+    this.accessToken = accessToken;
+    this.refreshToken = refreshToken;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('orion_access_token', accessToken);
+      localStorage.setItem('orion_refresh_token', refreshToken);
+    }
+  }
+
+  clearTokens() {
+    this.accessToken = null;
+    this.refreshToken = null;
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('orion_access_token');
+      localStorage.removeItem('orion_refresh_token');
+      localStorage.removeItem('orion_user');
+    }
+  }
+
+  getAccessToken() {
+    return this.accessToken;
+  }
+
+  async request<T = any>(
+    endpoint: string,
+    options: RequestInit = {},
+  ): Promise<T> {
+    const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+    const headers = new Headers(options.headers || {});
+
+    if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
+      headers.set('Content-Type', 'application/json');
+    }
+
+    if (this.accessToken) {
+      headers.set('Authorization', `Bearer ${this.accessToken}`);
+    }
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers,
+      });
+
+      // Handle 401 Unauthorized with automatic Token Refresh
+      if (response.status === 401 && this.refreshToken && !endpoint.includes('/auth/')) {
+        const refreshed = await this.tryRefreshToken();
+        if (refreshed) {
+          headers.set('Authorization', `Bearer ${this.accessToken}`);
+          const retryResponse = await fetch(url, { ...options, headers });
+          return this.parseResponse<T>(retryResponse);
+        }
+      }
+
+      return this.parseResponse<T>(response);
+    } catch (error) {
+      console.error(`API Error on [${options.method || 'GET'}] ${endpoint}:`, error);
+      throw error;
+    }
+  }
+
+  private async tryRefreshToken(): Promise<boolean> {
+    if (!this.refreshToken) return false;
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: this.refreshToken }),
+      });
+
+      if (!res.ok) {
+        this.clearTokens();
+        return false;
+      }
+
+      const payload = await res.json();
+      const tokenData = payload.data || payload;
+      this.setTokens(tokenData.accessToken, tokenData.refreshToken);
+      return true;
+    } catch {
+      this.clearTokens();
+      return false;
+    }
+  }
+
+  private async parseResponse<T>(response: Response): Promise<T> {
+    const contentType = response.headers.get('content-type');
+    let body: any = null;
+
+    if (contentType && contentType.includes('application/json')) {
+      body = await response.json();
+    } else {
+      body = await response.text();
+    }
+
+    if (!response.ok) {
+      const errorMsg = body?.message || body?.error || `HTTP ${response.status} - Request failed`;
+      const error = new Error(Array.isArray(errorMsg) ? errorMsg.join(', ') : errorMsg);
+      (error as any).statusCode = response.status;
+      (error as any).details = body;
+      throw error;
+    }
+
+    // Unwrap standardized TransformInterceptor format if present
+    if (body && typeof body === 'object' && 'data' in body && 'success' in body) {
+      return body.data as T;
+    }
+
+    return body as T;
+  }
+
+  // --- API Modules ---
+
+  auth = {
+    getMe: () => this.request('/auth/me'),
+    register: (dto: any) => this.request('/auth/register', { method: 'POST', body: JSON.stringify(dto) }),
+    login: (dto: any) => this.request('/auth/login', { method: 'POST', body: JSON.stringify(dto) }),
+    refresh: (refreshToken: string) => this.request('/auth/refresh', { method: 'POST', body: JSON.stringify({ refreshToken }) }),
+    logout: (refreshToken?: string) => this.request('/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken }) }),
+    changePassword: (dto: any) => this.request('/auth/change-password', { method: 'POST', body: JSON.stringify(dto) }),
+    forgotPassword: (email: string) => this.request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+    resetPassword: (dto: any) => this.request('/auth/reset-password', { method: 'POST', body: JSON.stringify(dto) }),
+    getGoogleUrl: (prompt?: string) => `${API_BASE_URL}/auth/google${prompt ? `?prompt=${prompt}` : ''}`,
+    getMicrosoftUrl: (prompt?: string) => `${API_BASE_URL}/auth/microsoft${prompt ? `?prompt=${prompt}` : ''}`,
+    getLinkGoogleUrl: () => `${API_BASE_URL}/auth/google?link=true`,
+    getLinkMicrosoftUrl: () => `${API_BASE_URL}/auth/microsoft?link=true`,
+    exchangeOAuthToken: (dto: { code: string; state?: string }) =>
+      this.request('/auth/oauth/token', { method: 'POST', body: JSON.stringify(dto) }),
+    linkProvider: (dto: { provider: 'google' | 'microsoft'; code: string; state?: string }) =>
+      this.request('/auth/link-provider', { method: 'POST', body: JSON.stringify(dto) }),
+    unlinkProvider: (dto: { provider: 'google' | 'microsoft' }) =>
+      this.request('/auth/unlink-provider', { method: 'POST', body: JSON.stringify(dto) }),
+  };
+
+  user = {
+    getProfile: () => this.request('/user/profile'),
+    updateProfile: (dto: any) => this.request('/user/profile', { method: 'PATCH', body: JSON.stringify(dto) }),
+    changePassword: (dto: any) => this.request('/user/change-password', { method: 'POST', body: JSON.stringify(dto) }),
+    updateSettings: (dto: any) => this.request('/user/settings', { method: 'PATCH', body: JSON.stringify(dto) }),
+  };
+
+  discover = {
+    search: (params: Record<string, any> = {}) => {
+      const queryStr = new URLSearchParams();
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') {
+          queryStr.append(k, String(v));
+        }
+      });
+      return this.request(`/discover/search?${queryStr.toString()}`);
+    },
+    getBusinessBySlug: (slug: string) => this.request(`/discover/businesses/${slug}`),
+    getRelated: (slug: string, limit = 4) => this.request(`/discover/businesses/${slug}/related?limit=${limit}`),
+    getSuggestions: (q?: string) => this.request(`/discover/suggestions${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  };
+
+  businesses = {
+    getById: (id: string) => this.request(`/businesses/${id}`),
+    getRelated: (id: string, limit = 4) => this.request(`/businesses/${id}/related?limit=${limit}`),
+  };
+
+  savedLeads = {
+    list: (params: Record<string, any> = {}) => {
+      const queryStr = new URLSearchParams();
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') queryStr.append(k, String(v));
+      });
+      return this.request(`/saved-leads?${queryStr.toString()}`);
+    },
+    save: (dto: any) => this.request('/saved-leads', { method: 'POST', body: JSON.stringify(dto) }),
+    update: (id: string, dto: any) => this.request(`/saved-leads/${id}`, { method: 'PATCH', body: JSON.stringify(dto) }),
+    remove: (id: string) => this.request(`/saved-leads/${id}`, { method: 'DELETE' }),
+    bulkSave: (dto: any) => this.request('/saved-leads/bulk-save', { method: 'POST', body: JSON.stringify(dto) }),
+    bulkDelete: (dto: any) => this.request('/saved-leads/bulk-delete', { method: 'POST', body: JSON.stringify(dto) }),
+  };
+
+  savedSearches = {
+    list: () => this.request('/saved-searches'),
+    get: (id: string) => this.request(`/saved-searches/${id}`),
+    create: (dto: any) => this.request('/saved-searches', { method: 'POST', body: JSON.stringify(dto) }),
+    update: (id: string, dto: any) => this.request(`/saved-searches/${id}`, { method: 'PATCH', body: JSON.stringify(dto) }),
+    delete: (id: string) => this.request(`/saved-searches/${id}`, { method: 'DELETE' }),
+    run: (id: string) => this.request(`/saved-searches/${id}/run`, { method: 'POST' }),
+  };
+
+  credit = {
+    getWallet: () => this.request('/credit/wallet'),
+    getTransactions: (page = 1, limit = 20) => this.request(`/credit/transactions?page=${page}&limit=${limit}`),
+    getPackages: () => this.request('/credit/packages'),
+    getConfig: () => this.request('/credit/config'),
+    admin: {
+      getPackages: () => this.request('/credit/admin/packages'),
+      createPackage: (dto: any) => this.request('/credit/admin/packages', { method: 'POST', body: JSON.stringify(dto) }),
+      updatePackage: (id: string, dto: any) => this.request(`/credit/admin/packages/${id}`, { method: 'PUT', body: JSON.stringify(dto) }),
+      deletePackage: (id: string) => this.request(`/credit/admin/packages/${id}`, { method: 'DELETE' }),
+      updateConfig: (dto: { key: string; value: any; description?: string }) => this.request('/credit/admin/config', { method: 'PUT', body: JSON.stringify(dto) }),
+      adjustCredits: (dto: { userId: string; dailyDelta: number; purchasedDelta: number; reason: string }) => this.request('/credit/admin/adjust', { method: 'POST', body: JSON.stringify(dto) }),
+    },
+  };
+
+  unlock = {
+    unlockBusiness: (businessId: string) => this.request('/unlock/business', { method: 'POST', body: JSON.stringify({ businessId }) }),
+    getHistory: (page = 1, limit = 20) => this.request(`/unlock/history?page=${page}&limit=${limit}`),
+    checkStatus: (businessId: string) => this.request(`/unlock/status/${businessId}`),
+  };
+
+  payments = {
+    createOrder: (dto: any) => this.request('/payments/create-order', { method: 'POST', body: JSON.stringify(dto) }),
+    verify: (dto: any) => this.request('/payments/verify', { method: 'POST', body: JSON.stringify(dto) }),
+    getHistory: () => this.request('/payments/history'),
+  };
+
+  dashboard = {
+    getSummary: () => this.request('/dashboard/summary'),
+  };
+
+  settings = {
+    getSettings: () => this.request('/settings'),
+    updateCompany: (dto: any) => this.request('/settings/company', { method: 'PATCH', body: JSON.stringify(dto) }),
+    updateNotifications: (dto: any) => this.request('/settings/notifications', { method: 'PATCH', body: JSON.stringify(dto) }),
+    updateBilling: (dto: any) => this.request('/settings/billing', { method: 'PATCH', body: JSON.stringify(dto) }),
+  };
+}
+
+export const apiClient = new ApiClient();
