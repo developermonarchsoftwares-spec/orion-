@@ -15,7 +15,7 @@ export class BusinessIdentifierRepository {
   async findByTypeAndValue(type: IdentifierType, normalizedValue: string) {
     return this.db.query.businessIdentifiers.findFirst({
       where: and(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         eq(schema.businessIdentifiers.type, type as any),
         eq(schema.businessIdentifiers.normalizedValue, normalizedValue),
       ),

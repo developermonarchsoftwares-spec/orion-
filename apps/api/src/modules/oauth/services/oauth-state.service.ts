@@ -80,7 +80,10 @@ export class OAuthStateService {
       .update(payloadBase64)
       .digest('base64url');
 
-    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+    const sigBuf = Buffer.from(signature);
+    const expectedSigBuf = Buffer.from(expectedSignature);
+
+    if (sigBuf.length !== expectedSigBuf.length || !crypto.timingSafeEqual(sigBuf, expectedSigBuf)) {
       this.logger.warn('OAuth state HMAC signature mismatch - possible tampering');
       return { valid: false };
     }
@@ -97,10 +100,12 @@ export class OAuthStateService {
         return { valid: false };
       }
 
-      // Check in-memory store if present (for replay protection)
-      if (this.stateStore.has(state)) {
-        this.stateStore.delete(state); // One-time use to prevent replay attacks
+      // Enforce strict replay protection: state must exist in store and is consumed once
+      if (!this.stateStore.has(state)) {
+        this.logger.warn('OAuth state token has already been consumed or is invalid (replay prevented)');
+        return { valid: false };
       }
+      this.stateStore.delete(state); // One-time use to prevent replay attacks
 
       return { valid: true, payload };
     } catch (err: any) {

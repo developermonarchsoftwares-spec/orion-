@@ -87,6 +87,23 @@ export class OAuthService {
       );
     }
 
+    if (!code || typeof code !== 'string' || code.trim().length === 0) {
+      throw new BusinessException(
+        'Missing authorization code from OAuth provider.',
+        'MISSING_AUTHORIZATION_CODE',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (payload.provider && payload.provider.toUpperCase() !== providerKey.toUpperCase()) {
+      this.logger.warn(`Provider mismatch: state was generated for ${payload.provider} but received callback for ${providerKey}`);
+      throw new BusinessException(
+        'OAuth provider mismatch detected.',
+        'PROVIDER_MISMATCH',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     const provider = this.providers.get(providerKey.toUpperCase());
     if (!provider) {
       throw new BusinessException(`Unsupported OAuth provider: ${providerKey}`, 'INVALID_PROVIDER', HttpStatus.BAD_REQUEST);

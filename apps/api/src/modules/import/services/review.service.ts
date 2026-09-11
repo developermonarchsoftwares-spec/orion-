@@ -28,7 +28,7 @@ export class ReviewService {
     // 1. Update review record
     const updatedReview = await this.reviewRepo.updateDecision(
       reviewId,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       decision as any,
       reviewerId,
       notes,

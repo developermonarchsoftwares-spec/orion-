@@ -36,7 +36,7 @@ export class ImportPipelineService {
 
     // 1. Normalization Stage
     const normalized = this.normalizationService.normalizeRecord(rawPayload);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     await this.recordRepo.updateStatus(record.id, 'NORMALIZED', normalized as any);
 
     // 2. Validation Stage
@@ -59,7 +59,7 @@ export class ImportPipelineService {
 
     if (!validation.isValid) {
       this.logger.warn(`Record ${record.id} failed validation rules`);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       await this.recordRepo.updateStatus(record.id, 'FAILED', normalized as any, {
         validationLogs: validation.logs,
       });
@@ -71,7 +71,7 @@ export class ImportPipelineService {
 
     if (duplicateMatches.length > 0) {
       this.logger.log(`Record ${record.id} matched ${duplicateMatches.length} existing duplicate candidates`);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       await this.recordRepo.updateStatus(record.id, 'FLAGGED_DUPLICATE', normalized as any);
 
       // Create duplicate cluster
@@ -106,7 +106,7 @@ export class ImportPipelineService {
     }
 
     // 4. If clean and approved -> Enqueue for Publishing
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     await this.recordRepo.updateStatus(record.id, 'APPROVED', normalized as any);
     const publishItem = await this.publishRepo.enqueue({
       recordId: record.id,

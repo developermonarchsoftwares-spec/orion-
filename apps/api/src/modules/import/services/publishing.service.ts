@@ -55,7 +55,7 @@ export class PublishingService {
           isPrimary: c.isPrimary,
         })),
         digitalPresences: payload.digitalPresences?.map((d) => ({
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           platform: d.platform as any,
           url: d.url,
           domain: d.domain,

@@ -14,7 +14,7 @@ export class AuthenticationMiddleware implements NestMiddleware {
       const token = authHeader.substring(7);
       try {
         const payload = await this.tokenService.verifyAccessToken(token);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         (req as any).user = payload;
       } catch {
         // Token invalid or expired - guard will handle enforcement if endpoint is not public

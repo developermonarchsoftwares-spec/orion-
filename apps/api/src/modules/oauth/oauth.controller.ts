@@ -153,6 +153,7 @@ export class OAuthController {
 
   @UseGuards(JwtAuthGuard)
   @Post('link-provider')
+  @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Initiate OAuth account linking for current authenticated user' })
   async linkProvider(
@@ -165,6 +166,7 @@ export class OAuthController {
 
   @UseGuards(JwtAuthGuard)
   @Post('unlink-provider')
+  @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Unlink an identity provider from current account' })
   async unlinkProvider(

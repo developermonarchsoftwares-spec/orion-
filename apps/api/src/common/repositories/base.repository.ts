@@ -19,11 +19,11 @@ export interface IPaginatedResult<T> {
 
 @Injectable()
 export abstract class BaseRepository<
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   TTable extends PgTable<any>,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   TSelect = any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   TInsert = any,
 > {
   constructor(
@@ -33,13 +33,13 @@ export abstract class BaseRepository<
   ) {}
 
   async findById(id: string): Promise<TSelect | null> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const idColumn = (this.table as any).id;
     if (!idColumn) {
       throw new Error(`Table does not have an 'id' column`);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const rows: any = await (this.db as any)
       .select()
       .from(this.table)
@@ -52,7 +52,7 @@ export abstract class BaseRepository<
   async findMany(options: IFindManyOptions = {}): Promise<TSelect[]> {
     const { limit = 20, offset = 0, where, orderBy } = options;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     let query: any = (this.db as any).select().from(this.table);
 
     if (where) {
@@ -78,7 +78,7 @@ export abstract class BaseRepository<
   ): Promise<IPaginatedResult<TSelect>> {
     const offset = (page - 1) * limit;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     let countQuery: any = (this.db as any).select({ total: count() }).from(this.table);
     if (where) {
       countQuery = countQuery.where(where);
@@ -109,22 +109,22 @@ export abstract class BaseRepository<
   }
 
   async create(data: TInsert): Promise<TSelect> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const rows: any = await (this.db as any).insert(this.table).values(data).returning();
     return rows[0] as TSelect;
   }
 
   async createMany(data: TInsert[]): Promise<TSelect[]> {
     if (data.length === 0) return [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const rows: any = await (this.db as any).insert(this.table).values(data).returning();
     return rows as TSelect[];
   }
 
   async updateById(id: string, data: Partial<TInsert>): Promise<TSelect | null> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const idColumn = (this.table as any).id;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const rows: any = await (this.db as any)
       .update(this.table)
       .set(data)
@@ -135,9 +135,9 @@ export abstract class BaseRepository<
   }
 
   async deleteById(id: string): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const idColumn = (this.table as any).id;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const result: any = await (this.db as any)
       .delete(this.table)
       .where(eq(idColumn, id));

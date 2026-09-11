@@ -17,7 +17,7 @@ export class TypesenseService {
 
   async ping(): Promise<boolean> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const health: any = await (this.client as any).health?.retrieve?.() ?? await this.client.collections().retrieve();
       return health !== null && health !== undefined;
     } catch (error) {

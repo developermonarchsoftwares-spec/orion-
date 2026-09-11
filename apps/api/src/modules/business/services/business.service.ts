@@ -115,10 +115,10 @@ export class BusinessService {
           industryId: input.industryId,
           categoryId: input.categoryId,
           businessTypeId: input.businessTypeId,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           businessType: (input.businessType as any) || 'PRIVATE_LIMITED',
           msmeCategoryId: input.msmeCategoryId,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           msmeCategory: (input.msmeCategory as any) || 'NOT_APPLICABLE',
           description: input.description,
           foundingYear: input.foundingYear,
@@ -170,7 +170,7 @@ export class BusinessService {
         await tx.insert(schema.digitalPresences).values(
           input.digitalPresences.map((dp) => ({
             businessId: business.id,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             platform: dp.platform as any,
             handle: dp.handle,
             url: dp.url,
@@ -185,7 +185,7 @@ export class BusinessService {
         await tx.insert(schema.businessIdentifiers).values(
           input.identifiers.map((ident, idx) => ({
             businessId: business.id,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             type: ident.type as any,
             value: ident.value.trim(),
             normalizedValue: ident.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, ''),
