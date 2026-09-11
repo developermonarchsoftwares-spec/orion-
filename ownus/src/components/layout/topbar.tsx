@@ -162,13 +162,6 @@ export function Topbar() {
                 >
                   Account Settings
                 </Link>
-                <Link 
-                  href="/admin" 
-                  className="block px-4 py-1.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
-                  onClick={() => setDropdownOpen(false)}
-                >
-                  Admin Console
-                </Link>
               </div>
               <div className="border-t border-zinc-200 dark:border-zinc-800 py-1">
                 <button 

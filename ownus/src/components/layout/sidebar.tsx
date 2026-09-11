@@ -26,7 +26,6 @@ const NAV_ITEMS = [
 
 const FOOTER_NAV_ITEMS = [
   { label: 'Settings', icon: Settings, href: '/settings' },
-  { label: 'Admin', icon: Shield, href: '/admin' },
 ];
 
 export function Sidebar() {

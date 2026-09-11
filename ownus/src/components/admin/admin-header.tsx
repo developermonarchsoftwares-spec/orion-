@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { 
   Search, 
   UploadCloud, 
@@ -13,6 +14,7 @@ import {
   UserPlus,
   LifeBuoy,
   FileCheck2,
+  ExternalLink,
   X
 } from 'lucide-react';
 import { AdminTab } from './admin-sidebar';
@@ -345,6 +347,16 @@ export function AdminHeader({
             <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
           </button>
         )}
+
+        {/* Exit to User Portal */}
+        <Link
+          href="/dashboard"
+          title="Exit Admin Console to User Portal"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-white bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 transition-colors"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">User Portal</span>
+        </Link>
 
         {/* Quick Ingest Button */}
         <button
