@@ -1,0 +1,188 @@
+# Orion Enterprise Platform — Production Environment Variables Guide
+
+This document provides a comprehensive, production-grade reference of all environment variables required to run the Orion Platform, including the Next.js Frontend, NestJS Backend, PostgreSQL Database, Redis Caching, Typesense Search, Object Storage, Razorpay Payment Gateway, OAuth SSO, and Transactional Email services.
+
+---
+
+## Table of Contents
+1. [Core Application & Routing](#1-core-application--routing)
+2. [Database (PostgreSQL & Drizzle ORM)](#2-database-postgresql--drizzle-orm)
+3. [Security & JWT Authentication](#3-security--jwt-authentication)
+4. [Search Engine (Typesense)](#4-search-engine-typesense)
+5. [Cache & Queues (Redis & BullMQ)](#5-cache--queues-redis--bullmq)
+6. [Object Storage (Cloudflare R2 / AWS S3)](#6-object-storage-cloudflare-r2--aws-s3)
+7. [Payment Gateway (Razorpay)](#7-payment-gateway-razorpay)
+8. [Enterprise Single Sign-On (OAuth 2.0)](#8-enterprise-single-sign-on-oauth-20)
+9. [Transactional Email & Real OTP Delivery (SMTP / Resend)](#9-transactional-email--real-otp-delivery-smtp--resend)
+10. [How to Configure in Vercel & Production Hosts](#10-how-to-configure-in-vercel--production-hosts)
+
+---
+
+## 1. Core Application & Routing
+
+These variables configure application runtime mode, ports, base URLs, and CORS security headers.
+
+| Variable Name | Required | Default / Example | Purpose |
+| :--- | :---: | :--- | :--- |
+| `NODE_ENV` | **Yes** | `production` | Enables production optimizations, minification, and security flags. |
+| `PORT` | **Yes** | `4000` | Local port for the backend server process. |
+| `API_PREFIX` | **Yes** | `/api/v1` | URL path prefix for all REST API endpoints. |
+| `APP_NAME` | No | `Orion Lead Intelligence Platform` | Brand display name used in system logs and OpenAPI docs. |
+| `APP_URL` | **Yes** | `https://orion-api-snowy.vercel.app` | Canonical backend API domain. |
+| `CORS_ORIGINS` | **Yes** | `https://orion-api-snowy.vercel.app` | Comma-separated allowed frontend origins for CORS browser security. |
+| `NEXT_PUBLIC_API_URL` | **Yes** | `https://orion-api-snowy.vercel.app/api/v1` | Public API endpoint used by client-side React components. |
+| `NEXT_PUBLIC_APP_URL` | **Yes** | `https://orion-api-snowy.vercel.app` | Public web application domain. |
+| `BACKEND_API_URL` | No | `https://orion-api-snowy.vercel.app/api/v1` | Upstream API target used by Next.js serverless proxy route. |
+| `LOG_LEVEL` | No | `info` | Logger verbosity (`error`, `warn`, `info`, `debug`). |
+
+---
+
+## 2. Database (PostgreSQL & Drizzle ORM)
+
+Orion relies on PostgreSQL 15+ for relational persistence, user accounts, audit logs, and transaction ledgers. Compatible with **Neon.tech**, **Supabase**, **AWS RDS**, or self-hosted PostgreSQL.
+
+| Variable Name | Required | Example Value | Description |
+| :--- | :---: | :--- | :--- |
+| `DATABASE_URL` | **Yes** | `postgresql://user:pass@ep-cool.neon.tech/orion_db?sslmode=require` | Connection string pooling queries via pgBouncer/Neon. |
+| `DB_SSL` | **Yes** | `true` | Requires SSL/TLS encryption for all database connections. |
+| `DB_MAX_CONNECTIONS` | No | `20` | Maximum number of concurrent connections in the connection pool. |
+| `DB_IDLE_TIMEOUT_MS` | No | `30000` | Time in milliseconds before an idle connection is released. |
+
+---
+
+## 3. Security & JWT Authentication
+
+Stateless authentication for customer subscribers and corporate administrators.
+
+| Variable Name | Required | Format / Generation | Description |
+| :--- | :---: | :--- | :--- |
+| `JWT_ACCESS_SECRET` | **Yes** | 64-char random hex string | Secret used to sign short-lived access tokens (15m). |
+| `JWT_REFRESH_SECRET` | **Yes** | 64-char random hex string | Secret used to sign persistent refresh tokens (7d). |
+| `JWT_ACCESS_EXPIRES_IN` | No | `15m` | Lifetime of the bearer access token. |
+| `JWT_REFRESH_EXPIRES_IN` | No | `7d` | Lifetime of the refresh token. |
+| `JWT_ISSUER` | No | `orion-api` | JWT token issuer claim (`iss`). |
+| `JWT_AUDIENCE` | No | `orion-client` | JWT token audience claim (`aud`). |
+
+> **Security Tip**: Generate secure secrets on your terminal using:
+> ```bash
+> node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+> ```
+
+---
+
+## 4. Search Engine (Typesense)
+
+Powers real-time, sub-50ms search, autocomplete, geo-distance radius, and multi-facet filtering across 1.2M+ business records.
+
+| Variable Name | Required | Example (Typesense Cloud) | Description |
+| :--- | :---: | :--- | :--- |
+| `TYPESENSE_NODES` | **Yes** | `xxx-1.a1.typesense.net` | Hostname of your cluster (without protocol or port). |
+| `TYPESENSE_PORT` | **Yes** | `443` | `443` for Cloud HTTPS, `8108` for local self-hosted. |
+| `TYPESENSE_PROTOCOL` | **Yes** | `https` | Protocol scheme (`https` or `http`). |
+| `TYPESENSE_API_KEY` | **Yes** | `xyz123_master_admin_key` | Master API Key with full read/write schema permissions. |
+| `TYPESENSE_CONNECTION_TIMEOUT_SECONDS` | No | `5` | Client socket timeout limit. |
+
+---
+
+## 5. Cache & Queues (Redis & BullMQ)
+
+Powers rate limiting, lead unlock idempotency, live session store, and background queue workers for asynchronous CSV/Excel batch ingestion.
+
+| Variable Name | Required | Example (Upstash) | Description |
+| :--- | :---: | :--- | :--- |
+| `REDIS_HOST` | **Yes** | `orion-cache.upstash.io` | Hostname of the Redis instance. |
+| `REDIS_PORT` | **Yes** | `6379` | Default Redis TCP port. |
+| `REDIS_PASSWORD` | **Yes** | `AXxxxxBA...` | Authentication password or token. |
+| `REDIS_TLS` | **Yes** | `true` | Must be `true` for cloud providers like Upstash or Redis Cloud. |
+| `REDIS_DB` | No | `0` | Redis logical database index. |
+
+---
+
+## 6. Object Storage (Cloudflare R2 / AWS S3)
+
+Used to store uploaded CSV/Excel import batches, data exports, company logos, and generated invoices.
+
+| Variable Name | Required | Example (Cloudflare R2) | Description |
+| :--- | :---: | :--- | :--- |
+| `STORAGE_PROVIDER` | **Yes** | `r2` | Storage driver: `r2`, `s3`, or `minio`. |
+| `STORAGE_BUCKET` | **Yes** | `orion-production-assets` | Target bucket name. |
+| `STORAGE_REGION` | **Yes** | `auto` | Bucket region (`auto` for R2, `us-east-1` for S3). |
+| `STORAGE_ENDPOINT` | **Yes** | `https://<account_id>.r2.cloudflarestorage.com` | S3-compatible API endpoint URL. |
+| `STORAGE_ACCESS_KEY` | **Yes** | `0123456789abcdef...` | S3 Access Key ID. |
+| `STORAGE_SECRET_KEY` | **Yes** | `abcdef0123456789...` | S3 Secret Access Key. |
+| `STORAGE_FORCE_PATH_STYLE` | No | `false` | Path-style URL addressing toggle. |
+| `STORAGE_PUBLIC_URL_PREFIX` | No | `https://assets.yourdomain.com` | Public CDN URL for serving stored assets. |
+
+---
+
+## 7. Payment Gateway (Razorpay)
+
+Powers platform credit purchases, subscription plans, and automatic GST compliant invoice generation.
+
+| Variable Name | Required | Source | Description |
+| :--- | :---: | :--- | :--- |
+| `RAZORPAY_KEY_ID` | **Yes** | Razorpay Dashboard ➔ API Keys | Public identifier (`rzp_live_...` or `rzp_test_...`). |
+| `RAZORPAY_KEY_SECRET` | **Yes** | Razorpay Dashboard ➔ API Keys | Secret key used for backend order creation and signature checks. |
+| `RAZORPAY_WEBHOOK_SECRET`| **Yes** | Razorpay Dashboard ➔ Webhooks | HMAC secret to verify automated payment settlement webhooks. |
+
+---
+
+## 8. Enterprise Single Sign-On (OAuth 2.0)
+
+Enables users to sign up and sign in using Google and Microsoft 365 accounts with automated account linking.
+
+### Google OAuth:
+| Variable Name | Required | Description |
+| :--- | :---: | :--- |
+| `GOOGLE_CLIENT_ID` | Optional | Google OAuth 2.0 Client ID from Google Cloud Console. |
+| `GOOGLE_CLIENT_SECRET` | Optional | Google OAuth Client Secret. |
+| `GOOGLE_CALLBACK_URL` | Optional | `https://orion-api-snowy.vercel.app/api/v1/auth/google/callback` |
+
+### Microsoft Azure AD OAuth:
+| Variable Name | Required | Description |
+| :--- | :---: | :--- |
+| `MICROSOFT_CLIENT_ID` | Optional | Application (Client) ID from Azure Portal. |
+| `MICROSOFT_CLIENT_SECRET` | Optional | Client Secret Value generated in Certificates & Secrets. |
+| `MICROSOFT_TENANT_ID` | Optional | `common` (for any Microsoft personal/work account) or Directory ID. |
+| `MICROSOFT_CALLBACK_URL` | Optional | `https://orion-api-snowy.vercel.app/api/v1/auth/microsoft/callback` |
+
+---
+
+## 9. Transactional Email & Real OTP Delivery (SMTP / Resend)
+
+Essential for dispatching real 6-digit verification codes to administrator emails and sending customer password resets and invoice receipts.
+
+| Variable Name | Required | Recommended Provider | Description |
+| :--- | :---: | :--- | :--- |
+| `RESEND_API_KEY` | Recommended | [Resend.com](https://resend.com) | Dedicated API Key (`re_...`) for modern HTTP email dispatch. |
+| `SMTP_HOST` | If using SMTP | `smtp.resend.com` or custom | SMTP outbound mail server hostname. |
+| `SMTP_PORT` | If using SMTP | `465` (SSL) or `587` (TLS) | Standard SMTP submission port. |
+| `SMTP_SECURE` | If using SMTP | `true` | Enable TLS/SSL wrapper. |
+| `SMTP_USER` | If using SMTP | Username / `resend` | SMTP authentication user. |
+| `SMTP_PASS` | If using SMTP | Password / API Key | SMTP authentication password or app token. |
+| `SMTP_FROM` | **Yes** | `"Monarch Security" <security@yourdomain.com>` | Sender identity displayed in recipient inboxes. |
+
+---
+
+## 10. How to Configure in Vercel & Production Hosts
+
+### Adding to Vercel (Recommended)
+1. Go to your **Vercel Dashboard** ➔ Select project **`orion-api`**.
+2. Navigate to **Settings** ➔ **Environment Variables**.
+3. Add the required variables from the list above.
+4. Select all environments: **Production**, **Preview**, and **Development**.
+5. Trigger a redeploy (or push a commit to `main`) to activate the new values immediately.
+
+---
+
+## Summary of Recommended Free-Tier Stack
+
+| Service Component | Recommended Provider | Free Tier Allowance |
+| :--- | :--- | :--- |
+| **PostgreSQL Database** | [Neon.tech](https://neon.tech) | 0.5 GB storage, serverless compute |
+| **Redis Cache** | [Upstash.com](https://upstash.com) | 10,000 commands/day, serverless |
+| **Search Engine** | [Typesense Cloud](https://cloud.typesense.org) | Free trial / Self-host on $5 VPS |
+| **Object Storage** | [Cloudflare R2](https://cloudflare.com) | 10 GB free, $0 egress fees |
+| **Transactional Email** | [Resend.com](https://resend.com) | 3,000 emails/month free |
+| **Payment Gateway** | [Razorpay](https://razorpay.com) | Free sandbox testing |
+| **Web & API Hosting** | [Vercel](https://vercel.com) | Unlimited deployments |
