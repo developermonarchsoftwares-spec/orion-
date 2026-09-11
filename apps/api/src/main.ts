@@ -1,19 +1,13 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { ValidationPipe, Logger, INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import compression from 'compression';
 import { AppModule } from './app.module';
 
-async function bootstrap() {
-  const logger = new Logger('OrionBootstrap');
-  const app = await NestFactory.create(AppModule, {
-    bufferLogs: true,
-  });
-
+function setupApp(app: INestApplication) {
   const configService = app.get(ConfigService);
-  const port = configService.get<number>('app.port', 4000);
   const apiPrefix = configService.get<string>('app.apiPrefix', '/api/v1');
   const appName = configService.get<string>('app.appName', 'Orion Backend API');
   const corsOrigins = configService.get<string[]>('app.corsOrigins', ['http://localhost:3000']);
@@ -95,6 +89,18 @@ async function bootstrap() {
     },
   });
 
+  return { configService, apiPrefix, appName };
+}
+
+async function bootstrap() {
+  const logger = new Logger('OrionBootstrap');
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+  });
+
+  const { configService, apiPrefix, appName } = setupApp(app);
+  const port = configService.get<number>('app.port', 4000);
+
   await app.listen(port);
 
   logger.log(`=======================================================`);
@@ -105,4 +111,24 @@ async function bootstrap() {
   logger.log(`=======================================================`);
 }
 
-bootstrap();
+// Vercel Serverless entry point
+let serverlessExpress: any;
+
+async function bootstrapServerless() {
+  if (!serverlessExpress) {
+    const app = await NestFactory.create(AppModule, { bufferLogs: true });
+    setupApp(app);
+    await app.init();
+    serverlessExpress = app.getHttpAdapter().getInstance();
+  }
+  return serverlessExpress;
+}
+
+if (!process.env.VERCEL) {
+  bootstrap();
+}
+
+export default async function handler(req: any, res: any) {
+  const server = await bootstrapServerless();
+  return server(req, res);
+}
