@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Mail, Lock, Eye, EyeOff, User, Building2, Loader2, Sparkles } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, User, Building2, Loader2, Sparkles, AlertCircle, ArrowRight } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
@@ -52,6 +52,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [existingAccountError, setExistingAccountError] = useState<string | null>(null);
 
   const handleOAuthRegister = (provider: "google" | "microsoft") => {
     const url = provider === "google" 
@@ -90,6 +91,7 @@ export default function RegisterPage() {
     const firstName = parts[0] || "User";
     const lastName = parts.slice(1).join(" ") || "";
 
+    setExistingAccountError(null);
     setIsLoading(true);
     try {
       await register({
@@ -103,7 +105,17 @@ export default function RegisterPage() {
       toast.success("Account created successfully! 5 daily free credits allocated.");
       router.push("/dashboard");
     } catch (err: any) {
-      toast.error(err.message || "Failed to create account. Please try again.");
+      const isAlreadyExists =
+        err.statusCode === 409 ||
+        err.details?.errorCode === 'EMAIL_ALREADY_EXISTS' ||
+        err.message?.toLowerCase().includes('already exists');
+
+      if (isAlreadyExists) {
+        setExistingAccountError(err.message || "An account with this email already exists.");
+        toast.error("Account already exists. Please log in to continue.");
+      } else {
+        toast.error(err.message || "Failed to create account. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -123,6 +135,31 @@ export default function RegisterPage() {
           Instant access to verified business intelligence
         </p>
       </div>
+
+      {existingAccountError && (
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-300 text-xs flex flex-col gap-3 animate-in fade-in-50 zoom-in-95 shadow-xs">
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+            <div className="space-y-1 flex-1">
+              <p className="font-semibold text-sm text-amber-900 dark:text-amber-200">
+                Account Already Exists
+              </p>
+              <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed text-xs">
+                An account associated with <strong className="text-zinc-900 dark:text-white font-medium">{email}</strong> already exists. Please log in to access your dashboard.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 pt-1 border-t border-amber-500/20">
+            <Link
+              href={`/login?email=${encodeURIComponent(email)}`}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white transition-colors cursor-pointer shadow-xs"
+            >
+              <span>Login to continue</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-5">
         {/* Primary Enterprise OAuth Options */}
@@ -215,7 +252,10 @@ export default function RegisterPage() {
                 autoComplete="email"
                 autoCorrect="off"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (existingAccountError) setExistingAccountError(null);
+                }}
                 className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 pl-10 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-100"
                 required
               />

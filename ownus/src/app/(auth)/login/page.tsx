@@ -53,12 +53,19 @@ function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
 
   const errorParam = searchParams.get("error");
+  const emailParam = searchParams.get("email");
 
   useEffect(() => {
     if (errorParam) {
       toast.error(decodeURIComponent(errorParam));
     }
   }, [errorParam]);
+
+  useEffect(() => {
+    if (emailParam) {
+      setEmail(decodeURIComponent(emailParam));
+    }
+  }, [emailParam]);
 
   const handleOAuthLogin = (provider: "google" | "microsoft") => {
     const url = provider === "google" 

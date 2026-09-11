@@ -55,6 +55,30 @@ registeredUsers.set('alex@acmedigital.com', {
   },
 });
 
+registeredUsers.set('subash@monarchsoftwares.com', {
+  id: 'usr_subash_monarch',
+  email: 'subash@monarchsoftwares.com',
+  firstName: 'SUBASH',
+  lastName: '',
+  name: 'SUBASH',
+  displayName: 'SUBASH',
+  role: 'USER',
+  status: 'ACTIVE',
+  organizationName: 'MONARCH',
+  companyName: 'MONARCH',
+  isEmailVerified: true,
+  provider: 'email',
+  hasPassword: true,
+  wallet: {
+    dailyCredits: 5,
+    purchasedCredits: 20,
+    balance: 25,
+    lifetimePurchased: 0,
+    lifetimeUsed: 0,
+    lastDailyCreditDate: new Date().toISOString().split('T')[0],
+  },
+});
+
 function createResponse(data: any, statusCode = 200, message = 'Success') {
   return NextResponse.json(
     {
@@ -429,6 +453,19 @@ export async function POST(req: NextRequest, context: { params: Promise<{ path: 
     }
 
     const cleanEmail = String(email).toLowerCase().trim();
+
+    // Check if account already exists
+    const registeredCookie = req.cookies.get('orion_registered_accounts')?.value || '';
+    const registeredList = registeredCookie.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+
+    if (registeredUsers.has(cleanEmail) || registeredList.includes(cleanEmail)) {
+      return createErrorResponse(
+        'An account with this email already exists. Please log in to continue.',
+        409,
+        'EMAIL_ALREADY_EXISTS'
+      );
+    }
+
     const cleanFirstName = (firstName || displayName || cleanEmail.split('@')[0] || 'User').trim();
     const cleanLastName = (lastName || '').trim();
     const cleanDisplayName = (displayName || `${cleanFirstName} ${cleanLastName}`.trim()).trim();
@@ -461,7 +498,8 @@ export async function POST(req: NextRequest, context: { params: Promise<{ path: 
     registeredUsers.set(cleanEmail, newUser);
     const tokens = generateTokens(newUser);
 
-    return createResponse(
+    const updatedCookieList = Array.from(new Set([...registeredList, cleanEmail])).join(',');
+    const response = createResponse(
       {
         user: newUser,
         tokens,
@@ -469,6 +507,14 @@ export async function POST(req: NextRequest, context: { params: Promise<{ path: 
       201,
       'Account created successfully! 5 daily free credits allocated.'
     );
+
+    response.cookies.set('orion_registered_accounts', updatedCookieList, {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 365, // 1 year persistence
+      sameSite: 'lax',
+    });
+
+    return response;
   }
 
   // Authentication - Login
