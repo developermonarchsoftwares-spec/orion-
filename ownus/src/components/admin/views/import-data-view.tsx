@@ -170,19 +170,29 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
                 <p className="text-[11px] text-zinc-500">14,200 commercial entities • Pre-formatted columns</p>
               </div>
             </div>
-            <button
-              onClick={() => {
-                setSelectedFile({
-                  name: 'Sample_MSME_Registrations_Sep2024.xlsx',
-                  size: '4.8 MB',
-                  rows: 14200
-                });
-                setStep(2);
-              }}
-              className="px-4 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 font-semibold hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
-            >
-              Use Demo File
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <a
+                href="/api/v1/admin/template/csv"
+                download="orion_business_import_template.csv"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 font-semibold hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer text-xs text-zinc-900 dark:text-zinc-100"
+              >
+                <Download className="w-3.5 h-3.5 text-zinc-500" />
+                <span>Download CSV Template</span>
+              </a>
+              <button
+                onClick={() => {
+                  setSelectedFile({
+                    name: 'Sample_MSME_Registrations_Sep2024.xlsx',
+                    size: '4.8 MB',
+                    rows: 14200
+                  });
+                  setStep(2);
+                }}
+                className="px-4 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 font-semibold hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+              >
+                Use Demo File
+              </button>
+            </div>
           </div>
 
           {selectedFile && (
