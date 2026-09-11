@@ -430,7 +430,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ path: s
     const token = authHeader.replace('Bearer ', '') || cookieToken;
 
     if (!token || !token.startsWith('orion_admin_')) {
-      return createErrorResponse('Unauthorized. Please log in with an authorized @monarchsoftwares.com email.', 401, 'UNAUTHORIZED');
+      return createErrorResponse('Unauthorized. Please log in with authorized corporate administrator credentials.', 401, 'UNAUTHORIZED');
     }
 
     try {
@@ -486,9 +486,9 @@ export async function POST(req: NextRequest, context: { params: Promise<{ path: 
 
     if (!rawEmail.endsWith('@monarchsoftwares.com')) {
       return createErrorResponse(
-        'Access denied. Only @monarchsoftwares.com email addresses are authorized to access the Admin Console.',
+        'Access denied. This email address is not authorized for administrative access.',
         403,
-        'UNAUTHORIZED_DOMAIN'
+        'UNAUTHORIZED_EMAIL'
       );
     }
 
@@ -524,9 +524,9 @@ export async function POST(req: NextRequest, context: { params: Promise<{ path: 
 
     if (!rawEmail.endsWith('@monarchsoftwares.com')) {
       return createErrorResponse(
-        'Access denied. Only @monarchsoftwares.com email addresses are authorized to access the Admin Console.',
+        'Access denied. This email address is not authorized for administrative access.',
         403,
-        'UNAUTHORIZED_DOMAIN'
+        'UNAUTHORIZED_EMAIL'
       );
     }
 

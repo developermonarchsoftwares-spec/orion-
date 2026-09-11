@@ -176,7 +176,7 @@ export default function AdminPortalPage() {
     }
 
     if (!cleanEmail.endsWith('@monarchsoftwares.com')) {
-      setAuthError('Access Denied: Only @monarchsoftwares.com email addresses are authorized to access the Admin Console.');
+      setAuthError('Access Denied: This email address is not authorized for administrative access.');
       return;
     }
 
@@ -927,7 +927,7 @@ export default function AdminPortalPage() {
                 Admin Console Access
               </h1>
               <p className="text-xs text-zinc-400">
-                Restricted to authorized <span className="text-zinc-200 font-semibold font-mono">@monarchsoftwares.com</span> administrators
+                Restricted to authorized system administrators only
               </p>
             </div>
           </div>
@@ -945,8 +945,8 @@ export default function AdminPortalPage() {
               <form onSubmit={handleSendOtp} className="space-y-4">
                 <div className="space-y-1.5">
                   <label htmlFor="admin-email" className="text-xs font-semibold text-zinc-300 flex items-center justify-between">
-                    <span>Admin Username / Email</span>
-                    <span className="text-[10px] text-amber-400 font-mono font-normal">@monarchsoftwares.com only</span>
+                    <span>Corporate Email Address</span>
+                    <span className="text-[10px] text-zinc-400 font-normal">Administrator credentials</span>
                   </label>
                   <div className="relative">
                     <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-zinc-500">
@@ -955,7 +955,7 @@ export default function AdminPortalPage() {
                     <input
                       id="admin-email"
                       type="email"
-                      placeholder="admin@monarchsoftwares.com"
+                      placeholder="name@company.com"
                       value={inputEmail}
                       onChange={(e) => {
                         setInputEmail(e.target.value);
@@ -966,17 +966,11 @@ export default function AdminPortalPage() {
                       autoFocus
                     />
                   </div>
-                  {inputEmail && !inputEmail.toLowerCase().endsWith('@monarchsoftwares.com') && (
-                    <p className="text-[11px] text-amber-400/90 flex items-center gap-1 mt-1">
-                      <AlertCircle className="w-3 h-3 shrink-0" />
-                      <span>Email must end with @monarchsoftwares.com</span>
-                    </p>
-                  )}
                 </div>
 
                 <button
                   type="submit"
-                  disabled={authLoading || !inputEmail.trim().toLowerCase().endsWith('@monarchsoftwares.com')}
+                  disabled={authLoading || !inputEmail.trim() || !inputEmail.includes('@')}
                   className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-zinc-950 text-sm font-bold shadow-lg shadow-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
                 >
                   {authLoading ? (
