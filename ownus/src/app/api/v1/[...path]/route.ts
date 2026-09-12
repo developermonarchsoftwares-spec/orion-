@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { businesses } from '@/lib/data/businesses';
 import { creditPackages, creditTransactions } from '@/lib/data/credits';
 import { currentUser } from '@/lib/data/users';
@@ -137,6 +138,11 @@ async function tryProxyUpstream(req: NextRequest, fullPath: string): Promise<Nex
 
   try {
     const targetUrl = new URL(`${upstreamUrl.replace(/\/$/, '')}/${fullPath}${req.nextUrl.search}`);
+    // Prevent self-proxy loops if BACKEND_API_URL points to the same host
+    if (targetUrl.host === req.nextUrl.host || targetUrl.hostname === 'orion-api-snowy.vercel.app') {
+      return null;
+    }
+
     const headers = new Headers(req.headers);
     headers.set('host', targetUrl.host);
 
@@ -477,11 +483,213 @@ Nirmal Polychem Extrusions,Plastics & Polymers,HDPE Pipes & Fittings,Industrial 
     });
   }
 
-  // OAuth Redirects
-  if (fullPath === 'auth/google' || fullPath === 'auth/microsoft') {
-    const provider = fullPath === 'auth/google' ? 'Google' : 'Microsoft';
+  // Google OAuth - Initiation
+  if (fullPath === 'auth/google') {
+    const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim().replace(/^["']|["']$/g, '');
+    if (!clientId || clientId.includes('your-') || clientId.includes('demo-')) {
+      return NextResponse.redirect(
+        new URL(
+          `/login?error=${encodeURIComponent(
+            'Google OAuth is not configured on this deployment. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in your Vercel Environment Variables.'
+          )}`,
+          req.url
+        )
+      );
+    }
+
+    const callbackUrl = (
+      process.env.GOOGLE_CALLBACK_URL ||
+      `${req.nextUrl.origin}/api/v1/auth/google/callback`
+    ).trim().replace(/^["']|["']$/g, '');
+
+    const codeVerifier = crypto.randomBytes(32).toString('base64url');
+    const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+    const state = crypto.randomBytes(16).toString('hex');
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: callbackUrl,
+      response_type: 'code',
+      scope: 'openid email profile',
+      access_type: 'offline',
+      prompt: 'select_account',
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+    });
+
+    const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    const res = NextResponse.redirect(new URL(googleAuthUrl));
+
+    res.cookies.set('orion_oauth_code_verifier', codeVerifier, {
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 600,
+    });
+    res.cookies.set('orion_oauth_state', state, {
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 600,
+    });
+
+    return res;
+  }
+
+  // Google OAuth - Callback
+  if (fullPath === 'auth/google/callback') {
+    const code = req.nextUrl.searchParams.get('code');
+    const error = req.nextUrl.searchParams.get('error');
+
+    if (error) {
+      return NextResponse.redirect(
+        new URL(`/login?error=${encodeURIComponent('Google sign-in was cancelled or denied.')}`, req.url)
+      );
+    }
+
+    if (!code) {
+      return NextResponse.redirect(
+        new URL(`/login?error=${encodeURIComponent('Missing authorization code from Google.')}`, req.url)
+      );
+    }
+
+    const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim().replace(/^["']|["']$/g, '');
+    const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || '').trim().replace(/^["']|["']$/g, '');
+    const callbackUrl = (
+      process.env.GOOGLE_CALLBACK_URL ||
+      `${req.nextUrl.origin}/api/v1/auth/google/callback`
+    ).trim().replace(/^["']|["']$/g, '');
+
+    const codeVerifier = req.cookies.get('orion_oauth_code_verifier')?.value;
+
+    try {
+      const bodyParams: Record<string, string> = {
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: callbackUrl,
+        grant_type: 'authorization_code',
+      };
+      if (codeVerifier) {
+        bodyParams.code_verifier = codeVerifier;
+      }
+
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(bodyParams).toString(),
+      });
+
+      if (!tokenRes.ok) {
+        const errText = await tokenRes.text();
+        console.error('Google token exchange error:', errText);
+        return NextResponse.redirect(
+          new URL(`/login?error=${encodeURIComponent('Failed to exchange authorization code with Google.')}`, req.url)
+        );
+      }
+
+      const tokenData = await tokenRes.json();
+
+      const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+
+      if (!profileRes.ok) {
+        return NextResponse.redirect(
+          new URL(`/login?error=${encodeURIComponent('Failed to retrieve user profile from Google.')}`, req.url)
+        );
+      }
+
+      const profile = await profileRes.json();
+      const email = String(profile.email || '').toLowerCase().trim();
+      const firstName = profile.given_name || profile.name?.split(' ')[0] || 'User';
+      const lastName = profile.family_name || profile.name?.split(' ').slice(1).join(' ') || '';
+      const displayName = profile.name || email.split('@')[0];
+
+      let user = registeredUsers.get(email);
+      let isNewUser = false;
+
+      if (!user) {
+        isNewUser = true;
+        user = {
+          id: `usr_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`,
+          email,
+          firstName,
+          lastName,
+          name: displayName,
+          displayName,
+          role: 'USER',
+          status: 'ACTIVE',
+          organizationName: 'Monarch Enterprise',
+          companyName: 'Monarch Enterprise',
+          isEmailVerified: true,
+          provider: 'google',
+          hasPassword: false,
+          wallet: {
+            dailyCredits: 5,
+            purchasedCredits: 20,
+            balance: 25,
+            lifetimePurchased: 0,
+            lifetimeUsed: 0,
+            lastDailyCreditDate: new Date().toISOString().split('T')[0],
+          },
+        };
+        registeredUsers.set(email, user);
+      }
+
+      const tokens = generateTokens(user);
+
+      const redirectUrl = new URL(
+        `/auth/callback?accessToken=${encodeURIComponent(tokens.accessToken)}&refreshToken=${encodeURIComponent(
+          tokens.refreshToken
+        )}&provider=google&isNewUser=${isNewUser}`,
+        req.url
+      );
+
+      const res = NextResponse.redirect(redirectUrl);
+      res.cookies.delete('orion_oauth_code_verifier');
+      res.cookies.delete('orion_oauth_state');
+      return res;
+    } catch (err: any) {
+      console.error('Google OAuth error:', err);
+      return NextResponse.redirect(
+        new URL(`/login?error=${encodeURIComponent(err.message || 'Google authentication failed.')}`, req.url)
+      );
+    }
+  }
+
+  // Microsoft OAuth - Initiation
+  if (fullPath === 'auth/microsoft') {
+    const clientId = (process.env.MICROSOFT_CLIENT_ID || '').trim().replace(/^["']|["']$/g, '');
+    if (!clientId || clientId.includes('your-')) {
+      return NextResponse.redirect(
+        new URL(
+          `/login?error=${encodeURIComponent(
+            'Microsoft OAuth is not configured on this deployment. Please define MICROSOFT_CLIENT_ID in your environment variables.'
+          )}`,
+          req.url
+        )
+      );
+    }
+    const tenant = (process.env.MICROSOFT_TENANT_ID || 'common').trim();
+    const callbackUrl = (
+      process.env.MICROSOFT_CALLBACK_URL ||
+      `${req.nextUrl.origin}/api/v1/auth/microsoft/callback`
+    ).trim();
+    const state = crypto.randomBytes(16).toString('hex');
+    const params = new URLSearchParams({
+      client_id: clientId,
+      response_type: 'code',
+      redirect_uri: callbackUrl,
+      response_mode: 'query',
+      scope: 'openid profile email User.Read',
+      state,
+    });
     return NextResponse.redirect(
-      new URL(`/register?notice=${encodeURIComponent(`${provider} OAuth configured. Direct email onboarding active.`)}`, req.url)
+      new URL(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize?${params.toString()}`)
     );
   }
 
