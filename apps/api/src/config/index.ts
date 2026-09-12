@@ -19,6 +19,7 @@ export const databaseConfig = registerAs('database', () => ({
 }));
 
 export const redisConfig = registerAs('redis', () => ({
+  url: process.env.REDIS_URL || undefined,
   host: process.env.REDIS_HOST || 'localhost',
   port: parseInt(process.env.REDIS_PORT || '6379', 10),
   password: process.env.REDIS_PASSWORD || undefined,
@@ -45,16 +46,19 @@ export const jwtConfig = registerAs('jwt', () => ({
   audience: process.env.JWT_AUDIENCE || 'orion-client',
 }));
 
-export const storageConfig = registerAs('storage', () => ({
-  provider: process.env.STORAGE_PROVIDER || 'minio',
-  bucket: process.env.STORAGE_BUCKET || 'orion-assets',
-  region: process.env.STORAGE_REGION || 'us-east-1',
-  endpoint: process.env.STORAGE_ENDPOINT || 'http://localhost:9000',
-  accessKeyId: process.env.STORAGE_ACCESS_KEY || 'minioadmin',
-  secretAccessKey: process.env.STORAGE_SECRET_KEY || 'minioadmin',
-  forcePathStyle: process.env.STORAGE_FORCE_PATH_STYLE === 'true' || true,
-  publicUrlPrefix: process.env.STORAGE_PUBLIC_URL_PREFIX || 'http://localhost:9000/orion-assets',
-}));
+export const storageConfig = registerAs('storage', () => {
+  const provider = process.env.STORAGE_PROVIDER || 'minio';
+  return {
+    provider,
+    bucket: process.env.STORAGE_BUCKET || (provider === 'r2' ? 'orion' : 'orion-assets'),
+    region: process.env.STORAGE_REGION || (provider === 'r2' ? 'auto' : 'us-east-1'),
+    endpoint: process.env.STORAGE_ENDPOINT || (provider === 'minio' ? 'http://localhost:9000' : undefined),
+    accessKeyId: process.env.STORAGE_ACCESS_KEY || (provider === 'minio' ? 'minioadmin' : undefined),
+    secretAccessKey: process.env.STORAGE_SECRET_KEY || (provider === 'minio' ? 'minioadmin' : undefined),
+    forcePathStyle: process.env.STORAGE_FORCE_PATH_STYLE !== 'false',
+    publicUrlPrefix: process.env.STORAGE_PUBLIC_URL_PREFIX || undefined,
+  };
+});
 
 export const throttlerConfig = registerAs('throttler', () => ({
   ttl: parseInt(process.env.THROTTLE_TTL || '60', 10),

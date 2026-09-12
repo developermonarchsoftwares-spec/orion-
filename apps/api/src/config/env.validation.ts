@@ -18,6 +18,7 @@ export const environmentValidationSchema = Joi.object({
   DB_IDLE_TIMEOUT_MS: Joi.number().empty('').default(30000),
 
   // Redis
+  REDIS_URL: Joi.string().allow('').optional(),
   REDIS_HOST: Joi.string().empty('').default('localhost'),
   REDIS_PORT: Joi.number().empty('').default(6379),
   REDIS_PASSWORD: Joi.string().allow('').optional(),
