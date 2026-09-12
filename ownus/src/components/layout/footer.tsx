@@ -7,9 +7,14 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
           {/* Column 1: Brand */}
           <div className="flex flex-col gap-4">
-            <Link href="/" className="flex items-center">
-              <img src="/white.png" alt="Orion Logo" className="h-8 w-auto dark:hidden" />
-              <img src="/black.png" alt="Orion Logo" className="h-8 w-auto hidden dark:block" />
+            <Link href="/" className="flex flex-col items-start gap-1">
+              <div className="flex items-center">
+                <img src="/white.png" alt="Orion Logo" className="h-8 w-auto dark:hidden" />
+                <img src="/black.png" alt="Orion Logo" className="h-8 w-auto hidden dark:block" />
+              </div>
+              <span className="text-[9px] font-semibold tracking-[0.2em] text-gray-400 dark:text-neutral-500 uppercase select-none">
+                A MONARCH SOFTWARES PRODUCT
+              </span>
             </Link>
             <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed max-w-xs">
               AI-powered business discovery and lead intelligence platform for modern revenue teams.
@@ -65,10 +70,13 @@ export function Footer() {
         </div>
 
         {/* Big Logo in bottom footer section */}
-        <div className="mt-16 pt-10 border-t border-gray-200 dark:border-neutral-900 flex justify-center items-center">
-          <Link href="/" className="inline-block transition-transform hover:scale-105">
+        <div className="mt-16 pt-10 border-t border-gray-200 dark:border-neutral-900 flex flex-col justify-center items-center gap-3">
+          <Link href="/" className="inline-flex flex-col items-center gap-3 transition-transform hover:scale-105">
             <img src="/white.png" alt="Orion Logo" className="h-16 sm:h-20 md:h-24 w-auto dark:hidden object-contain" />
             <img src="/black.png" alt="Orion Logo" className="h-16 sm:h-20 md:h-24 w-auto hidden dark:block object-contain" />
+            <span className="text-[10px] sm:text-xs tracking-[0.25em] font-semibold text-gray-500 dark:text-neutral-400 uppercase select-none text-center">
+              A MONARCH SOFTWARES PRODUCT
+            </span>
           </Link>
         </div>
       </div>

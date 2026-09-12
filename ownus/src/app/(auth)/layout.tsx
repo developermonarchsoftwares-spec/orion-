@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export default function AuthLayout({
   children,
 }: {
@@ -23,8 +25,15 @@ export default function AuthLayout({
         <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-gray-200/40 dark:bg-neutral-800/30 rounded-full blur-3xl translate-x-1/4 translate-y-1/4" />
 
         <div className="relative z-10 mb-2">
-          <img src="/white.png" alt="Orion Logo" className="h-10 w-auto dark:hidden" />
-          <img src="/black.png" alt="Orion Logo" className="h-10 w-auto hidden dark:block" />
+          <Link href="/" className="inline-flex flex-col items-start gap-1">
+            <div className="flex items-center">
+              <img src="/white.png" alt="Orion Logo" className="h-10 w-auto dark:hidden" />
+              <img src="/black.png" alt="Orion Logo" className="h-10 w-auto hidden dark:block" />
+            </div>
+            <span className="text-[9px] font-semibold tracking-[0.2em] text-gray-400 dark:text-neutral-500 uppercase select-none">
+              A MONARCH SOFTWARES PRODUCT
+            </span>
+          </Link>
         </div>
 
         <div className="relative z-10 flex-1 flex flex-col justify-center max-w-lg">
