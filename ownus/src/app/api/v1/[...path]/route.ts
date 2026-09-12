@@ -497,13 +497,18 @@ Nirmal Polychem Extrusions,Plastics & Polymers,HDPE Pipes & Fittings,Industrial 
       );
     }
 
-    const callbackUrl = (
+    const host = req.headers.get('x-forwarded-host') || req.nextUrl.host;
+    const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
+    let callbackUrl = (
       process.env.GOOGLE_CALLBACK_URL ||
-      `${req.nextUrl.origin}/api/v1/auth/google/callback`
+      `${isLocal ? 'http' : 'https'}://${host}/api/v1/auth/google/callback`
     ).trim().replace(/^["']|["']$/g, '');
 
-    const codeVerifier = crypto.randomBytes(32).toString('base64url');
-    const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+    // Google strictly forbids http:// on public domains
+    if (!isLocal && callbackUrl.startsWith('http://')) {
+      callbackUrl = callbackUrl.replace(/^http:\/\//, 'https://');
+    }
+
     const state = crypto.randomBytes(16).toString('hex');
 
     const params = new URLSearchParams({
@@ -514,20 +519,11 @@ Nirmal Polychem Extrusions,Plastics & Polymers,HDPE Pipes & Fittings,Industrial 
       access_type: 'offline',
       prompt: 'select_account',
       state,
-      code_challenge: codeChallenge,
-      code_challenge_method: 'S256',
     });
 
     const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
     const res = NextResponse.redirect(new URL(googleAuthUrl));
 
-    res.cookies.set('orion_oauth_code_verifier', codeVerifier, {
-      path: '/',
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 600,
-    });
     res.cookies.set('orion_oauth_state', state, {
       path: '/',
       httpOnly: true,
@@ -558,12 +554,17 @@ Nirmal Polychem Extrusions,Plastics & Polymers,HDPE Pipes & Fittings,Industrial 
 
     const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim().replace(/^["']|["']$/g, '');
     const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || '').trim().replace(/^["']|["']$/g, '');
-    const callbackUrl = (
+    
+    const host = req.headers.get('x-forwarded-host') || req.nextUrl.host;
+    const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
+    let callbackUrl = (
       process.env.GOOGLE_CALLBACK_URL ||
-      `${req.nextUrl.origin}/api/v1/auth/google/callback`
+      `${isLocal ? 'http' : 'https'}://${host}/api/v1/auth/google/callback`
     ).trim().replace(/^["']|["']$/g, '');
 
-    const codeVerifier = req.cookies.get('orion_oauth_code_verifier')?.value;
+    if (!isLocal && callbackUrl.startsWith('http://')) {
+      callbackUrl = callbackUrl.replace(/^http:\/\//, 'https://');
+    }
 
     try {
       const bodyParams: Record<string, string> = {
@@ -573,9 +574,6 @@ Nirmal Polychem Extrusions,Plastics & Polymers,HDPE Pipes & Fittings,Industrial 
         redirect_uri: callbackUrl,
         grant_type: 'authorization_code',
       };
-      if (codeVerifier) {
-        bodyParams.code_verifier = codeVerifier;
-      }
 
       const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
