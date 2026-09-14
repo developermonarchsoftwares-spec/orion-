@@ -54,13 +54,30 @@ async function proxyRequest(
     );
   }
 
-  const headers = new Headers(req.headers);
+  const headers = new Headers();
+  req.headers.forEach((val, key) => {
+    const lower = key.toLowerCase();
+    if (
+      ![
+        'host',
+        'connection',
+        'keep-alive',
+        'transfer-encoding',
+        'content-length',
+        'expect',
+      ].includes(lower)
+    ) {
+      headers.set(key, val);
+    }
+  });
   headers.set('host', targetUrl.host);
 
   const clientIp = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip');
   if (clientIp) {
     headers.set('x-forwarded-for', clientIp);
   }
+  headers.set('x-forwarded-proto', req.nextUrl.protocol.replace(':', ''));
+  headers.set('x-forwarded-host', req.headers.get('host') || targetUrl.host);
 
   let body: ArrayBuffer | undefined = undefined;
   if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -129,6 +146,7 @@ async function proxyRequest(
   } catch (err: any) {
     console.error(
       `[Gateway Error] Failed to proxy ${req.method} ${fullPath} to upstream API: ${err?.message}`,
+      err?.cause || '',
     );
 
     return NextResponse.json(
