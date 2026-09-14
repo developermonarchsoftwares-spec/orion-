@@ -131,7 +131,7 @@ export const SyncCenterView: React.FC<SyncCenterViewProps> = ({
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-sm space-y-2 animate-in fade-in">
           <div className="flex items-center justify-between text-xs">
             <span className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-              <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-500" />
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-zinc-900 dark:text-zinc-100" />
               Re-indexing Master Document Catalog ({rebuildProgress}%)
             </span>
             <span className="font-mono text-zinc-500">{((indexStatus.indexedBusinesses * rebuildProgress) / 100).toLocaleString()} / {indexStatus.indexedBusinesses.toLocaleString()} docs</span>
@@ -154,7 +154,7 @@ export const SyncCenterView: React.FC<SyncCenterViewProps> = ({
           <div className="text-xl font-bold text-zinc-900 dark:text-zinc-100 font-mono">
             {indexStatus.indexedBusinesses.toLocaleString()}
           </div>
-          <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
+          <div className="text-[10px] text-zinc-600 dark:text-zinc-400 mt-1 flex items-center gap-1">
             <CheckCircle2 className="w-3 h-3" /> Live in Discover
           </div>
         </div>
@@ -163,7 +163,7 @@ export const SyncCenterView: React.FC<SyncCenterViewProps> = ({
           <div className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
             Pending Index
           </div>
-          <div className="text-xl font-bold text-amber-600 dark:text-amber-400 font-mono">
+          <div className="text-xl font-bold text-zinc-900 dark:text-zinc-100 font-mono">
             {indexStatus.pendingIndex.toLocaleString()}
           </div>
           <div className="text-[10px] text-zinc-500 mt-1">
@@ -175,7 +175,7 @@ export const SyncCenterView: React.FC<SyncCenterViewProps> = ({
           <div className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
             Failed Index
           </div>
-          <div className="text-xl font-bold text-red-600 dark:text-red-400 font-mono">
+          <div className="text-xl font-bold text-zinc-900 dark:text-zinc-100 font-mono">
             {indexStatus.failedIndex}
           </div>
           <div className="text-[10px] text-zinc-500 mt-1">
@@ -187,8 +187,8 @@ export const SyncCenterView: React.FC<SyncCenterViewProps> = ({
           <div className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
             Cluster Health
           </div>
-          <div className="flex items-center gap-1.5 text-xl font-bold text-emerald-600 dark:text-emerald-400">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="flex items-center gap-1.5 text-xl font-bold text-zinc-900 dark:text-zinc-100">
+            <div className="w-2.5 h-2.5 rounded-full bg-zinc-900 dark:bg-zinc-100 animate-pulse" />
             <span>{indexStatus.clusterHealth}</span>
           </div>
           <div className="text-[10px] text-zinc-500 mt-1">
@@ -215,7 +215,7 @@ export const SyncCenterView: React.FC<SyncCenterViewProps> = ({
           <div className="text-xl font-bold text-zinc-900 dark:text-zinc-100 font-mono">
             {indexStatus.avgQueryLatencyMs} ms
           </div>
-          <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1">
+          <div className="text-[10px] text-zinc-600 dark:text-zinc-400 mt-1">
             p99 &lt; 28ms
           </div>
         </div>
@@ -224,18 +224,20 @@ export const SyncCenterView: React.FC<SyncCenterViewProps> = ({
       {/* Primary Shards Topology Visualizer */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 rounded-2xl shadow-sm space-y-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Server className="w-4 h-4 text-zinc-600 dark:text-zinc-400" />
+          <div className="space-y-0.5">
             <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-              Distributed Shards & Replica Topology
+              Distributed Shard Architecture
             </h2>
+            <p className="text-xs text-zinc-500">
+              Active primary partitions across Raft consensus cluster nodes.
+            </p>
           </div>
-          <span className="text-xs text-zinc-500 font-mono">
-            Last segment merge: {indexStatus.lastOptimized}
+          <span className="text-xs font-mono px-2.5 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
+            6/6 Shards Synchronized
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[1, 2, 3, 4, 5, 6].map(shardId => (
             <div 
               key={shardId} 
@@ -245,7 +247,7 @@ export const SyncCenterView: React.FC<SyncCenterViewProps> = ({
                 <span className="text-xs font-mono font-bold text-zinc-900 dark:text-zinc-100">
                   Shard #{shardId}
                 </span>
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span className="w-2 h-2 rounded-full bg-zinc-900 dark:bg-zinc-100" />
               </div>
               <div className="space-y-1 text-[11px]">
                 <div className="flex justify-between text-zinc-500">
@@ -258,7 +260,7 @@ export const SyncCenterView: React.FC<SyncCenterViewProps> = ({
                 </div>
                 <div className="flex justify-between text-zinc-500">
                   <span>Replicas:</span>
-                  <span className="font-mono text-emerald-600 dark:text-emerald-400">2 Synced</span>
+                  <span className="font-mono text-zinc-700 dark:text-zinc-300">2 Synced</span>
                 </div>
               </div>
             </div>
@@ -300,11 +302,7 @@ export const SyncCenterView: React.FC<SyncCenterViewProps> = ({
                   <td className="px-4 py-3 font-bold text-zinc-900 dark:text-zinc-100">{run.records.toLocaleString()}</td>
                   <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{run.duration}</td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-sans font-semibold border ${
-                      run.status === 'Completed'
-                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                        : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                    }`}>
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-sans font-semibold border bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700">
                       {run.status === 'Completed' ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
                       {run.status}
                     </span>

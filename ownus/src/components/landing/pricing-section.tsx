@@ -113,7 +113,7 @@ export function PricingSection() {
       <div className="mx-auto max-w-7xl px-4">
         <div className="mx-auto max-w-2xl text-center">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200 mb-4">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <Sparkles className="w-3.5 h-3.5 text-zinc-900 dark:text-zinc-100" />
             Transparent INR Pricing
           </div>
           <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
@@ -197,7 +197,7 @@ export function PricingSection() {
                   {tier.features.map((feature) => (
                     <li key={feature} className="flex gap-x-2 items-start">
                       <Check
-                        className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5"
+                        className="h-4 w-4 shrink-0 text-zinc-900 dark:text-zinc-100 mt-0.5"
                         aria-hidden="true"
                       />
                       <span>{feature}</span>

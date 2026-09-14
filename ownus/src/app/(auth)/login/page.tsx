@@ -100,8 +100,8 @@ function LoginForm() {
       </div>
 
       {errorParam && (
-        <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs flex items-start gap-2.5">
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+        <div className="p-3.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 text-xs flex items-start gap-2.5">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-zinc-500" />
           <div>
             <p className="font-semibold">Authentication Notice</p>
             <p className="mt-0.5 text-zinc-600 dark:text-zinc-300 leading-relaxed">
@@ -117,7 +117,7 @@ function LoginForm() {
           <button
             type="button"
             onClick={() => handleOAuthLogin("google")}
-            className="inline-flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800/80 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            className="inline-flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800/80 focus:outline-none focus:ring-2 focus:ring-zinc-400 transition-all cursor-pointer"
           >
             <GoogleIcon className="h-4 w-4" />
             Continue with Google
@@ -126,7 +126,7 @@ function LoginForm() {
           <button
             type="button"
             onClick={() => handleOAuthLogin("microsoft")}
-            className="inline-flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800/80 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            className="inline-flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800/80 focus:outline-none focus:ring-2 focus:ring-zinc-400 transition-all cursor-pointer"
           >
             <MicrosoftIcon className="h-4 w-4" />
             Continue with Microsoft
@@ -145,7 +145,7 @@ function LoginForm() {
           </div>
         </div>
 
-        {/* Email/Password Form */}
+        {/* Traditional Credentials Form */}
         <form onSubmit={handleSubmit} className="grid gap-4">
           <div className="grid gap-1.5">
             <label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -164,7 +164,7 @@ function LoginForm() {
                 autoCorrect="off"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 pl-10 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-100"
+                className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 pl-10 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-600 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-100"
                 required
               />
             </div>
@@ -177,7 +177,7 @@ function LoginForm() {
               </label>
               <Link
                 href="/forgot-password"
-                className="text-xs font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 hover:underline"
+                className="text-xs font-medium text-zinc-900 dark:text-zinc-100 hover:underline"
               >
                 Forgot password?
               </Link>
@@ -191,13 +191,13 @@ function LoginForm() {
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 pl-10 pr-10 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-100"
+                className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 pl-10 pr-10 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-600 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-100"
                 required
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -210,7 +210,7 @@ function LoginForm() {
               type="checkbox"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 dark:border-gray-700 text-blue-600 focus:ring-blue-500 dark:bg-gray-900"
+              className="h-4 w-4 rounded border-gray-300 dark:border-gray-700 text-zinc-900 focus:ring-zinc-400 dark:bg-gray-900 cursor-pointer"
             />
             <label
               htmlFor="remember"
@@ -223,7 +223,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={isLoading}
-            className="mt-1 inline-flex h-10 w-full items-center justify-center rounded-md bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 px-4 py-2 text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-colors"
+            className="mt-1 inline-flex h-10 w-full items-center justify-center rounded-md bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 px-4 py-2 text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 focus:ring-offset-2 disabled:opacity-50 transition-colors cursor-pointer"
           >
             {isLoading ? (
               <>
@@ -241,7 +241,7 @@ function LoginForm() {
         Don&apos;t have an account?{" "}
         <Link
           href="/register"
-          className="font-medium text-blue-600 dark:text-blue-400 hover:underline"
+          className="font-medium text-zinc-900 dark:text-zinc-100 hover:underline"
         >
           Sign up
         </Link>
@@ -255,7 +255,7 @@ export default function LoginPage() {
     <Suspense
       fallback={
         <div className="flex justify-center p-12">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-zinc-900 dark:text-zinc-100" />
         </div>
       }
     >

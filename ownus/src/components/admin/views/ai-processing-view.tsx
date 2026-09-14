@@ -55,7 +55,7 @@ export const AiProcessingView: React.FC<AiProcessingViewProps> = ({
 
         <div className="flex items-center gap-3">
           <span className="text-xs font-mono bg-zinc-950 text-zinc-300 border border-zinc-800 px-3 py-1.5 rounded-lg flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="w-2 h-2 rounded-full bg-zinc-900 dark:bg-zinc-100 animate-pulse" />
             Triton Server: Operational
           </span>
         </div>

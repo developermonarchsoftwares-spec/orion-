@@ -222,7 +222,7 @@ export default function CreditsPage() {
       {/* Top Header */}
       <div>
         <div className="flex items-center gap-2 mb-1">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700">
             <Zap className="w-3 h-3 fill-current" />
             Credit System & INR Billing
           </span>
@@ -240,12 +240,12 @@ export default function CreditsPage() {
         
         {/* Total Available Balance Card */}
         <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 shadow-xs flex flex-col justify-between relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute top-0 right-0 w-32 h-32 bg-zinc-500/5 rounded-full blur-2xl pointer-events-none" />
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Total Available</span>
               <span className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
-                <Zap className="w-4 h-4 text-amber-500 fill-current" />
+                <Zap className="w-4 h-4 text-zinc-900 dark:text-zinc-100 fill-current" />
               </span>
             </div>
             <div className="flex items-baseline gap-2 mt-1">
@@ -265,16 +265,16 @@ export default function CreditsPage() {
         <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
                 Daily Free Credits
               </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700">
                 5 / Day
               </span>
             </div>
             <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-4xl font-black font-mono tracking-tight text-emerald-600 dark:text-emerald-400">
+              <span className="text-4xl font-black font-mono tracking-tight text-zinc-900 dark:text-zinc-100">
                 {formatNumber(dailyCredits)}
               </span>
               <span className="text-xs text-zinc-500 font-medium">remaining today</span>
@@ -289,16 +289,16 @@ export default function CreditsPage() {
         <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider flex items-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5" />
                 Purchased Credits
               </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700">
                 Never Expire
               </span>
             </div>
             <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-4xl font-black font-mono tracking-tight text-indigo-600 dark:text-indigo-400">
+              <span className="text-4xl font-black font-mono tracking-tight text-zinc-900 dark:text-zinc-100">
                 {formatNumber(purchasedCredits)}
               </span>
               <span className="text-xs text-zinc-500 font-medium">active lifetime</span>
@@ -329,7 +329,7 @@ export default function CreditsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-500" />
+              <Sparkles className="w-4 h-4 text-zinc-900 dark:text-zinc-100" />
               Choose Your Intelligence Plan
             </h2>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
@@ -431,7 +431,7 @@ export default function CreditsPage() {
                       <li key={i} className="flex gap-x-2 items-start">
                         <Check className={cn(
                           "h-4 w-4 shrink-0 mt-0.5",
-                          isPopular ? "text-amber-400" : "text-emerald-600 dark:text-emerald-400"
+                          isPopular ? "text-white" : "text-zinc-900 dark:text-zinc-100"
                         )} />
                         <span className={isPopular ? "text-zinc-200" : ""}>{feature}</span>
                       </li>
@@ -529,19 +529,12 @@ export default function CreditsPage() {
                             </span>
                           </td>
                           <td className="px-6 py-3.5">
-                            <span className={cn(
-                              "px-2 py-0.5 rounded-md text-[10px] font-semibold border",
-                              balanceType === "DAILY"
-                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
-                                : balanceType === "MIXED"
-                                ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border-amber-200 dark:border-amber-800"
-                                : "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800"
-                            )}>
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold border bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700">
                               {balanceType}
                             </span>
                           </td>
                           <td className="px-6 py-3.5 text-zinc-900 dark:text-zinc-100 font-medium">{tx.description}</td>
-                          <td className={cn("px-6 py-3.5 text-right font-mono font-semibold", isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-900 dark:text-zinc-100")}>
+                          <td className={cn("px-6 py-3.5 text-right font-mono font-semibold", isPositive ? "text-zinc-900 dark:text-zinc-100 font-bold" : "text-zinc-500")}>
                             {isPositive ? `+${tx.amount}` : tx.amount}
                           </td>
                           <td className="px-6 py-3.5 text-right text-zinc-900 dark:text-zinc-100 font-mono font-medium">
@@ -613,9 +606,9 @@ export default function CreditsPage() {
                               Razorpay UPI / Card
                             </td>
                             <td className="px-6 py-3.5 font-medium">{p.description}</td>
-                            <td className="px-6 py-3.5 font-mono font-semibold text-emerald-600 dark:text-emerald-400">+{p.credits}</td>
+                            <td className="px-6 py-3.5 font-mono font-semibold text-zinc-900 dark:text-zinc-100">+{p.credits}</td>
                             <td className="px-6 py-3.5">
-                              <span className="px-2 py-0.5 rounded-md text-[11px] font-medium border bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
+                              <span className="px-2 py-0.5 rounded-md text-[11px] font-medium border bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700">
                                 Captured
                               </span>
                             </td>

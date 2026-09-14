@@ -335,7 +335,7 @@ export default function SettingsPage() {
                         </div>
                       </div>
                       {user?.googleLinked ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700">
                           Connected
                         </span>
                       ) : (
@@ -354,7 +354,7 @@ export default function SettingsPage() {
                           type="button"
                           onClick={() => handleUnlinkProvider("google")}
                           disabled={unlinkingProvider === "google"}
-                          className="text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 px-3 py-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50"
+                          className="text-xs font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 px-3 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 cursor-pointer"
                         >
                           {unlinkingProvider === "google" ? "Disconnecting..." : "Disconnect"}
                         </button>
@@ -362,7 +362,7 @@ export default function SettingsPage() {
                         <button
                           type="button"
                           onClick={() => handleLinkProvider("google")}
-                          className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 px-3 py-1.5 rounded-md bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 transition-colors"
+                          className="text-xs font-medium text-zinc-900 dark:text-zinc-100 hover:text-black dark:hover:text-white px-3 py-1.5 rounded-md bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
                         >
                           Connect Google
                         </button>
@@ -383,7 +383,7 @@ export default function SettingsPage() {
                         </div>
                       </div>
                       {user?.microsoftLinked ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700">
                           Connected
                         </span>
                       ) : (
@@ -402,7 +402,7 @@ export default function SettingsPage() {
                           type="button"
                           onClick={() => handleUnlinkProvider("microsoft")}
                           disabled={unlinkingProvider === "microsoft"}
-                          className="text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 px-3 py-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50"
+                          className="text-xs font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 px-3 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 cursor-pointer"
                         >
                           {unlinkingProvider === "microsoft" ? "Disconnecting..." : "Disconnect"}
                         </button>
@@ -410,7 +410,7 @@ export default function SettingsPage() {
                         <button
                           type="button"
                           onClick={() => handleLinkProvider("microsoft")}
-                          className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 px-3 py-1.5 rounded-md bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 transition-colors"
+                          className="text-xs font-medium text-zinc-900 dark:text-zinc-100 hover:text-black dark:hover:text-white px-3 py-1.5 rounded-md bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
                         >
                           Connect Microsoft
                         </button>

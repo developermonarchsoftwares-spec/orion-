@@ -153,7 +153,7 @@ export function ImportHistoryView({
                         <button
                           onClick={() => onDeleteBatch(b.id)}
                           title="Delete historical log"
-                          className="p-1 rounded-md text-zinc-400 hover:text-rose-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                          className="p-1 rounded-md text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

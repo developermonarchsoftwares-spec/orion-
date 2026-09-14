@@ -11,10 +11,10 @@ type Status = "New" | "Contacted" | "Qualified" | "Proposal" | "Won" | "Lost";
 
 const statusColors: Record<string, string> = {
   New: "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border-zinc-200 dark:border-zinc-700",
-  Contacted: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 border-blue-200 dark:border-blue-800",
-  Qualified: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border-amber-200 dark:border-amber-800",
-  Proposal: "bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400 border-purple-200 dark:border-purple-800",
-  Won: "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-900 dark:border-zinc-100",
+  Contacted: "bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 border-zinc-300 dark:border-zinc-700",
+  Qualified: "bg-zinc-300/60 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 border-zinc-400 dark:border-zinc-600",
+  Proposal: "bg-zinc-800 text-zinc-100 dark:bg-zinc-200 dark:text-zinc-900 border-zinc-700 dark:border-zinc-300",
+  Won: "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-900 dark:border-zinc-100 font-semibold",
   Lost: "bg-zinc-50 dark:bg-zinc-900 text-zinc-400 dark:text-zinc-500 border-zinc-200 dark:border-zinc-800",
 };
 
@@ -134,7 +134,7 @@ export default function LeadsPage() {
           {selectedLeads.length > 0 && (
             <button
               onClick={handleBulkDelete}
-              className="flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-zinc-900 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Delete ({selectedLeads.length})
@@ -263,7 +263,7 @@ export default function LeadsPage() {
                           )}
                           <button 
                             onClick={() => removeLead(lead.id)}
-                            className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-md transition-colors cursor-pointer" 
+                            className="p-1.5 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors cursor-pointer" 
                             title="Remove Lead"
                           >
                             <Trash2 className="w-4 h-4" />

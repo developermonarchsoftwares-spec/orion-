@@ -126,7 +126,7 @@ export function AdminSidebar({
       <div className="h-12 border-b border-zinc-200 dark:border-zinc-800 px-3 flex items-center justify-between">
         {!isCollapsed ? (
           <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="h-2 w-2 rounded-full bg-zinc-900 dark:bg-zinc-100 animate-pulse" />
             <span className="text-xs font-bold tracking-wider text-zinc-900 dark:text-zinc-100 uppercase">
               DATA PLATFORM
             </span>
@@ -135,7 +135,7 @@ export function AdminSidebar({
             </span>
           </div>
         ) : (
-          <span className="h-2 w-2 rounded-full bg-emerald-500 mx-auto animate-pulse" />
+          <span className="h-2 w-2 rounded-full bg-zinc-900 dark:bg-zinc-100 mx-auto animate-pulse" />
         )}
 
         <button

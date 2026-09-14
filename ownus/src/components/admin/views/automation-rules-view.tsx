@@ -135,7 +135,7 @@ export const AutomationRulesView: React.FC<AutomationRulesViewProps> = ({
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-sm">
           <div className="flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-2">
             <span className="text-xs font-medium uppercase tracking-wider">Active Rules</span>
-            <Zap className="w-4 h-4 text-emerald-500" />
+            <Zap className="w-4 h-4 text-zinc-900 dark:text-zinc-100" />
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{stats.active}</span>
@@ -150,14 +150,14 @@ export const AutomationRulesView: React.FC<AutomationRulesViewProps> = ({
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{stats.totalExecutions.toLocaleString()}</span>
-            <span className="text-xs text-emerald-500 font-medium">all-time</span>
+            <span className="text-xs text-zinc-500 font-medium">all-time</span>
           </div>
         </div>
 
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-sm">
           <div className="flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-2">
             <span className="text-xs font-medium uppercase tracking-wider">Success Rate</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <CheckCircle2 className="w-4 h-4 text-zinc-900 dark:text-zinc-100" />
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{stats.avgSuccess}%</span>
@@ -168,7 +168,7 @@ export const AutomationRulesView: React.FC<AutomationRulesViewProps> = ({
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-sm">
           <div className="flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-2">
             <span className="text-xs font-medium uppercase tracking-wider">Paused Rules</span>
-            <Pause className="w-4 h-4 text-amber-500" />
+            <Pause className="w-4 h-4 text-zinc-400" />
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{stats.paused}</span>
@@ -284,26 +284,10 @@ export const AutomationRulesView: React.FC<AutomationRulesViewProps> = ({
                     <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
                       {rule.name}
                     </h3>
-                    <span
-                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                        rule.status === 'Active'
-                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                          : rule.status === 'Paused'
-                          ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                          : 'bg-zinc-500/10 text-zinc-500 border-zinc-500/20'
-                      }`}
-                    >
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700">
                       {rule.status}
                     </span>
-                    <span
-                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                        rule.priority.startsWith('P1')
-                          ? 'bg-red-500/10 text-red-600 dark:text-red-400'
-                          : rule.priority.startsWith('P2')
-                          ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400'
-                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
-                      }`}
-                    >
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
                       {rule.priority}
                     </span>
                   </div>
@@ -316,7 +300,7 @@ export const AutomationRulesView: React.FC<AutomationRulesViewProps> = ({
                   <div className="flex flex-wrap items-center gap-2 text-xs pt-1">
                     {/* Trigger */}
                     <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800/80 px-2.5 py-1 rounded-lg border border-zinc-200/80 dark:border-zinc-700/60 font-mono text-[11px] text-zinc-700 dark:text-zinc-300">
-                      <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                      <Zap className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400 shrink-0" />
                       <span className="font-semibold text-zinc-500 dark:text-zinc-400">WHEN:</span>
                       <span>{rule.trigger}</span>
                     </div>
@@ -335,7 +319,7 @@ export const AutomationRulesView: React.FC<AutomationRulesViewProps> = ({
 
                     {/* Action */}
                     <div className="flex items-center gap-1.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-2.5 py-1 rounded-lg font-mono text-[11px] font-semibold">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-400 dark:text-emerald-600 shrink-0" />
+                      <Sparkles className="w-3.5 h-3.5 text-white dark:text-zinc-900 shrink-0" />
                       <span>THEN {rule.action}</span>
                       {rule.actionPayload && (
                         <span className="opacity-80 font-normal">({rule.actionPayload})</span>
@@ -355,7 +339,7 @@ export const AutomationRulesView: React.FC<AutomationRulesViewProps> = ({
                     </div>
                     <div>
                       <div className="text-[11px] text-zinc-400">Success</div>
-                      <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                      <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100 font-mono">
                         {rule.successRate}%
                       </div>
                     </div>
@@ -372,20 +356,20 @@ export const AutomationRulesView: React.FC<AutomationRulesViewProps> = ({
                       <button
                         onClick={() => onRunRuleNow(rule.id)}
                         title="Execute manual dry-run"
-                        className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-600 dark:text-zinc-400 transition-colors"
+                        className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-600 dark:text-zinc-400 transition-colors cursor-pointer"
                       >
-                        <Play className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                        <Play className="w-4 h-4 text-zinc-900 dark:text-zinc-100" />
                       </button>
                     )}
                     <button
                       onClick={() => onToggleStatus(rule.id)}
                       title={rule.status === 'Active' ? 'Pause Rule' : 'Activate Rule'}
-                      className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-600 dark:text-zinc-400 transition-colors"
+                      className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-600 dark:text-zinc-400 transition-colors cursor-pointer"
                     >
                       {rule.status === 'Active' ? (
-                        <Pause className="w-4 h-4 text-amber-500" />
+                        <Pause className="w-4 h-4 text-zinc-400" />
                       ) : (
-                        <Play className="w-4 h-4 text-emerald-500" />
+                        <Play className="w-4 h-4 text-zinc-900 dark:text-zinc-100" />
                       )}
                     </button>
                     <button
@@ -398,7 +382,7 @@ export const AutomationRulesView: React.FC<AutomationRulesViewProps> = ({
                     <button
                       onClick={() => onDeleteRule(rule.id)}
                       title="Delete Rule"
-                      className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg text-zinc-400 hover:text-red-600 transition-colors"
+                      className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

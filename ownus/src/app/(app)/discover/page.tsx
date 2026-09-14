@@ -549,7 +549,7 @@ export default function DiscoverPage() {
             <div className="flex items-center gap-2 shrink-0">
               {/* Credits Counter */}
               <div className="px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <Sparkles className="w-3.5 h-3.5 text-zinc-900 dark:text-zinc-100" />
                 <span className="text-zinc-500">Credits:</span>
                 <span className="font-bold text-zinc-900 dark:text-zinc-100">{userCredits}</span>
               </div>

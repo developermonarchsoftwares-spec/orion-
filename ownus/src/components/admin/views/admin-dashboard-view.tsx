@@ -426,7 +426,7 @@ export function AdminDashboardView({
               <h3 className="text-xs font-bold text-zinc-900 dark:text-zinc-100">Data Platform Cluster Health</h3>
             </div>
             <span className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-900 dark:text-white">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
+              <span className="h-2 w-2 rounded-full bg-zinc-900 dark:bg-zinc-100 animate-ping" />
               OPTIMAL
             </span>
           </div>

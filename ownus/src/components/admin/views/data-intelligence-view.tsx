@@ -202,14 +202,14 @@ export const DataIntelligenceView: React.FC<DataIntelligenceViewProps> = ({
         <div className="space-y-1">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100">
-              <BrainCircuit className="w-5 h-5 text-emerald-500" />
+              <BrainCircuit className="w-5 h-5 text-zinc-900 dark:text-zinc-100" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
                   Data Intelligence & Automation Hub
                 </h1>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700">
                   Orion v4.0 Engine
                 </span>
               </div>
@@ -223,7 +223,7 @@ export const DataIntelligenceView: React.FC<DataIntelligenceViewProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={() => onNavigateTab('automation')}
-            className="flex items-center gap-2 px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 text-xs font-semibold rounded-xl transition-colors shadow-sm"
+            className="flex items-center gap-2 px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 text-xs font-semibold rounded-xl transition-colors shadow-sm cursor-pointer"
           >
             <Workflow className="w-3.5 h-3.5" />
             <span>Configure Automation</span>
@@ -235,10 +235,10 @@ export const DataIntelligenceView: React.FC<DataIntelligenceViewProps> = ({
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <button
           onClick={() => onNavigateTab('sources')}
-          className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-400 dark:hover:border-zinc-600 transition-all text-left group shadow-sm"
+          className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-400 dark:hover:border-zinc-600 transition-all text-left group shadow-sm cursor-pointer"
         >
           <div className="flex items-center justify-between mb-2">
-            <Radio className="w-4 h-4 text-zinc-600 dark:text-zinc-400 group-hover:text-emerald-500 transition-colors" />
+            <Radio className="w-4 h-4 text-zinc-600 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-white transition-colors" />
             <span className="text-[10px] font-mono text-zinc-400">8 Sources</span>
           </div>
           <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100">Data Sources</div>
@@ -246,11 +246,11 @@ export const DataIntelligenceView: React.FC<DataIntelligenceViewProps> = ({
         </button>
 
         <button
-          onClick={() => onNavigateTab('enrichment_queue')}
-          className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-400 dark:hover:border-zinc-600 transition-all text-left group shadow-sm"
+          onClick={() => onNavigateTab('enrichment')}
+          className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-400 dark:hover:border-zinc-600 transition-all text-left group shadow-sm cursor-pointer"
         >
           <div className="flex items-center justify-between mb-2">
-            <Sparkles className="w-4 h-4 text-zinc-600 dark:text-zinc-400 group-hover:text-amber-500 transition-colors" />
+            <Sparkles className="w-4 h-4 text-zinc-600 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-white transition-colors" />
             <span className="text-[10px] font-mono text-zinc-400">9 Modules</span>
           </div>
           <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100">Enrichment Queue</div>
@@ -259,10 +259,10 @@ export const DataIntelligenceView: React.FC<DataIntelligenceViewProps> = ({
 
         <button
           onClick={() => onNavigateTab('ai_processing')}
-          className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-400 dark:hover:border-zinc-600 transition-all text-left group shadow-sm"
+          className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-400 dark:hover:border-zinc-600 transition-all text-left group shadow-sm cursor-pointer"
         >
           <div className="flex items-center justify-between mb-2">
-            <Cpu className="w-4 h-4 text-zinc-600 dark:text-zinc-400 group-hover:text-blue-500 transition-colors" />
+            <Cpu className="w-4 h-4 text-zinc-600 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-white transition-colors" />
             <span className="text-[10px] font-mono text-zinc-400">5 Models</span>
           </div>
           <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100">AI Processing</div>
@@ -271,10 +271,10 @@ export const DataIntelligenceView: React.FC<DataIntelligenceViewProps> = ({
 
         <button
           onClick={() => onNavigateTab('automation')}
-          className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-400 dark:hover:border-zinc-600 transition-all text-left group shadow-sm"
+          className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-400 dark:hover:border-zinc-600 transition-all text-left group shadow-sm cursor-pointer"
         >
           <div className="flex items-center justify-between mb-2">
-            <Workflow className="w-4 h-4 text-zinc-600 dark:text-zinc-400 group-hover:text-purple-500 transition-colors" />
+            <Workflow className="w-4 h-4 text-zinc-600 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-white transition-colors" />
             <span className="text-[10px] font-mono text-zinc-400">6 Rules</span>
           </div>
           <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100">Automation</div>
@@ -283,10 +283,10 @@ export const DataIntelligenceView: React.FC<DataIntelligenceViewProps> = ({
 
         <button
           onClick={() => onNavigateTab('sync_center')}
-          className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-400 dark:hover:border-zinc-600 transition-all text-left group shadow-sm"
+          className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-400 dark:hover:border-zinc-600 transition-all text-left group shadow-sm cursor-pointer"
         >
           <div className="flex items-center justify-between mb-2">
-            <RefreshCw className="w-4 h-4 text-zinc-600 dark:text-zinc-400 group-hover:text-emerald-500 transition-colors" />
+            <RefreshCw className="w-4 h-4 text-zinc-600 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-white transition-colors" />
             <span className="text-[10px] font-mono text-zinc-400">1.12M Docs</span>
           </div>
           <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100">Sync Center</div>
@@ -295,11 +295,11 @@ export const DataIntelligenceView: React.FC<DataIntelligenceViewProps> = ({
 
         <button
           onClick={() => onNavigateTab('system_health')}
-          className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-400 dark:hover:border-zinc-600 transition-all text-left group shadow-sm"
+          className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-400 dark:hover:border-zinc-600 transition-all text-left group shadow-sm cursor-pointer"
         >
           <div className="flex items-center justify-between mb-2">
-            <HeartPulse className="w-4 h-4 text-zinc-600 dark:text-zinc-400 group-hover:text-red-500 transition-colors" />
-            <span className="text-[10px] font-mono text-emerald-500">Healthy</span>
+            <HeartPulse className="w-4 h-4 text-zinc-600 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-white transition-colors" />
+            <span className="text-[10px] font-mono text-zinc-500">Healthy</span>
           </div>
           <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100">System Health</div>
           <div className="text-[11px] text-zinc-500 truncate">8 services online</div>
@@ -324,7 +324,7 @@ export const DataIntelligenceView: React.FC<DataIntelligenceViewProps> = ({
             <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
               Overall Quality
             </div>
-            <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+            <div className="text-xl font-bold text-zinc-900 dark:text-zinc-100 font-mono">
               {metrics.avgQualityScore}%
             </div>
             <div className="text-[10px] text-zinc-500 mt-1">
@@ -405,7 +405,7 @@ export const DataIntelligenceView: React.FC<DataIntelligenceViewProps> = ({
             <div className="text-xl font-bold text-zinc-900 dark:text-zinc-100 font-mono">
               +{metrics.recentlyAdded}
             </div>
-            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1">
+            <div className="text-[10px] text-zinc-600 dark:text-zinc-400 mt-1">
               This month
             </div>
           </div>
@@ -444,7 +444,7 @@ export const DataIntelligenceView: React.FC<DataIntelligenceViewProps> = ({
           <div className="space-y-3">
             {systemAlerts.length === 0 ? (
               <div className="p-8 text-center border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl">
-                <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-500 mb-2" />
+                <CheckCircle2 className="w-8 h-8 mx-auto text-zinc-400 mb-2" />
                 <p className="text-xs text-zinc-500">No active system alerts. All ingestion streams healthy.</p>
               </div>
             ) : (

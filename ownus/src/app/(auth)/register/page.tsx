@@ -74,10 +74,10 @@ export default function RegisterPage() {
   
   const getStrengthWidth = () => {
     if (password.length === 0) return "w-0";
-    if (strength <= 1) return "w-1/4 bg-red-500";
-    if (strength === 2) return "w-2/4 bg-amber-500";
-    if (strength === 3) return "w-3/4 bg-blue-500";
-    return "w-full bg-emerald-500";
+    if (strength <= 1) return "w-1/4 bg-zinc-400 dark:bg-zinc-600";
+    if (strength === 2) return "w-2/4 bg-zinc-600 dark:bg-zinc-400";
+    if (strength === 3) return "w-3/4 bg-zinc-800 dark:bg-zinc-200";
+    return "w-full bg-black dark:bg-white";
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -88,11 +88,12 @@ export default function RegisterPage() {
     }
 
     const parts = name.trim().split(" ");
-    const firstName = parts[0] || "User";
+    const firstName = parts[0] || "";
     const lastName = parts.slice(1).join(" ") || "";
 
-    setExistingAccountError(null);
     setIsLoading(true);
+    setExistingAccountError(null);
+
     try {
       await register({
         email,
@@ -124,7 +125,7 @@ export default function RegisterPage() {
   return (
     <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[400px]">
       <div className="flex flex-col space-y-2 text-center">
-        <div className="inline-flex items-center justify-center gap-1.5 mx-auto px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/60">
+        <div className="inline-flex items-center justify-center gap-1.5 mx-auto px-3 py-1 rounded-full text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700">
           <Sparkles className="h-3.5 w-3.5" />
           5 Free Daily Credits Included
         </div>
@@ -137,11 +138,11 @@ export default function RegisterPage() {
       </div>
 
       {existingAccountError && (
-        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-300 text-xs flex flex-col gap-3 animate-in fade-in-50 zoom-in-95 shadow-xs">
+        <div className="p-4 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 text-xs flex flex-col gap-3 animate-in fade-in-50 zoom-in-95 shadow-xs">
           <div className="flex items-start gap-2.5">
-            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-zinc-500" />
             <div className="space-y-1 flex-1">
-              <p className="font-semibold text-sm text-amber-900 dark:text-amber-200">
+              <p className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">
                 Account Already Exists
               </p>
               <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed text-xs">
@@ -149,10 +150,10 @@ export default function RegisterPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 pt-1 border-t border-amber-500/20">
+          <div className="flex items-center gap-2 pt-1 border-t border-zinc-200 dark:border-zinc-800">
             <Link
               href={`/login?email=${encodeURIComponent(email)}`}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white transition-colors cursor-pointer shadow-xs"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 transition-colors cursor-pointer shadow-xs"
             >
               <span>Login to continue</span>
               <ArrowRight className="h-3.5 w-3.5" />
@@ -167,7 +168,7 @@ export default function RegisterPage() {
           <button
             type="button"
             onClick={() => handleOAuthRegister("google")}
-            className="inline-flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800/80 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            className="inline-flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800/80 focus:outline-none focus:ring-2 focus:ring-zinc-400 transition-all cursor-pointer"
           >
             <GoogleIcon className="h-4 w-4" />
             Sign up with Google
@@ -176,7 +177,7 @@ export default function RegisterPage() {
           <button
             type="button"
             onClick={() => handleOAuthRegister("microsoft")}
-            className="inline-flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800/80 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            className="inline-flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800/80 focus:outline-none focus:ring-2 focus:ring-zinc-400 transition-all cursor-pointer"
           >
             <MicrosoftIcon className="h-4 w-4" />
             Sign up with Microsoft
@@ -211,7 +212,7 @@ export default function RegisterPage() {
                 placeholder="Sarah Connor"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 pl-10 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-100"
+                className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 pl-10 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-600 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-100"
                 required
               />
             </div>
@@ -231,7 +232,7 @@ export default function RegisterPage() {
                 placeholder="Acme Corp"
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 pl-10 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-100"
+                className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 pl-10 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-600 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-100"
               />
             </div>
           </div>
@@ -256,7 +257,7 @@ export default function RegisterPage() {
                   setEmail(e.target.value);
                   if (existingAccountError) setExistingAccountError(null);
                 }}
-                className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 pl-10 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-100"
+                className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 pl-10 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-600 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-100"
                 required
               />
             </div>
@@ -275,13 +276,13 @@ export default function RegisterPage() {
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 pl-10 pr-10 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-100"
+                className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 pl-10 pr-10 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-600 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-100"
                 required
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -299,16 +300,16 @@ export default function RegisterPage() {
               type="checkbox"
               checked={agreeTerms}
               onChange={(e) => setAgreeTerms(e.target.checked)}
-              className="mt-1 h-4 w-4 rounded border-gray-300 dark:border-gray-700 text-blue-600 focus:ring-blue-500 dark:bg-gray-900"
+              className="mt-1 h-4 w-4 rounded border-gray-300 dark:border-gray-700 text-zinc-900 focus:ring-zinc-400 dark:bg-gray-900 cursor-pointer"
               required
             />
             <label htmlFor="terms" className="text-xs leading-tight text-gray-600 dark:text-gray-400">
               I agree to the{" "}
-              <Link href="/terms" className="text-blue-600 dark:text-blue-400 underline hover:opacity-80">
+              <Link href="/terms" className="text-zinc-900 dark:text-zinc-100 underline hover:opacity-80">
                 Terms of Service
               </Link>{" "}
               and{" "}
-              <Link href="/privacy" className="text-blue-600 dark:text-blue-400 underline hover:opacity-80">
+              <Link href="/privacy" className="text-zinc-900 dark:text-zinc-100 underline hover:opacity-80">
                 Privacy Policy
               </Link>
             </label>
@@ -317,7 +318,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={!agreeTerms || isLoading}
-            className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-md bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 px-4 py-2 text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-colors"
+            className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-md bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 px-4 py-2 text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 focus:ring-offset-2 disabled:opacity-50 transition-colors cursor-pointer"
           >
             {isLoading ? (
               <>
@@ -335,7 +336,7 @@ export default function RegisterPage() {
         Already have an account?{" "}
         <Link
           href="/login"
-          className="font-medium text-blue-600 dark:text-blue-400 hover:underline"
+          className="font-medium text-zinc-900 dark:text-zinc-100 hover:underline"
         >
           Sign in
         </Link>

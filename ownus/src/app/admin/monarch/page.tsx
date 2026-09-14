@@ -911,17 +911,17 @@ export default function AdminPortalPage() {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-zinc-950 px-4 py-12 text-zinc-100 relative overflow-hidden">
         {/* Ambient background glow */}
-        <div className="absolute -top-40 -left-40 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -top-40 -left-40 w-96 h-96 bg-zinc-800/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-zinc-800/20 rounded-full blur-3xl pointer-events-none" />
 
         <div className="w-full max-w-md z-10 space-y-6">
           {/* Brand Header */}
           <div className="text-center space-y-3">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-xl mx-auto text-amber-500">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-xl mx-auto text-zinc-100">
               <ShieldCheck className="w-7 h-7" />
             </div>
             <div className="space-y-1">
-              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[10px] font-mono tracking-widest uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold">
+              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[10px] font-mono tracking-widest uppercase bg-zinc-800 text-zinc-300 border border-zinc-700 font-semibold">
                 Monarch Security Gateway
               </div>
               <h1 className="text-2xl font-bold tracking-tight text-white">
@@ -936,8 +936,8 @@ export default function AdminPortalPage() {
           {/* Security Card */}
           <div className="bg-zinc-900/90 border border-zinc-800 backdrop-blur-xl rounded-2xl p-6 sm:p-8 shadow-2xl space-y-6">
             {authError && (
-              <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-start gap-2.5 animate-in fade-in-50">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
+              <div className="p-3.5 rounded-xl bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs flex items-start gap-2.5 animate-in fade-in-50">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-zinc-400" />
                 <div className="leading-relaxed">{authError}</div>
               </div>
             )}
@@ -962,7 +962,7 @@ export default function AdminPortalPage() {
                         setInputEmail(e.target.value);
                         if (authError) setAuthError(null);
                       }}
-                      className="flex h-11 w-full rounded-xl border border-zinc-700 bg-zinc-950/80 px-3 pl-10 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all"
+                      className="flex h-11 w-full rounded-xl border border-zinc-700 bg-zinc-950/80 px-3 pl-10 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-400 focus:border-zinc-400 transition-all"
                       required
                       autoFocus
                     />
@@ -972,7 +972,7 @@ export default function AdminPortalPage() {
                 <button
                   type="submit"
                   disabled={authLoading || !inputEmail.trim() || !inputEmail.includes('@')}
-                  className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-zinc-950 text-sm font-bold shadow-lg shadow-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-sm font-bold shadow-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
                 >
                   {authLoading ? (
                     <>
@@ -990,7 +990,7 @@ export default function AdminPortalPage() {
             ) : (
               <form onSubmit={handleVerifyOtp} className="space-y-4">
                 <div className="space-y-2 text-center">
-                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-zinc-800 text-amber-400 mx-auto">
+                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-zinc-800 text-zinc-200 mx-auto">
                     <KeyRound className="w-5 h-5" />
                   </div>
                   <h2 className="text-sm font-semibold text-zinc-200">Admin Security Verification</h2>
@@ -1000,11 +1000,11 @@ export default function AdminPortalPage() {
                 </div>
 
                 {/* Instant Verification Passcode Display */}
-                <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-center space-y-1.5">
+                <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-xl text-center space-y-1.5">
                   <div className="text-[11px] font-medium text-zinc-400">
                     Your One-Time Passcode (OTP):
                   </div>
-                  <div className="text-2xl font-mono font-black tracking-widest text-amber-400 select-all">
+                  <div className="text-2xl font-mono font-black tracking-widest text-white select-all">
                     {previewOtp || '123456'}
                   </div>
                   <div className="text-[11px] text-zinc-400 flex items-center justify-center gap-1.5">
@@ -1026,7 +1026,7 @@ export default function AdminPortalPage() {
                       setOtpCode(e.target.value.replace(/[^0-9]/g, ''));
                       if (authError) setAuthError(null);
                     }}
-                    className="flex h-12 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-center font-mono text-2xl tracking-[0.5em] text-amber-400 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all"
+                    className="flex h-12 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-center font-mono text-2xl tracking-[0.5em] text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-zinc-400 focus:border-zinc-400 transition-all"
                     required
                     autoFocus
                   />
@@ -1036,7 +1036,7 @@ export default function AdminPortalPage() {
                       type="button"
                       onClick={() => handleSendOtp()}
                       disabled={authLoading || otpCountdown > 240}
-                      className="text-amber-400 hover:text-amber-300 disabled:opacity-40 disabled:hover:text-zinc-500 transition-colors cursor-pointer"
+                      className="text-zinc-300 hover:text-white disabled:opacity-40 disabled:hover:text-zinc-500 transition-colors cursor-pointer"
                     >
                       Resend Code
                     </button>
@@ -1046,7 +1046,7 @@ export default function AdminPortalPage() {
                 <button
                   type="submit"
                   disabled={authLoading || otpCode.length < 6}
-                  className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-zinc-950 text-sm font-bold shadow-lg shadow-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-sm font-bold shadow-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
                 >
                   {authLoading ? (
                     <>
@@ -1106,7 +1106,7 @@ export default function AdminPortalPage() {
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border border-zinc-700 dark:border-zinc-300 px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="w-2 h-2 rounded-full bg-white dark:bg-zinc-900 animate-pulse" />
           <span className="text-xs font-semibold">{toastMessage}</span>
         </div>
       )}

@@ -84,35 +84,35 @@ function CallbackHandler() {
   }, [searchParams, handleOAuthTokens, router]);
 
   return (
-    <div className="flex flex-col items-center justify-center space-y-4 text-center p-8 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl max-w-md mx-auto">
+    <div className="flex flex-col items-center justify-center space-y-4 text-center p-8 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xl max-w-md mx-auto">
       <div className="relative">
-        <div className="h-16 w-16 rounded-full bg-blue-500/10 dark:bg-blue-400/10 flex items-center justify-center">
+        <div className="h-16 w-16 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
           {status === "processing" && (
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600 dark:text-blue-400" />
+            <Loader2 className="h-8 w-8 animate-spin text-zinc-900 dark:text-zinc-100" />
           )}
           {status === "success" && (
-            <CheckCircle2 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+            <CheckCircle2 className="h-8 w-8 text-zinc-900 dark:text-zinc-100" />
           )}
           {status === "error" && (
-            <AlertCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
+            <AlertCircle className="h-8 w-8 text-zinc-900 dark:text-zinc-100" />
           )}
         </div>
       </div>
 
       <div className="space-y-1">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+        <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
           {status === "processing" && "Securing Identity"}
           {status === "success" && "Authentication Successful"}
           {status === "error" && "Sign-In Failed"}
         </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
           {message}
         </p>
       </div>
 
       <div className="pt-2">
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
+          <span className="h-1.5 w-1.5 rounded-full bg-zinc-900 dark:bg-white animate-pulse" />
           Orion Enterprise Identity
         </span>
       </div>
@@ -125,7 +125,7 @@ export default function AuthCallbackPage() {
     <Suspense
       fallback={
         <div className="flex justify-center p-12">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600 dark:text-blue-400" />
+          <Loader2 className="h-8 w-8 animate-spin text-zinc-900 dark:text-zinc-100" />
         </div>
       }
     >

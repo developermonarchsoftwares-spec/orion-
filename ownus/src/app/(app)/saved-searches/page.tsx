@@ -99,7 +99,7 @@ export default function SavedSearchesPage() {
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button 
                     onClick={() => deleteSearch(search.id)}
-                    className="p-1.5 text-zinc-400 hover:text-red-600 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer" 
+                    className="p-1.5 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer" 
                     title="Delete"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

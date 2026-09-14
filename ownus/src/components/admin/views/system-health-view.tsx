@@ -73,15 +73,15 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
         <div className="space-y-1">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100">
-              <HeartPulse className="w-5 h-5 text-emerald-500" />
+              <HeartPulse className="w-5 h-5 text-zinc-900 dark:text-zinc-100" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
                   System Health & Microservices Observability
                 </h1>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-zinc-900 dark:bg-zinc-100 animate-pulse" />
                   All Systems Operational (99.98% SLA)
                 </span>
               </div>
@@ -95,7 +95,7 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={onRefreshHealth}
-            className="flex items-center gap-2 px-3.5 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-semibold rounded-xl transition-colors"
+            className="flex items-center gap-2 px-3.5 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Poll Telemetry</span>
@@ -112,7 +112,7 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
           <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 font-mono">
             64 / 64
           </div>
-          <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
+          <div className="text-[10px] text-zinc-600 dark:text-zinc-400 mt-1 flex items-center gap-1">
             <CheckCircle2 className="w-3 h-3" /> 100% Target Availability
           </div>
         </div>
@@ -133,7 +133,7 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
           <div className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
             Global Error Rate
           </div>
-          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+          <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 font-mono">
             0.02%
           </div>
           <div className="text-[10px] text-zinc-500 mt-1">
@@ -143,13 +143,13 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
 
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl shadow-sm">
           <div className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">
-            Active GPUs
+            Replication Lag
           </div>
           <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 font-mono">
-            4x A100 SXM4
+            0.00 ms
           </div>
           <div className="text-[10px] text-zinc-500 mt-1">
-            78% VRAM Allocated
+            Synchronous quorum
           </div>
         </div>
       </div>
@@ -171,12 +171,12 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
         ))}
       </div>
 
-      {/* Microservice Pod Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Services Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredServices.map(svc => (
           <div
             key={svc.id}
-            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-5 rounded-2xl shadow-sm hover:border-zinc-300 dark:hover:border-zinc-700 transition-all space-y-4"
+            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4.5 shadow-sm space-y-3 flex flex-col justify-between"
           >
             {/* Header */}
             <div className="flex items-start justify-between gap-3">
@@ -185,16 +185,8 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
                   <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
                     {svc.category}
                   </span>
-                  <span
-                    className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                      svc.status === 'Healthy'
-                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                        : svc.status === 'Warning'
-                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                        : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
-                    }`}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700">
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-900 dark:bg-zinc-100" />
                     {svc.status}
                   </span>
                 </div>
@@ -207,9 +199,9 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
                 onClick={() => handleRestart(svc.id)}
                 disabled={restartingId === svc.id}
                 title="Restart microservice pods"
-                className="p-1.5 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50"
+                className="p-1.5 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
               >
-                <RotateCcw className={`w-4 h-4 ${restartingId === svc.id ? 'animate-spin text-emerald-500' : ''}`} />
+                <RotateCcw className={`w-4 h-4 ${restartingId === svc.id ? 'animate-spin text-zinc-900 dark:text-zinc-100' : ''}`} />
               </button>
             </div>
 
@@ -229,9 +221,7 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
                 </div>
                 <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-1.5 overflow-hidden">
                   <div
-                    className={`h-1.5 rounded-full transition-all ${
-                      svc.cpuUsage > 80 ? 'bg-red-500' : svc.cpuUsage > 60 ? 'bg-amber-500' : 'bg-zinc-900 dark:bg-zinc-100'
-                    }`}
+                    className="h-1.5 rounded-full transition-all bg-zinc-900 dark:bg-zinc-100"
                     style={{ width: `${svc.cpuUsage}%` }}
                   />
                 </div>
@@ -247,9 +237,7 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
                 </div>
                 <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-1.5 overflow-hidden">
                   <div
-                    className={`h-1.5 rounded-full transition-all ${
-                      svc.memoryUsage > 80 ? 'bg-red-500' : svc.memoryUsage > 60 ? 'bg-amber-500' : 'bg-zinc-900 dark:bg-zinc-100'
-                    }`}
+                    className="h-1.5 rounded-full transition-all bg-zinc-900 dark:bg-zinc-100"
                     style={{ width: `${svc.memoryUsage}%` }}
                   />
                 </div>
@@ -264,7 +252,7 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
               </div>
               <div>
                 <span className="text-zinc-400 block text-[10px] font-sans">Uptime</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400">{svc.uptime}</span>
+                <span className="font-bold text-zinc-900 dark:text-zinc-100">{svc.uptime}</span>
               </div>
               <div>
                 <span className="text-zinc-400 block text-[10px] font-sans">Errors</span>

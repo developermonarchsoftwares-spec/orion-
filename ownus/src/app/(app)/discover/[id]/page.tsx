@@ -174,7 +174,7 @@ export default function BusinessDetailPage() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{business.name}</h1>
-              <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              <span className="inline-flex items-center rounded-full bg-zinc-100 dark:bg-zinc-800 px-2.5 py-0.5 text-xs font-medium text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700">
                 Verified Entity
               </span>
             </div>
@@ -301,7 +301,7 @@ export default function BusinessDetailPage() {
                       </a>
                     ) : (
                       <>
-                        <CircleAlert className="w-3.5 h-3.5 text-amber-500 mr-1.5" />
+                        <CircleAlert className="w-3.5 h-3.5 text-zinc-400 mr-1.5" />
                         No corporate website detected
                       </>
                     )}
@@ -311,7 +311,7 @@ export default function BusinessDetailPage() {
                   "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold border",
                   websitePresence
                     ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border-zinc-300 dark:border-zinc-700"
-                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                    : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700"
                 )}>
                   {websitePresence ? 'Detected' : 'High Opportunity'}
                 </span>
@@ -362,7 +362,7 @@ export default function BusinessDetailPage() {
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-zinc-500">Verification Status</dt>
-                  <dd className="font-medium text-emerald-600 dark:text-emerald-400">Verified Legal Entity</dd>
+                  <dd className="font-medium text-zinc-900 dark:text-zinc-100">Verified Legal Entity</dd>
                 </div>
               </dl>
             </section>
@@ -463,7 +463,7 @@ export default function BusinessDetailPage() {
                     <Info className="w-4 h-4 mr-2 text-zinc-700 dark:text-zinc-300" />
                     Unlocked Contacts
                   </h2>
-                  <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-semibold">
+                  <span className="text-[10px] bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 px-2 py-0.5 rounded-full font-semibold">
                     Verified
                   </span>
                 </div>
