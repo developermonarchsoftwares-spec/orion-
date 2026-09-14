@@ -113,10 +113,27 @@ function createErrorResponse(message: string, statusCode = 400, errorCode = 'BAD
   );
 }
 
-function generateTokens(user: StoredUser) {
+function sanitizeEnvValue(val?: string, keyPrefix?: string): string {
+  if (!val) return '';
+  let cleaned = String(val).replace(/[\r\n]+/g, '').trim();
+  cleaned = cleaned.replace(/^["'`]|["'`]$/g, '').trim();
+  if (keyPrefix && cleaned.toLowerCase().startsWith(keyPrefix.toLowerCase() + '=')) {
+    cleaned = cleaned.substring(keyPrefix.length + 1).trim();
+  }
+  cleaned = cleaned.replace(/^[A-Za-z0-9_]+=\s*/, '').trim();
+  cleaned = cleaned.replace(/^["'`]|["'`]$/g, '').trim();
+  return cleaned;
+}
+
+function generateTokens(user: StoredUser, extra?: { avatarUrl?: string }) {
   const tokenPayload = {
     sub: user.id,
     email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    name: user.name || user.displayName,
+    avatarUrl: extra?.avatarUrl,
+    provider: user.provider,
     role: user.role,
     status: user.status,
     organizationId: user.organizationName,
@@ -186,31 +203,36 @@ export async function GET(req: NextRequest, context: { params: Promise<{ path: s
   if (fullPath === 'auth/me' || fullPath === 'user/profile') {
     const authHeader = req.headers.get('authorization') || '';
     let email = 'alex@acmedigital.com';
+    let tokenData: any = null;
 
     if (authHeader.startsWith('Bearer orion_live_')) {
       try {
         const raw = authHeader.replace('Bearer orion_live_', '');
-        const decoded = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
-        if (decoded.email) email = decoded.email;
+        tokenData = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
+        if (tokenData.email) email = tokenData.email;
       } catch {
         // Fallback
       }
     }
 
-    const user = registeredUsers.get(email.toLowerCase()) || {
-      id: 'usr_' + Buffer.from(email).toString('hex').slice(0, 8),
+    const cached = registeredUsers.get(email.toLowerCase());
+    const user = cached || {
+      id: tokenData?.sub || 'usr_' + Buffer.from(email).toString('hex').slice(0, 8),
       email,
-      firstName: email.split('@')[0] || 'User',
-      lastName: '',
-      name: email.split('@')[0] || 'User',
-      displayName: email.split('@')[0] || 'User',
-      role: 'USER',
-      status: 'ACTIVE',
-      organizationName: 'Monarch Enterprise',
-      companyName: 'Monarch Enterprise',
+      firstName: tokenData?.firstName || email.split('@')[0] || 'User',
+      lastName: tokenData?.lastName || '',
+      name: tokenData?.name || email.split('@')[0] || 'User',
+      displayName: tokenData?.name || email.split('@')[0] || 'User',
+      avatarUrl: tokenData?.avatarUrl || null,
+      role: tokenData?.role || 'USER',
+      status: tokenData?.status || 'ACTIVE',
+      organizationName: tokenData?.organizationId || 'Monarch Enterprise',
+      companyName: tokenData?.organizationId || 'Monarch Enterprise',
       isEmailVerified: true,
-      provider: 'email',
-      hasPassword: true,
+      provider: tokenData?.provider || 'google',
+      googleLinked: tokenData?.provider === 'google',
+      microsoftLinked: tokenData?.provider === 'microsoft',
+      hasPassword: Boolean(tokenData?.hasPassword),
       wallet: {
         dailyCredits: 5,
         purchasedCredits: 20,
@@ -485,7 +507,7 @@ Nirmal Polychem Extrusions,Plastics & Polymers,HDPE Pipes & Fittings,Industrial 
 
   // Google OAuth - Initiation
   if (fullPath === 'auth/google') {
-    const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim().replace(/^["']|["']$/g, '');
+    const clientId = sanitizeEnvValue(process.env.GOOGLE_CLIENT_ID, 'GOOGLE_CLIENT_ID');
     if (!clientId || clientId.includes('your-') || clientId.includes('demo-')) {
       return NextResponse.redirect(
         new URL(
@@ -499,10 +521,10 @@ Nirmal Polychem Extrusions,Plastics & Polymers,HDPE Pipes & Fittings,Industrial 
 
     const host = req.headers.get('x-forwarded-host') || req.nextUrl.host;
     const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
-    let callbackUrl = (
-      process.env.GOOGLE_CALLBACK_URL ||
-      `${isLocal ? 'http' : 'https'}://${host}/api/v1/auth/google/callback`
-    ).trim().replace(/^["']|["']$/g, '');
+    let callbackUrl = sanitizeEnvValue(process.env.GOOGLE_CALLBACK_URL, 'GOOGLE_CALLBACK_URL');
+    if (!callbackUrl || !callbackUrl.startsWith('http')) {
+      callbackUrl = `${isLocal ? 'http' : 'https'}://${host}/api/v1/auth/google/callback`;
+    }
 
     // Google strictly forbids http:// on public domains
     if (!isLocal && callbackUrl.startsWith('http://')) {
@@ -552,15 +574,15 @@ Nirmal Polychem Extrusions,Plastics & Polymers,HDPE Pipes & Fittings,Industrial 
       );
     }
 
-    const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim().replace(/^["']|["']$/g, '');
-    const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || '').trim().replace(/^["']|["']$/g, '');
+    const clientId = sanitizeEnvValue(process.env.GOOGLE_CLIENT_ID, 'GOOGLE_CLIENT_ID');
+    const clientSecret = sanitizeEnvValue(process.env.GOOGLE_CLIENT_SECRET, 'GOOGLE_CLIENT_SECRET');
     
     const host = req.headers.get('x-forwarded-host') || req.nextUrl.host;
     const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
-    let callbackUrl = (
-      process.env.GOOGLE_CALLBACK_URL ||
-      `${isLocal ? 'http' : 'https'}://${host}/api/v1/auth/google/callback`
-    ).trim().replace(/^["']|["']$/g, '');
+    let callbackUrl = sanitizeEnvValue(process.env.GOOGLE_CALLBACK_URL, 'GOOGLE_CALLBACK_URL');
+    if (!callbackUrl || !callbackUrl.startsWith('http')) {
+      callbackUrl = `${isLocal ? 'http' : 'https'}://${host}/api/v1/auth/google/callback`;
+    }
 
     if (!isLocal && callbackUrl.startsWith('http://')) {
       callbackUrl = callbackUrl.replace(/^http:\/\//, 'https://');
@@ -584,8 +606,17 @@ Nirmal Polychem Extrusions,Plastics & Polymers,HDPE Pipes & Fittings,Industrial 
       if (!tokenRes.ok) {
         const errText = await tokenRes.text();
         console.error('Google token exchange error:', errText);
+        let userMessage = 'Failed to exchange authorization code with Google.';
+        try {
+          const parsedErr = JSON.parse(errText);
+          if (parsedErr.error_description) {
+            userMessage = `Google sign-in error: ${parsedErr.error_description}`;
+          }
+        } catch {
+          // Keep default
+        }
         return NextResponse.redirect(
-          new URL(`/login?error=${encodeURIComponent('Failed to exchange authorization code with Google.')}`, req.url)
+          new URL(`/login?error=${encodeURIComponent(userMessage)}`, req.url)
         );
       }
 
@@ -606,6 +637,7 @@ Nirmal Polychem Extrusions,Plastics & Polymers,HDPE Pipes & Fittings,Industrial 
       const firstName = profile.given_name || profile.name?.split(' ')[0] || 'User';
       const lastName = profile.family_name || profile.name?.split(' ').slice(1).join(' ') || '';
       const displayName = profile.name || email.split('@')[0];
+      const avatarUrl = profile.picture || undefined;
 
       let user = registeredUsers.get(email);
       let isNewUser = false;
@@ -638,7 +670,7 @@ Nirmal Polychem Extrusions,Plastics & Polymers,HDPE Pipes & Fittings,Industrial 
         registeredUsers.set(email, user);
       }
 
-      const tokens = generateTokens(user);
+      const tokens = generateTokens(user, { avatarUrl });
 
       const redirectUrl = new URL(
         `/auth/callback?accessToken=${encodeURIComponent(tokens.accessToken)}&refreshToken=${encodeURIComponent(
@@ -661,7 +693,7 @@ Nirmal Polychem Extrusions,Plastics & Polymers,HDPE Pipes & Fittings,Industrial 
 
   // Microsoft OAuth - Initiation
   if (fullPath === 'auth/microsoft') {
-    const clientId = (process.env.MICROSOFT_CLIENT_ID || '').trim().replace(/^["']|["']$/g, '');
+    const clientId = sanitizeEnvValue(process.env.MICROSOFT_CLIENT_ID, 'MICROSOFT_CLIENT_ID');
     if (!clientId || clientId.includes('your-')) {
       return NextResponse.redirect(
         new URL(
@@ -672,11 +704,11 @@ Nirmal Polychem Extrusions,Plastics & Polymers,HDPE Pipes & Fittings,Industrial 
         )
       );
     }
-    const tenant = (process.env.MICROSOFT_TENANT_ID || 'common').trim();
-    const callbackUrl = (
-      process.env.MICROSOFT_CALLBACK_URL ||
-      `${req.nextUrl.origin}/api/v1/auth/microsoft/callback`
-    ).trim();
+    const tenant = sanitizeEnvValue(process.env.MICROSOFT_TENANT_ID, 'MICROSOFT_TENANT_ID') || 'common';
+    let callbackUrl = sanitizeEnvValue(process.env.MICROSOFT_CALLBACK_URL, 'MICROSOFT_CALLBACK_URL');
+    if (!callbackUrl || !callbackUrl.startsWith('http')) {
+      callbackUrl = `${req.nextUrl.origin}/api/v1/auth/microsoft/callback`;
+    }
     const state = crypto.randomBytes(16).toString('hex');
     const params = new URLSearchParams({
       client_id: clientId,

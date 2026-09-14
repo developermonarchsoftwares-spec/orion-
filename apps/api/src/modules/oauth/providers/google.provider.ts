@@ -12,19 +12,22 @@ export class GoogleOAuthProvider implements IOAuthProvider {
   private readonly clientSecret: string;
   private readonly callbackUrl: string;
 
+  private sanitizeValue(val?: string, keyPrefix?: string): string {
+    if (!val) return '';
+    let cleaned = String(val).replace(/[\r\n]+/g, '').trim();
+    cleaned = cleaned.replace(/^["'`]|["'`]$/g, '').trim();
+    if (keyPrefix && cleaned.toLowerCase().startsWith(keyPrefix.toLowerCase() + '=')) {
+      cleaned = cleaned.substring(keyPrefix.length + 1).trim();
+    }
+    cleaned = cleaned.replace(/^[A-Za-z0-9_]+=\s*/, '').trim();
+    return cleaned.replace(/^["'`]|["'`]$/g, '').trim();
+  }
+
   constructor(private readonly configService: ConfigService) {
-    this.clientId = (this.configService.get<string>('GOOGLE_CLIENT_ID') || '')
-      .trim()
-      .replace(/^["']|["']$/g, '');
-    this.clientSecret = (this.configService.get<string>('GOOGLE_CLIENT_SECRET') || '')
-      .trim()
-      .replace(/^["']|["']$/g, '');
-    this.callbackUrl = (
-      this.configService.get<string>('GOOGLE_CALLBACK_URL') ||
-      'http://localhost:4000/api/v1/auth/google/callback'
-    )
-      .trim()
-      .replace(/^["']|["']$/g, '');
+    this.clientId = this.sanitizeValue(this.configService.get<string>('GOOGLE_CLIENT_ID'), 'GOOGLE_CLIENT_ID');
+    this.clientSecret = this.sanitizeValue(this.configService.get<string>('GOOGLE_CLIENT_SECRET'), 'GOOGLE_CLIENT_SECRET');
+    let rawCallback = this.sanitizeValue(this.configService.get<string>('GOOGLE_CALLBACK_URL'), 'GOOGLE_CALLBACK_URL');
+    this.callbackUrl = rawCallback || 'http://localhost:4000/api/v1/auth/google/callback';
 
     const isConfig = this.isConfigured();
     const suffix = isConfig && this.clientId.length >= 4 
