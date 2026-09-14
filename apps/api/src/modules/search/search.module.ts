@@ -5,6 +5,8 @@ import { SearchSyncLogRepository } from './repositories/search-sync-log.reposito
 import { SearchIndexService } from './services/search-index.service';
 import { SearchService } from './services/search.service';
 import { SearchSyncWorker } from './workers/search-sync.worker';
+import { PostgresSearchProvider } from './providers/postgres-search.provider';
+import { TypesenseSearchProvider } from './providers/typesense-search.provider';
 
 @Module({
   imports: [BusinessModule],
@@ -12,6 +14,8 @@ import { SearchSyncWorker } from './workers/search-sync.worker';
     SearchRepository,
     SearchSyncLogRepository,
     SearchIndexService,
+    PostgresSearchProvider,
+    TypesenseSearchProvider,
     SearchService,
     SearchSyncWorker,
   ],
@@ -19,6 +23,8 @@ import { SearchSyncWorker } from './workers/search-sync.worker';
     SearchRepository,
     SearchSyncLogRepository,
     SearchIndexService,
+    PostgresSearchProvider,
+    TypesenseSearchProvider,
     SearchService,
     SearchSyncWorker,
   ],

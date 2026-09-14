@@ -25,6 +25,9 @@ export const environmentValidationSchema = Joi.object({
   REDIS_DB: Joi.number().empty('').default(0),
   REDIS_TLS: Joi.boolean().empty('').default(false),
 
+  // Search Provider
+  SEARCH_PROVIDER: Joi.string().valid('postgres', 'typesense').empty('').default('postgres'),
+
   // Typesense
   TYPESENSE_NODES: Joi.string().empty('').default('localhost'),
   TYPESENSE_PORT: Joi.number().empty('').default(8108),

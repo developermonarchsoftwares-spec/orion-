@@ -1,193 +1,25 @@
 import type { DashboardStats, ChartDataPoint, Activity } from '@/lib/types';
 
+/**
+ * Baseline dashboard data models for Orion.
+ * In production, statistics and unlock activities are fetched dynamically from the NestJS backend.
+ */
 export const dashboardStats: DashboardStats = {
-  newBusinessesToday: 47,
-  newBusinessesTrend: 12.5,
-  highOpportunityLeads: 156,
-  highOpportunityTrend: 8.3,
-  businessesWithoutWebsite: 892,
-  businessesWithoutWebsiteTrend: -3.2,
-  creditsRemaining: 2450,
-  creditsTrend: -15.0,
-  businessesThisWeek: 312,
-  totalUnlocked: 89,
+  newBusinessesToday: 0,
+  newBusinessesTrend: 0,
+  highOpportunityLeads: 0,
+  highOpportunityTrend: 0,
+  businessesWithoutWebsite: 0,
+  businessesWithoutWebsiteTrend: 0,
+  creditsRemaining: 0,
+  creditsTrend: 0,
+  businessesThisWeek: 0,
+  totalUnlocked: 0,
 };
 
-export const businessTrendData: ChartDataPoint[] = [
-  { name: 'Jan', businesses: 1240, leads: 340 },
-  { name: 'Feb', businesses: 1380, leads: 420 },
-  { name: 'Mar', businesses: 1520, leads: 510 },
-  { name: 'Apr', businesses: 1670, leads: 480 },
-  { name: 'May', businesses: 1890, leads: 620 },
-  { name: 'Jun', businesses: 2100, leads: 710 },
-  { name: 'Jul', businesses: 2350, leads: 780 },
-  { name: 'Aug', businesses: 2480, leads: 850 },
-  { name: 'Sep', businesses: 2720, leads: 920 },
-  { name: 'Oct', businesses: 2900, leads: 980 },
-  { name: 'Nov', businesses: 3150, leads: 1100 },
-  { name: 'Dec', businesses: 3400, leads: 1250 },
-];
-
-export const industryDistribution: ChartDataPoint[] = [
-  { name: 'Restaurant', value: 2480 },
-  { name: 'Tech Startup', value: 1850 },
-  { name: 'Construction', value: 1620 },
-  { name: 'Healthcare', value: 1340 },
-  { name: 'Retail', value: 1120 },
-  { name: 'Professional Services', value: 980 },
-  { name: 'Real Estate', value: 860 },
-  { name: 'Salon & Beauty', value: 740 },
-  { name: 'Auto Repair', value: 620 },
-  { name: 'Fitness', value: 510 },
-  { name: 'Other', value: 1310 },
-];
-
-export const recentActivity: Activity[] = [
-  {
-    id: '1',
-    type: 'unlock',
-    title: 'Unlocked Lead',
-    description: 'Unlocked Bright Smile Dental — Healthcare, Austin TX',
-    timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-    metadata: { businessId: 'bus_009', credits: 2 },
-  },
-  {
-    id: '2',
-    type: 'search',
-    title: 'Saved Search Run',
-    description: 'Ran "New Restaurants Without Website" — 47 results found',
-    timestamp: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
-    metadata: { searchId: 'ss_1', results: 47 },
-  },
-  {
-    id: '3',
-    type: 'export',
-    title: 'Data Export',
-    description: 'Exported 50 leads to CSV — filtered by Technology industry',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    metadata: { format: 'csv', count: 50 },
-  },
-  {
-    id: '4',
-    type: 'note',
-    title: 'Note Added',
-    description: 'Added note to BuildIt Construction — "Proposal sent for CRM integration"',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
-    metadata: { businessId: 'bus_013' },
-  },
-  {
-    id: '5',
-    type: 'unlock',
-    title: 'Unlocked Lead',
-    description: 'Unlocked NextGen Software — Tech Startup, San Jose CA',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 7).toISOString(),
-    metadata: { businessId: 'bus_016', credits: 3 },
-  },
-  {
-    id: '6',
-    type: 'status_change',
-    title: 'Status Updated',
-    description: 'Creative Minds Marketing moved from "Proposal" to "Won"',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
-    metadata: { businessId: 'bus_010', from: 'proposal', to: 'won' },
-  },
-  {
-    id: '7',
-    type: 'purchase',
-    title: 'Credits Purchased',
-    description: 'Purchased Enterprise Package — 2,000 credits for $299',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-    metadata: { package: 'Enterprise', credits: 2000 },
-  },
-  {
-    id: '8',
-    type: 'unlock',
-    title: 'Unlocked Lead',
-    description: 'Unlocked Cloud Computing Innovations — Tech, Salt Lake City UT',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 25).toISOString(),
-    metadata: { businessId: 'bus_031', credits: 3 },
-  },
-  {
-    id: '9',
-    type: 'search',
-    title: 'Saved Search Created',
-    description: 'Created "California Businesses Without Email" — 72 results',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 30).toISOString(),
-    metadata: { searchId: 'ss_6', results: 72 },
-  },
-  {
-    id: '10',
-    type: 'unlock',
-    title: 'Unlocked Lead',
-    description: 'Unlocked Justice Law Firm — Legal, Washington DC',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
-    metadata: { businessId: 'bus_014', credits: 3 },
-  },
-  {
-    id: '11',
-    type: 'note',
-    title: 'Note Added',
-    description: 'Added note to Valley Medical — "Front desk confirmed interest in telemedicine"',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 50).toISOString(),
-    metadata: { businessId: 'bus_012' },
-  },
-  {
-    id: '12',
-    type: 'export',
-    title: 'Data Export',
-    description: 'Exported 25 healthcare leads to Excel for sales team',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 56).toISOString(),
-    metadata: { format: 'xlsx', count: 25 },
-  },
-  {
-    id: '13',
-    type: 'unlock',
-    title: 'Unlocked Lead',
-    description: 'Unlocked Pinnacle Consulting — IT Consulting, Houston TX',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(),
-    metadata: { businessId: 'bus_022', credits: 3 },
-  },
-  {
-    id: '14',
-    type: 'status_change',
-    title: 'Status Updated',
-    description: 'Justice Law Firm moved from "Qualified" to "Won"',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 80).toISOString(),
-    metadata: { businessId: 'bus_014', from: 'qualified', to: 'won' },
-  },
-  {
-    id: '15',
-    type: 'purchase',
-    title: 'Credits Purchased',
-    description: 'Purchased Professional Package — 500 credits for $99',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 96).toISOString(),
-    metadata: { package: 'Professional', credits: 500 },
-  },
-  {
-    id: '16',
-    type: 'import',
-    title: 'Data Import',
-    description: 'Imported 1,500 business records from restaurants_nyc.csv',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 120).toISOString(),
-    metadata: { filename: 'restaurants_nyc.csv', records: 1500 },
-  },
-  {
-    id: '17',
-    type: 'search',
-    title: 'Saved Search Run',
-    description: 'Ran "High-Value Tech Startups" — 23 results found',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 144).toISOString(),
-    metadata: { searchId: 'ss_2', results: 23 },
-  },
-  {
-    id: '18',
-    type: 'unlock',
-    title: 'Unlocked Lead',
-    description: 'Unlocked Taste of Italy Restaurant — F&B, Philadelphia PA',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 168).toISOString(),
-    metadata: { businessId: 'bus_015', credits: 1 },
-  },
-];
+export const businessTrendData: ChartDataPoint[] = [];
+export const industryDistribution: ChartDataPoint[] = [];
+export const recentActivity: Activity[] = [];
 
 export const quickActions = [
   { title: 'Discover Businesses', description: 'Find new leads in your target market', href: '/discover', icon: 'Search' },
@@ -195,14 +27,3 @@ export const quickActions = [
   { title: 'Buy Credits', description: 'Top up your unlock credits', href: '/credits', icon: 'CreditCard' },
   { title: 'Saved Searches', description: 'Run and manage saved queries', href: '/saved-searches', icon: 'BookmarkCheck' },
 ];
-
-export const weeklyHighlights = {
-  newBusinessesDiscovered: 312,
-  leadsUnlocked: 28,
-  proposalsSent: 8,
-  dealsWon: 3,
-  creditsUsed: 42,
-  topIndustry: 'Restaurant',
-  topState: 'TX',
-  conversionRate: 10.7,
-};

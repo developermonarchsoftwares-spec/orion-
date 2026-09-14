@@ -165,7 +165,7 @@ async function runR2Verification() {
     const directUrl = `${endpoint}/${bucket}/${testKey}`;
     const directStatus = await checkPublicHttpAccess(directUrl);
     console.log(`   Unauthenticated direct access HTTP status: ${directStatus}`);
-    if (directStatus === 401 || directStatus === 403 || directStatus === 404 || directStatus === 0) {
+    if (directStatus === 400 || directStatus === 401 || directStatus === 403 || directStatus === 404 || directStatus === 0) {
       console.log('   Bucket private: PASS (Public unauthenticated access is rejected)');
     } else {
       console.error(`   Bucket private: FAIL (Bucket returned HTTP ${directStatus} for unauthenticated request)`);

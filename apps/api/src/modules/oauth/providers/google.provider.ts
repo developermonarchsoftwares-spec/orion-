@@ -128,15 +128,15 @@ export class GoogleOAuthProvider implements IOAuthProvider {
     // Support development / testing simulation
     if (accessToken.startsWith('google_sim_access_')) {
       const simEmail = accessToken.replace('google_sim_access_', '');
-      const email = (simEmail.includes('@') ? simEmail : null) || this.configService.get<string>('SIM_GOOGLE_EMAIL') || 'alex.google@orion.ai';
+      const email = (simEmail.includes('@') ? simEmail : null) || this.configService.get<string>('SIM_GOOGLE_EMAIL') || 'user.google@orion.ai';
       const providerId = `google_user_${Buffer.from(email).toString('hex').slice(0, 16)}`;
       return {
         provider: 'GOOGLE',
         providerId,
         email,
-        firstName: 'Alex',
-        lastName: 'Thompson',
-        displayName: 'Alex Thompson',
+        firstName: 'Google',
+        lastName: 'User',
+        displayName: 'Google User',
         avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
         isEmailVerified: true,
       };

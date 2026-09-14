@@ -36,7 +36,6 @@ import {
   Clock
 } from 'lucide-react';
 import { Business } from '@/lib/types';
-import { businesses as initialBusinesses } from '@/lib/data/businesses';
 import { GlobalSearchBar } from '@/components/discover/global-search-bar';
 import { QuickFilterChips } from '@/components/discover/quick-filter-chips';
 import {
@@ -60,7 +59,7 @@ type SortOption =
   | 'name_desc';
 
 export default function DiscoverPage() {
-  const { wallet, setWalletBalance } = useAuth();
+  const { user, wallet, setWalletBalance } = useAuth();
   // Main Data
   const [data, setData] = useState<Business[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -91,7 +90,7 @@ export default function DiscoverPage() {
     isBulk: false,
   });
   const [isSaveSearchOpen, setIsSaveSearchOpen] = useState(false);
-  const userCredits = wallet?.balance ?? 250;
+  const userCredits = wallet?.balance ?? 0;
 
   // Live Backend Search Fetching
   useEffect(() => {
@@ -541,7 +540,7 @@ export default function DiscoverPage() {
               <GlobalSearchBar
                 value={searchQuery}
                 onChange={setSearchQuery}
-                businesses={initialBusinesses}
+                businesses={data}
                 onSelectSuggestion={(type, val) => setSearchQuery(val)}
               />
             </div>
@@ -796,9 +795,6 @@ export default function DiscoverPage() {
                                     {item.entityType}
                                   </span>
                                 )}
-                                {item.source && (
-                                  <span className="text-[10px] text-zinc-400">• {item.source}</span>
-                                )}
                               </div>
                             </div>
                           </td>
@@ -919,21 +915,38 @@ export default function DiscoverPage() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={9} className="py-12 text-center text-zinc-500">
-                        <div className="max-w-xs mx-auto space-y-2">
-                          <Building2 className="w-8 h-8 mx-auto text-zinc-400 stroke-1" />
-                          <p className="font-semibold text-zinc-800 dark:text-zinc-200">
-                            No businesses found matching your criteria
+                      <td colSpan={9} className="py-16 text-center text-zinc-500">
+                        <div className="max-w-md mx-auto space-y-3">
+                          <div className="w-12 h-12 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mx-auto text-zinc-400">
+                            <Building2 className="w-6 h-6 stroke-1.5" />
+                          </div>
+                          <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm">
+                            No business records found.
+                          </h3>
+                          <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+                            {searchQuery || activeFiltersCount > 0
+                              ? 'Try adjusting your filters or search criteria to find relevant businesses.'
+                              : 'No verified business records published in directory yet.'}
                           </p>
-                          <p className="text-[11px] text-zinc-500">
-                            Try loosening your location, industry, or score filters to see more leads.
-                          </p>
-                          <button
-                            onClick={handleResetFilters}
-                            className="mt-2 px-3 py-1.5 text-xs font-semibold bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-md cursor-pointer"
-                          >
-                            Reset Filters
-                          </button>
+                          <div className="flex items-center justify-center gap-2 pt-1">
+                            {(searchQuery || activeFiltersCount > 0) && (
+                              <button
+                                onClick={handleResetFilters}
+                                className="px-3 py-1.5 text-xs font-medium border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-50 rounded-lg transition-colors cursor-pointer"
+                              >
+                                Reset Filters
+                              </button>
+                            )}
+                            {(user?.role === 'Admin' || user?.role === 'SUPER_ADMIN') && (
+                              <a
+                                href="/admin/monarch"
+                                className="px-3 py-1.5 text-xs font-medium bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:opacity-90 rounded-lg transition-opacity cursor-pointer inline-flex items-center gap-1.5"
+                              >
+                                <FileSpreadsheet className="w-3.5 h-3.5" />
+                                Admin → Import Businesses
+                              </a>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>

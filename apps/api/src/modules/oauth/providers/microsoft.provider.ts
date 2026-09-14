@@ -129,15 +129,15 @@ export class MicrosoftOAuthProvider implements IOAuthProvider {
     // Support development / testing simulation
     if (accessToken.startsWith('ms_sim_access_')) {
       const simEmail = accessToken.replace('ms_sim_access_', '');
-      const email = (simEmail.includes('@') ? simEmail : null) || this.configService.get<string>('SIM_MS_EMAIL') || 'alex.microsoft@orion.ai';
+      const email = (simEmail.includes('@') ? simEmail : null) || this.configService.get<string>('SIM_MS_EMAIL') || 'user.microsoft@orion.ai';
       const providerId = `ms_entra_user_${Buffer.from(email).toString('hex').slice(0, 16)}`;
       return {
         provider: 'MICROSOFT',
         providerId,
         email,
-        firstName: 'Alex',
-        lastName: 'Thompson',
-        displayName: 'Alex Thompson (Enterprise)',
+        firstName: 'Microsoft',
+        lastName: 'User',
+        displayName: 'Microsoft Enterprise User',
         avatarUrl: undefined,
         isEmailVerified: true,
       };

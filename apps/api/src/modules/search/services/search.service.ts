@@ -1,122 +1,83 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { SearchRepository, ITypesenseBusinessDocument } from '../repositories/search.repository';
-import { SearchParams } from 'typesense/lib/Typesense/Documents';
-import { CursorUtil } from '../../../common/utils/cursor.util';
+import { ConfigService } from '@nestjs/config';
+import {
+  ISearchProvider,
+  IBusinessSearchQuery,
+  ISearchResultResponse,
+} from '../interfaces/search-provider.interface';
+import { PostgresSearchProvider } from '../providers/postgres-search.provider';
+import { TypesenseSearchProvider } from '../providers/typesense-search.provider';
+import { ITypesenseBusinessDocument } from '../repositories/search.repository';
 
-export interface IBusinessSearchQuery {
-  q?: string;
-  queryBy?: string;
-  industryId?: string;
-  categoryId?: string;
-  businessType?: string;
-  msmeCategory?: string;
-  state?: string;
-  district?: string;
-  city?: string;
-  pincode?: string;
-  hasWebsite?: boolean;
-  hasEmail?: boolean;
-  hasPhone?: boolean;
-  hasGstin?: boolean;
-  opportunityTier?: string;
-  minOrionScore?: number;
-  maxOrionScore?: number;
-  sortBy?: string;
-  page?: number;
-  limit?: number;
-  cursor?: string;
-}
-
-export interface ISearchResultResponse {
-  hits: ITypesenseBusinessDocument[];
-  total: number;
-  page: number;
-  totalPages: number;
-  limit: number;
-  nextCursor?: string;
-  facetCounts?: Record<string, unknown>;
-  searchDurationMs: number;
-}
+export { IBusinessSearchQuery, ISearchResultResponse };
 
 @Injectable()
-export class SearchService {
+export class SearchService implements ISearchProvider {
+  readonly name: string;
   private readonly logger = new Logger(SearchService.name);
+  private readonly activeProvider: ISearchProvider;
 
-  constructor(private readonly searchRepo: SearchRepository) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly postgresProvider: PostgresSearchProvider,
+    private readonly typesenseProvider: TypesenseSearchProvider,
+  ) {
+    const configuredProvider = (
+      this.configService.get<string>('SEARCH_PROVIDER') || 'postgres'
+    ).toLowerCase();
+
+    if (configuredProvider === 'typesense') {
+      this.activeProvider = this.typesenseProvider;
+      this.name = 'TYPESENSE';
+      this.logger.log('Search service initialized with active provider: Typesense');
+    } else {
+      this.activeProvider = this.postgresProvider;
+      this.name = 'POSTGRES';
+      this.logger.log('Search service initialized with active provider: PostgreSQL');
+    }
+  }
 
   /**
-   * Executes discovery search across millions of business records
+   * Executes discovery search across business records using the active provider
    */
   async searchBusinesses(query: IBusinessSearchQuery): Promise<ISearchResultResponse> {
-    const page = query.page || 1;
-    const limit = Math.min(query.limit || 20, 100);
+    return this.activeProvider.search(query);
+  }
 
-    // Build filter expressions
-    const filterConditions: string[] = ['status:=PUBLISHED'];
+  /**
+   * Alias to satisfy ISearchProvider interface
+   */
+  async search(query: IBusinessSearchQuery): Promise<ISearchResultResponse> {
+    return this.searchBusinesses(query);
+  }
 
-    if (query.industryId) filterConditions.push(`industry_id:=${query.industryId}`);
-    if (query.categoryId) filterConditions.push(`category_id:=${query.categoryId}`);
-    if (query.businessType) filterConditions.push(`business_type:=${query.businessType}`);
-    if (query.msmeCategory) filterConditions.push(`msme_category:=${query.msmeCategory}`);
-    if (query.state) filterConditions.push(`state:=${query.state}`);
-    if (query.district) filterConditions.push(`district:=${query.district}`);
-    if (query.city) filterConditions.push(`city:=${query.city}`);
-    if (query.pincode) filterConditions.push(`pincode:=${query.pincode}`);
-    if (query.hasWebsite !== undefined) filterConditions.push(`has_website:=${query.hasWebsite}`);
-    if (query.hasEmail !== undefined) filterConditions.push(`has_email:=${query.hasEmail}`);
-    if (query.hasPhone !== undefined) filterConditions.push(`has_phone:=${query.hasPhone}`);
-    if (query.hasGstin !== undefined) filterConditions.push(`has_gstin:=${query.hasGstin}`);
-    if (query.opportunityTier) filterConditions.push(`opportunity_tier:=${query.opportunityTier}`);
-
-    if (query.minOrionScore !== undefined || query.maxOrionScore !== undefined) {
-      const min = query.minOrionScore ?? 0;
-      const max = query.maxOrionScore ?? 100;
-      filterConditions.push(`orion_score:[${min}..${max}]`);
+  /**
+   * Index document if supported by active provider
+   */
+  async indexDocument(doc: ITypesenseBusinessDocument): Promise<unknown> {
+    if (this.activeProvider.indexDocument) {
+      return this.activeProvider.indexDocument(doc);
     }
+    return null;
+  }
 
-    const searchParams: SearchParams = {
-      q: query.q?.trim() || '*',
-      query_by: query.queryBy || 'name,legal_name,city,district,state,industry_name,category_name',
-      filter_by: filterConditions.join(' && '),
-      sort_by: query.sortBy || 'orion_score:desc,created_at:desc',
-      facet_by: 'state,city,industry_name,category_name,business_type,msme_category,opportunity_tier,has_website,has_email,has_phone,has_gstin',
-      page,
-      per_page: limit,
-    };
-
-    // If cursor provided, decode and apply
-    if (query.cursor) {
-      const cursorPayload = CursorUtil.decode(query.cursor);
-      if (cursorPayload?.sortByValue) {
-        // Apply cursor boundary
-      }
+  /**
+   * Bulk index documents if supported by active provider
+   */
+  async bulkIndex(docs: ITypesenseBusinessDocument[]): Promise<unknown> {
+    if (this.activeProvider.bulkIndex) {
+      return this.activeProvider.bulkIndex(docs);
     }
+    return [];
+  }
 
-    const result = await this.searchRepo.search(searchParams);
-
-    const hits = (result.hits || []).map((h) => h.document as ITypesenseBusinessDocument);
-    const total = result.found || 0;
-    const totalPages = Math.ceil(total / limit) || 1;
-
-    let nextCursor: string | undefined = undefined;
-    if (hits.length === limit && page < totalPages) {
-      const lastItem = hits[hits.length - 1];
-      nextCursor = CursorUtil.encode({
-        id: lastItem.id,
-        sortByValue: lastItem.orion_score,
-        timestamp: Date.now(),
-      });
+  /**
+   * Delete document if supported by active provider
+   */
+  async deleteDocument(id: string): Promise<unknown> {
+    if (this.activeProvider.deleteDocument) {
+      return this.activeProvider.deleteDocument(id);
     }
-
-    return {
-      hits,
-      total,
-      page,
-      totalPages,
-      limit,
-      nextCursor,
-      facetCounts: result.facet_counts as unknown as Record<string, unknown>,
-      searchDurationMs: result.search_time_ms || 0,
-    };
+    return null;
   }
 }

@@ -7,12 +7,18 @@ import * as path from 'path';
 dotenv.config();
 
 async function runMigrations() {
-  const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/orion_db';
+  let databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/orion_db';
+  // For Neon PostgreSQL: pooler endpoints (-pooler.) cannot run Drizzle migrations due to advisory locks.
+  // Automatically switch to the direct endpoint for running migrations.
+  if (databaseUrl.includes('-pooler.')) {
+    databaseUrl = databaseUrl.replace('-pooler.', '.');
+  }
   console.log('Connecting to database for migrations:', databaseUrl.replace(/:[^:@]+@/, ':****@'));
 
   const pool = new Pool({
     connectionString: databaseUrl,
     max: 1,
+    ssl: { rejectUnauthorized: false },
   });
 
   const db = drizzle(pool);

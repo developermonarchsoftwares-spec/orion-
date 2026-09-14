@@ -1,4 +1,5 @@
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Client } from 'typesense';
 import { SearchParams } from 'typesense/lib/Typesense/Documents';
 import { TYPESENSE_CLIENT } from '../../typesense/typesense.constants';
@@ -41,11 +42,18 @@ export class SearchRepository implements OnModuleInit {
   private readonly logger = new Logger(SearchRepository.name);
 
   constructor(
+    @Optional()
     @Inject(TYPESENSE_CLIENT)
-    private readonly typesenseClient: Client,
+    private readonly typesenseClient: Client | null,
+    private readonly configService: ConfigService,
   ) {}
 
   async onModuleInit() {
+    const searchProvider = (this.configService.get<string>('SEARCH_PROVIDER') || 'postgres').toLowerCase();
+    if (searchProvider !== 'typesense' || !this.typesenseClient) {
+      this.logger.log('Typesense search disabled (active provider: postgres). Skipping collection bootstrap.');
+      return;
+    }
     try {
       await this.ensureCollection();
     } catch (error) {
@@ -57,6 +65,7 @@ export class SearchRepository implements OnModuleInit {
    * Idempotently ensures the Typesense collection schema exists
    */
   async ensureCollection() {
+    if (!this.typesenseClient) return;
     try {
       await this.typesenseClient.collections(BUSINESSES_SEARCH_COLLECTION).retrieve();
       this.logger.log(`Typesense collection '${BUSINESSES_SEARCH_COLLECTION}' is active.`);
@@ -71,6 +80,7 @@ export class SearchRepository implements OnModuleInit {
    * Upserts a single document in Typesense
    */
   async indexDocument(doc: ITypesenseBusinessDocument) {
+    if (!this.typesenseClient) return null;
     return this.typesenseClient
       .collections<ITypesenseBusinessDocument>(BUSINESSES_SEARCH_COLLECTION)
       .documents()
@@ -81,7 +91,7 @@ export class SearchRepository implements OnModuleInit {
    * Bulk imports documents in Typesense
    */
   async bulkIndex(docs: ITypesenseBusinessDocument[]) {
-    if (docs.length === 0) return [];
+    if (!this.typesenseClient || docs.length === 0) return [];
     return this.typesenseClient
       .collections<ITypesenseBusinessDocument>(BUSINESSES_SEARCH_COLLECTION)
       .documents()
@@ -92,6 +102,7 @@ export class SearchRepository implements OnModuleInit {
    * Deletes a document by ID
    */
   async deleteDocument(id: string) {
+    if (!this.typesenseClient) return null;
     return this.typesenseClient
       .collections(BUSINESSES_SEARCH_COLLECTION)
       .documents(id)
@@ -102,6 +113,9 @@ export class SearchRepository implements OnModuleInit {
    * Executes a search query with full-text, filters, facets, and sorting
    */
   async search(params: SearchParams) {
+    if (!this.typesenseClient) {
+      throw new Error('Typesense client is not available (active provider: postgres)');
+    }
     return this.typesenseClient
       .collections<ITypesenseBusinessDocument>(BUSINESSES_SEARCH_COLLECTION)
       .documents()

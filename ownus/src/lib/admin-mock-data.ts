@@ -557,7 +557,7 @@ export const INITIAL_VALIDATION_ISSUES: ValidationIssue[] = [
 export const INITIAL_ACTIVITY_LOGS: ActivityLogEntry[] = [
   {
     id: 'LOG-8801',
-    user: 'Alex Thompson (Super Admin)',
+    user: 'Super Admin (System)',
     action: 'Published',
     entityType: 'Business',
     entityId: 'BIZ-10001',
@@ -590,7 +590,7 @@ export const INITIAL_ACTIVITY_LOGS: ActivityLogEntry[] = [
   },
   {
     id: 'LOG-8804',
-    user: 'Alex Thompson (Super Admin)',
+    user: 'Super Admin (System)',
     action: 'Exported',
     entityType: 'Business',
     entityId: 'ALL-FILTERED',
@@ -615,8 +615,8 @@ export const INITIAL_ACTIVITY_LOGS: ActivityLogEntry[] = [
 export const INITIAL_ADMIN_USERS: AdminUser[] = [
   {
     id: 'USR-01',
-    name: 'Alex Thompson',
-    email: 'alex@orion.com',
+    name: 'Orion Super Admin',
+    email: 'admin@orion.ai',
     role: 'Super Admin',
     status: 'Active',
     creditsBalance: 50000,
@@ -629,29 +629,9 @@ export const INITIAL_ADMIN_USERS: AdminUser[] = [
     email: 'priya.sharma@orion.com',
     role: 'Data Operator',
     status: 'Active',
-    creditsBalance: 10000,
-    lastActive: '12 minutes ago',
-    recordsReviewed: 5890
-  },
-  {
-    id: 'USR-03',
-    name: 'Rajesh Nair',
-    email: 'rajesh.nair@orion.com',
-    role: 'Reviewer',
-    status: 'Active',
     creditsBalance: 5000,
-    lastActive: '1 hour ago',
-    recordsReviewed: 3450
-  },
-  {
-    id: 'USR-04',
-    name: 'Vikram Mehta',
-    email: 'vikram.m@orion.com',
-    role: 'Auditor',
-    status: 'Inactive',
-    creditsBalance: 2000,
-    lastActive: '3 days ago',
-    recordsReviewed: 820
+    lastActive: '12m ago',
+    recordsReviewed: 890
   }
 ];
 
@@ -659,7 +639,7 @@ export const INITIAL_CREDIT_TRANSACTIONS: CreditTransaction[] = [
   {
     id: 'TXN-901',
     userId: 'USR-01',
-    userName: 'Apex Web Studio Inc.',
+    userName: 'Apex Industrial Solvers',
     type: 'purchase',
     amount: 2000,
     balanceAfter: 2450,
@@ -674,7 +654,7 @@ export const INITIAL_CREDIT_TRANSACTIONS: CreditTransaction[] = [
     amount: 500,
     balanceAfter: 850,
     description: 'Manual Customer Support Goodwill Grant',
-    adminBy: 'Alex Thompson',
+    adminBy: 'Orion Super Admin',
     timestamp: '2024-09-07 11:20'
   },
   {
@@ -1338,7 +1318,7 @@ export const INITIAL_SUPPORT_TICKETS: SupportTicket[] = [
     subject: 'GST tax invoice receipt required for August annual purchase',
     priority: 'Low',
     status: 'Resolved',
-    assignedTo: 'Alex Thompson',
+    assignedTo: 'Orion Support Agent',
     createdDate: '2024-09-07 09:10',
     lastUpdated: '2024-09-07 14:00',
     category: 'Billing & Credits',
@@ -1354,7 +1334,7 @@ export const INITIAL_SUPPORT_TICKETS: SupportTicket[] = [
       {
         id: 'msg-7',
         sender: 'Support Agent',
-        senderName: 'Alex Thompson',
+        senderName: 'Orion Support Agent',
         message: 'Hi Rohan, your GST compliant tax invoice INV-2024-0822 is now attached and available directly inside your Orion billing dashboard.',
         timestamp: '2024-09-07 14:00'
       }

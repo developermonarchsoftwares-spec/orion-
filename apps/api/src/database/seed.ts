@@ -313,12 +313,16 @@ const sampleBusinesses = [
 ];
 
 async function seedDatabase() {
-  const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/orion_db';
+  let databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/orion_db';
+  if (databaseUrl.includes('-pooler.')) {
+    databaseUrl = databaseUrl.replace('-pooler.', '.');
+  }
   console.log('Connecting to database for seeding...');
 
   const pool = new Pool({
     connectionString: databaseUrl,
     max: 1,
+    ssl: { rejectUnauthorized: false },
   });
 
   const db = drizzle(pool, { schema });
@@ -360,7 +364,6 @@ async function seedDatabase() {
       console.log('✓ Created super admin user: admin@orion.ai');
     } else {
       console.log('ℹ Super admin already exists.');
-      // Ensure wallet is initialized with daily/purchased
       const adminWallet = await db.query.userWallets.findFirst({
         where: eq(schema.userWallets.userId, existingAdmin.id),
       });
@@ -371,53 +374,6 @@ async function seedDatabase() {
           balance: (adminWallet.balance || 10000) + 5,
           lastDailyCreditDate: new Date().toISOString().slice(0, 10),
         }).where(eq(schema.userWallets.id, adminWallet.id));
-      }
-    }
-
-    // Seed Demo User
-    const demoEmail = 'demo@orion.ai';
-    const existingDemo = await db.query.users.findFirst({
-      where: eq(schema.users.email, demoEmail),
-    });
-
-    if (!existingDemo) {
-      const passwordHash = await bcrypt.hash('OrionDemo@2026!', 12);
-      const [demoUser] = await db
-        .insert(schema.users)
-        .values({
-          email: demoEmail,
-          passwordHash,
-          firstName: 'Alex',
-          lastName: 'Thompson',
-          organizationName: 'Acme Commercial Corp',
-          phoneNumber: '+91 98450 12345',
-          role: 'USER',
-          status: 'ACTIVE',
-          isEmailVerified: true,
-        })
-        .returning();
-
-      await db.insert(schema.userWallets).values({
-        userId: demoUser.id,
-        dailyCredits: 5,
-        purchasedCredits: 250,
-        balance: 255,
-        lastDailyCreditDate: new Date().toISOString().slice(0, 10),
-        lifetimePurchased: 250,
-        lifetimeUsed: 0,
-      });
-      console.log('✓ Created demo customer: demo@orion.ai (Password: OrionDemo@2026!) with 255 credits');
-    } else {
-      const demoWallet = await db.query.userWallets.findFirst({
-        where: eq(schema.userWallets.userId, existingDemo.id),
-      });
-      if (demoWallet && (!demoWallet.dailyCredits || demoWallet.dailyCredits === 0)) {
-        await db.update(schema.userWallets).set({
-          dailyCredits: 5,
-          purchasedCredits: demoWallet.balance || 250,
-          balance: (demoWallet.balance || 250) + 5,
-          lastDailyCreditDate: new Date().toISOString().slice(0, 10),
-        }).where(eq(schema.userWallets.id, demoWallet.id));
       }
     }
 
@@ -726,46 +682,49 @@ async function seedDatabase() {
       });
     }
 
-    // Index documents into Typesense
-    console.log('Syncing documents to Typesense cluster...');
-    const typesenseHost = process.env.TYPESENSE_HOST || 'localhost';
-    const typesensePort = Number(process.env.TYPESENSE_PORT || 8108);
-    const typesenseProtocol = process.env.TYPESENSE_PROTOCOL || 'http';
-    const typesenseApiKey = process.env.TYPESENSE_API_KEY || 'xyz123_orion_typesense_master_key';
+    // Index documents into Typesense if configured
+    const searchProvider = (process.env.SEARCH_PROVIDER || 'postgres').toLowerCase();
+    if (searchProvider === 'typesense') {
+      console.log('Syncing documents to Typesense cluster...');
+      const typesenseHost = process.env.TYPESENSE_HOST || 'localhost';
+      const typesensePort = Number(process.env.TYPESENSE_PORT || 8108);
+      const typesenseProtocol = process.env.TYPESENSE_PROTOCOL || 'http';
+      const typesenseApiKey = process.env.TYPESENSE_API_KEY || 'xyz123_orion_typesense_master_key';
 
-    const tsClient = new TypesenseClient({
-      nodes: [
-        {
-          host: typesenseHost,
-          port: typesensePort,
-          protocol: typesenseProtocol,
-        },
-      ],
-      apiKey: typesenseApiKey,
-      connectionTimeoutSeconds: 5,
-    });
+      const tsClient = new TypesenseClient({
+        nodes: [
+          {
+            host: typesenseHost,
+            port: typesensePort,
+            protocol: typesenseProtocol,
+          },
+        ],
+        apiKey: typesenseApiKey,
+        connectionTimeoutSeconds: 5,
+      });
 
-    try {
-      // Check if collection exists; create if missing
       try {
-        await tsClient.collections(BUSINESSES_SEARCH_COLLECTION).retrieve();
-        console.log(`✓ Typesense collection '${BUSINESSES_SEARCH_COLLECTION}' already exists.`);
-      } catch {
-        console.log(`Creating Typesense collection '${BUSINESSES_SEARCH_COLLECTION}'...`);
-        await tsClient.collections().create(BUSINESSES_COLLECTION_SCHEMA);
-        console.log(`✓ Created Typesense collection '${BUSINESSES_SEARCH_COLLECTION}'.`);
-      }
+        try {
+          await tsClient.collections(BUSINESSES_SEARCH_COLLECTION).retrieve();
+          console.log(`✓ Typesense collection '${BUSINESSES_SEARCH_COLLECTION}' already exists.`);
+        } catch {
+          console.log(`Creating Typesense collection '${BUSINESSES_SEARCH_COLLECTION}'...`);
+          await tsClient.collections().create(BUSINESSES_COLLECTION_SCHEMA);
+          console.log(`✓ Created Typesense collection '${BUSINESSES_SEARCH_COLLECTION}'.`);
+        }
 
-      // Upsert documents
-      for (const doc of typesenseDocs) {
-        await tsClient.collections(BUSINESSES_SEARCH_COLLECTION).documents().upsert(doc);
+        for (const doc of typesenseDocs) {
+          await tsClient.collections(BUSINESSES_SEARCH_COLLECTION).documents().upsert(doc);
+        }
+        console.log(`✓ Successfully indexed ${typesenseDocs.length} businesses into Typesense!`);
+      } catch (tsErr: any) {
+        console.warn('⚠️ Typesense indexing warning:', tsErr.message);
       }
-      console.log(`✓ Successfully indexed ${typesenseDocs.length} businesses into Typesense!`);
-    } catch (tsErr: any) {
-      console.warn('⚠️ Typesense indexing warning (fallback to PostgreSQL active):', tsErr.message);
+    } else {
+      console.log('ℹ SEARCH_PROVIDER is postgres. Skipping Typesense index sync.');
     }
 
-    console.log('✓ Seeding & search index synchronization completed successfully.');
+    console.log('✓ Seeding completed successfully.');
   } catch (error) {
     console.error('✗ Seeding failed:', error);
     process.exit(1);

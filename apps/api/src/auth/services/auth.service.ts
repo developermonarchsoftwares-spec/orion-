@@ -72,25 +72,44 @@ export class AuthService {
         })
         .returning();
 
-      // Initialize Credit Wallet with 25 Welcome Credits
+      const todayStr = new Date().toISOString().slice(0, 10);
+
+      // Initialize Credit Wallet with 5 Daily Free Credits
       const [wallet] = await tx
         .insert(schema.userWallets)
         .values({
           userId: user.id,
-          balance: 25,
+          dailyCredits: 5,
+          purchasedCredits: 0,
+          balance: 5,
+          lastDailyCreditDate: todayStr,
           lifetimePurchased: 0,
           lifetimeUsed: 0,
         })
         .returning();
 
-      // Record welcome bonus transaction
+      // Record daily allocation transaction
       await tx.insert(schema.creditTransactions).values({
         walletId: wallet.id,
         userId: user.id,
-        amount: 25,
-        balanceAfter: 25,
-        type: 'BONUS',
-        description: 'Welcome credit bonus on registration',
+        amount: 5,
+        balanceAfter: 5,
+        balanceType: 'DAILY',
+        dailyBalanceAfter: 5,
+        purchasedBalanceAfter: 0,
+        type: 'DAILY_ALLOCATION',
+        description: 'Welcome daily free credits on registration',
+      });
+
+      // Record audit log
+      await tx.insert(schema.auditLogs).values({
+        userId: user.id,
+        action: 'USER_REGISTERED',
+        entityType: 'user',
+        entityId: user.id,
+        newValues: { email: user.email, role: user.role },
+        ipAddress: context?.ipAddress,
+        userAgent: context?.userAgent,
       });
 
       return user;

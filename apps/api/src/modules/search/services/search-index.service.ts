@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { BusinessRepository } from '../../business/repositories/business.repository';
 import { SearchRepository, ITypesenseBusinessDocument } from '../repositories/search.repository';
 import { SearchSyncLogRepository } from '../repositories/search-sync-log.repository';
@@ -12,12 +13,19 @@ export class SearchIndexService {
     private readonly businessRepo: BusinessRepository,
     private readonly searchRepo: SearchRepository,
     private readonly syncLogRepo: SearchSyncLogRepository,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
    * Syncs a published business profile to the Typesense search index
    */
   async syncBusiness(businessId: string, action: 'UPSERT' | 'DELETE' = 'UPSERT') {
+    const searchProvider = (this.configService.get<string>('SEARCH_PROVIDER') || 'postgres').toLowerCase();
+    if (searchProvider !== 'typesense') {
+      this.logger.debug(`Skipping Typesense sync for business ${businessId} (active provider: ${searchProvider})`);
+      return { success: true, action: 'SKIPPED_POSTGRES_ACTIVE' };
+    }
+
     const log = await this.syncLogRepo.logSyncAttempt({
       businessId,
       action,

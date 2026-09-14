@@ -122,59 +122,7 @@ export const creditPackages: CreditPackage[] = [
   },
 ];
 
-export const creditTransactions: CreditTransaction[] = [
-  { id: 'tx_1', type: 'purchase', amount: 500, balance: 2950, date: '2024-09-01T10:00:00Z', description: 'Professional Package', businessName: undefined },
-  { id: 'tx_2', type: 'unlock', amount: -2, balance: 2948, date: '2024-09-01T14:30:00Z', description: 'Unlocked Apex Solutions LLC', businessName: 'Apex Solutions LLC' },
-  { id: 'tx_3', type: 'unlock', amount: -3, balance: 2945, date: '2024-09-02T11:00:00Z', description: 'Unlocked Summit Accounting Group', businessName: 'Summit Accounting Group' },
-  { id: 'tx_4', type: 'unlock', amount: -1, balance: 2944, date: '2024-09-03T09:30:00Z', description: 'Unlocked Taste of Italy Restaurant', businessName: 'Taste of Italy Restaurant' },
-  { id: 'tx_5', type: 'unlock', amount: -3, balance: 2941, date: '2024-09-04T14:15:00Z', description: 'Unlocked BuildIt Construction', businessName: 'BuildIt Construction' },
-  { id: 'tx_6', type: 'unlock', amount: -3, balance: 2938, date: '2024-09-05T16:45:00Z', description: 'Unlocked Creative Minds Marketing', businessName: 'Creative Minds Marketing' },
-  { id: 'tx_7', type: 'unlock', amount: -1, balance: 2937, date: '2024-09-06T10:20:00Z', description: 'Unlocked River City Retail', businessName: 'River City Retail' },
-  { id: 'tx_8', type: 'bonus', amount: 50, balance: 2987, date: '2024-09-07T09:00:00Z', description: 'Referral Bonus — referred Sarah K.', businessName: undefined },
-  { id: 'tx_9', type: 'unlock', amount: -1, balance: 2986, date: '2024-09-07T11:10:00Z', description: 'Unlocked Precision Auto Repair', businessName: 'Precision Auto Repair' },
-  { id: 'tx_10', type: 'unlock', amount: -3, balance: 2983, date: '2024-09-08T13:40:00Z', description: 'Unlocked Elevate Marketing', businessName: 'Elevate Marketing' },
-  { id: 'tx_11', type: 'purchase', amount: 2000, balance: 4983, date: '2024-09-10T10:00:00Z', description: 'Enterprise Package', businessName: undefined },
-  { id: 'tx_12', type: 'unlock', amount: -2, balance: 4981, date: '2024-09-10T11:00:00Z', description: 'Unlocked Urban Fitness Studio', businessName: 'Urban Fitness Studio' },
-  { id: 'tx_13', type: 'unlock', amount: -2, balance: 4979, date: '2024-09-10T09:50:00Z', description: 'Unlocked Prime Real Estate', businessName: 'Prime Real Estate' },
-  { id: 'tx_14', type: 'unlock', amount: -3, balance: 4976, date: '2024-09-11T14:30:00Z', description: 'Unlocked Justice Law Firm', businessName: 'Justice Law Firm' },
-  { id: 'tx_15', type: 'unlock', amount: -2, balance: 4974, date: '2024-09-12T16:15:00Z', description: 'Unlocked Blue Ribbon Consulting', businessName: 'Blue Ribbon Consulting' },
-  { id: 'tx_16', type: 'unlock', amount: -3, balance: 4971, date: '2024-09-13T10:00:00Z', description: 'Unlocked NextGen Software', businessName: 'NextGen Software' },
-  { id: 'tx_17', type: 'refund', amount: 1, balance: 4972, date: '2024-09-13T15:00:00Z', description: 'Refund — duplicate River City Retail listing', businessName: 'River City Retail' },
-  { id: 'tx_18', type: 'unlock', amount: -2, balance: 4970, date: '2024-09-14T11:30:00Z', description: 'Unlocked Dynamic Dental Practice', businessName: 'Dynamic Dental Practice' },
-  { id: 'tx_19', type: 'unlock', amount: -3, balance: 4967, date: '2024-09-15T09:00:00Z', description: 'Unlocked Cloud Computing Innovations', businessName: 'Cloud Computing Innovations' },
-  { id: 'tx_20', type: 'unlock', amount: -1, balance: 4966, date: '2024-09-16T10:15:00Z', description: 'Unlocked Bella Beauty Salon', businessName: 'Bella Beauty Salon' },
-  { id: 'tx_21', type: 'bonus', amount: 20, balance: 4986, date: '2024-09-17T08:00:00Z', description: 'Survey Completion Bonus', businessName: undefined },
-  { id: 'tx_22', type: 'unlock', amount: -3, balance: 4983, date: '2024-09-17T13:00:00Z', description: 'Unlocked Pinnacle Consulting', businessName: 'Pinnacle Consulting' },
-  { id: 'tx_23', type: 'unlock', amount: -1, balance: 4982, date: '2024-09-18T14:45:00Z', description: 'Unlocked Valley Medical Office', businessName: 'Valley Medical Office' },
-  { id: 'tx_24', type: 'unlock', amount: -3, balance: 4979, date: '2024-09-19T16:00:00Z', description: 'Unlocked Digital Marketing Solutions', businessName: 'Digital Marketing Solutions' },
-  { id: 'tx_25', type: 'unlock', amount: -1, balance: 4978, date: '2024-09-20T10:30:00Z', description: 'Unlocked Golden Gate Landscaping', businessName: 'Golden Gate Landscaping' },
-  { id: 'tx_26', type: 'purchase', amount: 100, balance: 5078, date: '2024-09-21T08:00:00Z', description: 'Starter Package', businessName: undefined },
-  { id: 'tx_27', type: 'unlock', amount: -3, balance: 5075, date: '2024-09-21T09:15:00Z', description: 'Unlocked Pro Construction', businessName: 'Pro Construction' },
-  { id: 'tx_28', type: 'unlock', amount: -3, balance: 5072, date: '2024-09-22T10:00:00Z', description: 'Unlocked Innovative Tech Startup', businessName: 'Innovative Tech Startup' },
-  { id: 'tx_29', type: 'unlock', amount: -1, balance: 5071, date: '2024-09-23T11:20:00Z', description: 'Unlocked Spicy Grill Restaurant', businessName: 'Spicy Grill Restaurant' },
-  { id: 'tx_30', type: 'unlock', amount: -3, balance: 5068, date: '2024-09-24T14:00:00Z', description: 'Unlocked Family Dental Practice', businessName: 'Family Dental Practice' },
-  { id: 'tx_31', type: 'refund', amount: 2, balance: 5070, date: '2024-09-25T09:00:00Z', description: 'Refund — data quality issue on listing', businessName: undefined },
-  { id: 'tx_32', type: 'unlock', amount: -2, balance: 5068, date: '2024-09-25T10:45:00Z', description: 'Unlocked Integrity Law Firm', businessName: 'Integrity Law Firm' },
-  { id: 'tx_33', type: 'unlock', amount: -2, balance: 5066, date: '2024-09-26T09:30:00Z', description: 'Unlocked Chic Salon', businessName: 'Chic Salon' },
-  { id: 'tx_34', type: 'bonus', amount: 100, balance: 5166, date: '2024-09-27T09:00:00Z', description: 'Quarterly loyalty bonus', businessName: undefined },
-  { id: 'tx_35', type: 'unlock', amount: -2, balance: 5164, date: '2024-09-27T15:00:00Z', description: 'Unlocked Accurate Accounting', businessName: 'Accurate Accounting' },
-  { id: 'tx_36', type: 'unlock', amount: -2, balance: 5162, date: '2024-09-28T10:00:00Z', description: 'Unlocked Gourmet Restaurant', businessName: 'Gourmet Restaurant' },
-  { id: 'tx_37', type: 'unlock', amount: -2, balance: 5160, date: '2024-09-29T11:30:00Z', description: 'Unlocked Express Auto Repair', businessName: 'Express Auto Repair' },
-  { id: 'tx_38', type: 'unlock', amount: -2, balance: 5158, date: '2024-09-30T14:00:00Z', description: 'Unlocked City Medical Office', businessName: 'City Medical Office' },
-];
+export const creditTransactions: CreditTransaction[] = [];
+export const invoices: Invoice[] = [];
+export const creditBalance = 0;
 
-export const invoices: Invoice[] = [
-  { id: 'inv_001', number: 'INV-2024-001', date: '2024-04-01', amount: 29, status: 'paid', package: 'Starter', paymentMethod: 'Visa •••• 4242', downloadUrl: '#' },
-  { id: 'inv_002', number: 'INV-2024-002', date: '2024-05-01', amount: 29, status: 'paid', package: 'Starter', paymentMethod: 'Visa •••• 4242', downloadUrl: '#' },
-  { id: 'inv_003', number: 'INV-2024-003', date: '2024-06-01', amount: 99, status: 'paid', package: 'Professional', paymentMethod: 'Visa •••• 4242', downloadUrl: '#' },
-  { id: 'inv_004', number: 'INV-2024-004', date: '2024-06-15', amount: 99, status: 'paid', package: 'Professional', paymentMethod: 'Visa •••• 4242', downloadUrl: '#' },
-  { id: 'inv_005', number: 'INV-2024-005', date: '2024-07-01', amount: 99, status: 'paid', package: 'Professional', paymentMethod: 'Visa •••• 4242', downloadUrl: '#' },
-  { id: 'inv_006', number: 'INV-2024-006', date: '2024-08-01', amount: 299, status: 'paid', package: 'Enterprise', paymentMethod: 'Bank Transfer', downloadUrl: '#' },
-  { id: 'inv_007', number: 'INV-2024-007', date: '2024-08-15', amount: 99, status: 'paid', package: 'Professional', paymentMethod: 'Visa •••• 4242', downloadUrl: '#' },
-  { id: 'inv_008', number: 'INV-2024-008', date: '2024-09-01', amount: 99, status: 'paid', package: 'Professional', paymentMethod: 'Visa •••• 4242', downloadUrl: '#' },
-  { id: 'inv_009', number: 'INV-2024-009', date: '2024-09-10', amount: 299, status: 'paid', package: 'Enterprise', paymentMethod: 'Bank Transfer', downloadUrl: '#' },
-  { id: 'inv_010', number: 'INV-2024-010', date: '2024-09-21', amount: 29, status: 'paid', package: 'Starter', paymentMethod: 'Mastercard •••• 8765', downloadUrl: '#' },
-  { id: 'inv_011', number: 'INV-2024-011', date: '2024-10-01', amount: 99, status: 'pending', package: 'Professional', paymentMethod: 'Visa •••• 4242', downloadUrl: '#' },
-];
-
-export const creditBalance = 2450;

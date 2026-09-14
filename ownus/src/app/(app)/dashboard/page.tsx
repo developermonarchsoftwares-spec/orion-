@@ -63,42 +63,34 @@ export default function DashboardPage() {
     day: 'numeric'
   });
 
-  const creditBalance = wallet?.balance ?? dashboardData?.wallet?.balance ?? 25;
+  const creditBalance = wallet?.balance ?? dashboardData?.wallet?.balance ?? 0;
   const unlockedCount = dashboardData?.stats?.unlockedLeadsCount ?? 0;
   const savedLeadsCount = dashboardData?.stats?.savedLeadsCount ?? 0;
   const savedSearchesCount = dashboardData?.stats?.savedSearchesCount ?? 0;
+  const newBusinessesCount = dashboardData?.stats?.newBusinessesCount ?? 0;
 
   const stats = [
-    { title: 'New Businesses Today', value: '47', trend: 12.5, icon: <Building2 className="h-5 w-5 text-zinc-900 dark:text-zinc-100" />, iconBg: 'bg-zinc-100 dark:bg-zinc-800' },
-    { title: 'Unlocked Leads', value: String(unlockedCount), trend: 100, icon: <Unlock className="h-5 w-5 text-zinc-900 dark:text-zinc-100" />, iconBg: 'bg-zinc-100 dark:bg-zinc-800' },
-    { title: 'Saved Leads in Pipeline', value: String(savedLeadsCount), trend: 15.4, icon: <BookmarkCheck className="h-5 w-5 text-zinc-900 dark:text-zinc-100" />, iconBg: 'bg-zinc-100 dark:bg-zinc-800' },
+    { title: 'New Businesses Today', value: String(newBusinessesCount), trend: 0, icon: <Building2 className="h-5 w-5 text-zinc-900 dark:text-zinc-100" />, iconBg: 'bg-zinc-100 dark:bg-zinc-800' },
+    { title: 'Unlocked Leads', value: String(unlockedCount), trend: 0, icon: <Unlock className="h-5 w-5 text-zinc-900 dark:text-zinc-100" />, iconBg: 'bg-zinc-100 dark:bg-zinc-800' },
+    { title: 'Saved Leads in Pipeline', value: String(savedLeadsCount), trend: 0, icon: <BookmarkCheck className="h-5 w-5 text-zinc-900 dark:text-zinc-100" />, iconBg: 'bg-zinc-100 dark:bg-zinc-800' },
     { title: 'Credits Remaining', value: formatNumber(creditBalance), trend: 0, icon: <Zap className="h-5 w-5 text-zinc-900 dark:text-zinc-100" />, iconBg: 'bg-zinc-100 dark:bg-zinc-800' },
   ];
 
   const trendData = [
-    { name: 'Jan', discovered: 4000, converted: 2400 },
-    { name: 'Feb', discovered: 3000, converted: 1398 },
-    { name: 'Mar', discovered: 2000, converted: 9800 },
-    { name: 'Apr', discovered: 2780, converted: 3908 },
-    { name: 'May', discovered: 1890, converted: 4800 },
-    { name: 'Jun', discovered: 2390, converted: 3800 },
-    { name: 'Jul', discovered: 3490, converted: 4300 },
-    { name: 'Aug', discovered: 4000, converted: 2400 },
-    { name: 'Sep', discovered: 4500, converted: 3200 },
-    { name: 'Oct', discovered: 5000, converted: 3800 },
-    { name: 'Nov', discovered: 5500, converted: 4200 },
-    { name: 'Dec', discovered: 6000, converted: 4800 },
+    { name: 'Jan', discovered: 120, converted: 18 },
+    { name: 'Feb', discovered: 190, converted: 24 },
+    { name: 'Mar', discovered: 240, converted: 40 },
+    { name: 'Apr', discovered: 310, converted: 55 },
+    { name: 'May', discovered: 420, converted: 80 },
+    { name: 'Jun', discovered: 560, converted: 110 },
   ];
 
   const industryData = [
-    { name: 'Restaurant', value: 24 },
-    { name: 'Technology', value: 18 },
-    { name: 'Construction', value: 15 },
+    { name: 'Technology', value: 35 },
+    { name: 'Manufacturing', value: 25 },
+    { name: 'Finance', value: 20 },
     { name: 'Healthcare', value: 12 },
-    { name: 'Retail', value: 10 },
-    { name: 'Professional Services', value: 8 },
-    { name: 'Real Estate', value: 7 },
-    { name: 'Other', value: 6 },
+    { name: 'Retail', value: 8 },
   ];
 
   const recentActivity = dashboardData?.recentUnlocks?.map((u: any, idx: number) => ({
@@ -107,30 +99,12 @@ export default function DashboardPage() {
     time: formatRelativeDate(u.unlockedAt || new Date().toISOString()),
     icon: <Unlock className="h-4 w-4 text-zinc-900 dark:text-zinc-100" />,
     bg: 'bg-zinc-100 dark:bg-zinc-800',
-  })) || [
-    { id: '1', desc: 'Unlocked Apex Industrial Solutions', time: '2 hours ago', icon: <Unlock className="h-4 w-4 text-zinc-900 dark:text-zinc-100" />, bg: 'bg-zinc-100 dark:bg-zinc-800' },
-    { id: '2', desc: 'Exported 50 verified manufacturer leads', time: '5 hours ago', icon: <Download className="h-4 w-4 text-zinc-900 dark:text-zinc-100" />, bg: 'bg-zinc-100 dark:bg-zinc-800' },
-    { id: '3', desc: 'Saved search "Maharashtra Tech Startups"', time: '1 day ago', icon: <Search className="h-4 w-4 text-zinc-900 dark:text-zinc-100" />, bg: 'bg-zinc-100 dark:bg-zinc-800' },
-    { id: '4', desc: 'Added 12 leads to Pipeline Stage "Qualified"', time: '2 days ago', icon: <BookmarkCheck className="h-4 w-4 text-zinc-900 dark:text-zinc-100" />, bg: 'bg-zinc-100 dark:bg-zinc-800' },
-  ];
+  })) || [];
 
-  const recentUnlocks = dashboardData?.recentUnlocks ?? [];
+  const recentUnlocksList = dashboardData?.recentUnlocks ?? [];
+  const savedSearchesList = dashboardData?.recentSearches ?? [];
 
   const COLORS = ['#2563EB', '#059669', '#D97706', '#9333EA', '#06B6D4', '#E11D48', '#EA580C', '#0D9488'];
-
-  const recentUnlocksList = dashboardData?.recentUnlocks?.length > 0
-    ? dashboardData.recentUnlocks
-    : [
-        { id: '101', name: 'Bright Smile Dental', industry: 'Healthcare', city: 'Austin', state: 'TX', date: 'Just now' },
-        { id: '102', name: 'Texas BBQ Joint', industry: 'Restaurant', city: 'Dallas', state: 'TX', date: 'Yesterday' },
-      ];
-
-  const savedSearchesList = dashboardData?.recentSearches?.length > 0
-    ? dashboardData.recentSearches
-    : [
-        { id: '1', name: 'New Businesses in Maharashtra', filters: { state: 'Maharashtra' } },
-        { id: '2', name: 'Tech Companies with Phone Available', filters: { hasPhone: true } },
-      ];
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 w-full text-zinc-900 dark:text-zinc-100 overflow-x-hidden">
@@ -138,7 +112,9 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-zinc-200 dark:border-zinc-800">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Dashboard</h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Welcome back, Alex. Here is what is happening today.</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+            Welcome back{user?.name ? `, ${user.name}` : ''}. Here is your enterprise pipeline status.
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-900 px-2.5 py-1 rounded-md border border-zinc-200 dark:border-zinc-800">
@@ -251,17 +227,23 @@ export default function DashboardPage() {
             <Link href="/discover" className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white">View All</Link>
           </div>
           <div className="divide-y divide-zinc-100 dark:divide-zinc-800/80 max-h-[340px] overflow-y-auto">
-            {recentActivity.map((activity: any) => (
-              <div key={activity.id} className="flex items-start gap-3 p-3.5 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 transition-colors">
-                <div className={cn("mt-0.5 p-1.5 rounded-md border border-zinc-200 dark:border-zinc-800", activity.bg)}>
-                  {activity.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-zinc-900 dark:text-zinc-100 truncate">{activity.desc}</p>
-                  <p className="text-[11px] text-zinc-500 mt-0.5">{activity.time}</p>
-                </div>
+            {recentActivity.length === 0 ? (
+              <div className="p-8 text-center text-xs text-zinc-500">
+                No recent activity yet. Unlocking businesses and running searches will track here.
               </div>
-            ))}
+            ) : (
+              recentActivity.map((activity: any) => (
+                <div key={activity.id} className="flex items-start gap-3 p-3.5 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 transition-colors">
+                  <div className={cn("mt-0.5 p-1.5 rounded-md border border-zinc-200 dark:border-zinc-800", activity.bg)}>
+                    {activity.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-zinc-900 dark:text-zinc-100 truncate">{activity.desc}</p>
+                    <p className="text-[11px] text-zinc-500 mt-0.5">{activity.time}</p>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -284,7 +266,7 @@ export default function DashboardPage() {
               </div>
               <div>
                 <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 block">My Leads</span>
-                <span className="text-[10px] text-zinc-500">12 active</span>
+                <span className="text-[10px] text-zinc-500">{savedLeadsCount} active</span>
               </div>
             </Link>
             <Link href="/credits" className="flex items-center gap-3 bg-white dark:bg-zinc-950 hover:bg-zinc-50 dark:hover:bg-zinc-900 p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 transition-colors cursor-pointer shadow-xs">
@@ -293,7 +275,7 @@ export default function DashboardPage() {
               </div>
               <div>
                 <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 block">Credits</span>
-                <span className="text-[10px] text-zinc-500">2,450 remaining</span>
+                <span className="text-[10px] text-zinc-500">{formatNumber(creditBalance)} remaining</span>
               </div>
             </Link>
             <Link href="/saved-searches" className="flex items-center gap-3 bg-white dark:bg-zinc-950 hover:bg-zinc-50 dark:hover:bg-zinc-900 p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 transition-colors cursor-pointer shadow-xs">
@@ -302,7 +284,7 @@ export default function DashboardPage() {
               </div>
               <div>
                 <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 block">Saved</span>
-                <span className="text-[10px] text-zinc-500">3 queries</span>
+                <span className="text-[10px] text-zinc-500">{savedSearchesCount} queries</span>
               </div>
             </Link>
           </div>
@@ -314,23 +296,29 @@ export default function DashboardPage() {
               <Link href="/leads" className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white">View All</Link>
             </div>
             <div className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
-              {recentUnlocksList.slice(0, 4).map((unlock: any) => (
-                <Link key={unlock.id} href={`/discover`} className="flex items-center justify-between p-3 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 transition-colors group">
-                  <div className="min-w-0 pr-2">
-                    <h4 className="text-xs font-medium text-zinc-900 dark:text-zinc-100 group-hover:underline transition-colors truncate">{unlock.name}</h4>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="inline-flex items-center rounded bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.2 text-[10px] font-medium text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
-                        {unlock.industry || 'Verified B2B'}
-                      </span>
-                      <span className="text-[11px] text-zinc-500 truncate">{unlock.city || unlock.location}</span>
+              {recentUnlocksList.length === 0 ? (
+                <div className="p-6 text-center text-xs text-zinc-500">
+                  No unlocked businesses yet. Search the discovery catalog to unlock contacts.
+                </div>
+              ) : (
+                recentUnlocksList.slice(0, 4).map((unlock: any) => (
+                  <Link key={unlock.id} href={`/discover`} className="flex items-center justify-between p-3 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 transition-colors group">
+                    <div className="min-w-0 pr-2">
+                      <h4 className="text-xs font-medium text-zinc-900 dark:text-zinc-100 group-hover:underline transition-colors truncate">{unlock.business?.name || unlock.name || 'Verified Business'}</h4>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="inline-flex items-center rounded bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.2 text-[10px] font-medium text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
+                          {unlock.business?.industry || unlock.industry || 'Verified B2B'}
+                        </span>
+                        <span className="text-[11px] text-zinc-500 truncate">{unlock.business?.locations?.[0]?.city || unlock.city || 'India'}</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[10px] text-zinc-400">{unlock.unlockedAt ? formatRelativeDate(unlock.unlockedAt) : unlock.date || 'Recent'}</span>
-                    <ChevronRight className="h-3.5 w-3.5 text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-white" />
-                  </div>
-                </Link>
-              ))}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] text-zinc-400">{unlock.unlockedAt ? formatRelativeDate(unlock.unlockedAt) : 'Recent'}</span>
+                      <ChevronRight className="h-3.5 w-3.5 text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-white" />
+                    </div>
+                  </Link>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -343,25 +331,31 @@ export default function DashboardPage() {
           <Link href="/saved-searches" className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white">Manage</Link>
         </div>
         <div className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
-          {savedSearchesList.map((search: any) => (
-            <div key={search.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 transition-colors gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <h4 className="text-xs font-medium text-zinc-900 dark:text-zinc-100">{search.name}</h4>
-                  <span className="inline-flex items-center rounded bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 font-mono">
-                    Active Query
-                  </span>
-                </div>
-                <p className="text-[11px] text-zinc-500 truncate">Filter criteria saved</p>
-              </div>
-              <Link
-                href="/discover"
-                className="inline-flex items-center justify-center rounded-md text-xs font-semibold transition-colors border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 h-7 px-3 shrink-0 cursor-pointer"
-              >
-                Run Search
-              </Link>
+          {savedSearchesList.length === 0 ? (
+            <div className="p-6 text-center text-xs text-zinc-500">
+              No saved searches yet. Save your favorite search filters from the Discover page.
             </div>
-          ))}
+          ) : (
+            savedSearchesList.map((search: any) => (
+              <div key={search.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 transition-colors gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h4 className="text-xs font-medium text-zinc-900 dark:text-zinc-100">{search.name}</h4>
+                    <span className="inline-flex items-center rounded bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 font-mono">
+                      Active Query
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 truncate">Filter criteria saved</p>
+                </div>
+                <Link
+                  href="/discover"
+                  className="inline-flex items-center justify-center rounded-md text-xs font-semibold transition-colors border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 h-7 px-3 shrink-0 cursor-pointer"
+                >
+                  Run Search
+                </Link>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

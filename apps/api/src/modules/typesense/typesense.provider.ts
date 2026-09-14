@@ -7,8 +7,15 @@ export const typesenseProviders: Provider[] = [
   {
     provide: TYPESENSE_CLIENT,
     inject: [ConfigService],
-    useFactory: (configService: ConfigService): Client => {
+    useFactory: (configService: ConfigService): Client | null => {
       const logger = new Logger('TypesenseProvider');
+      const searchProvider = (configService.get<string>('SEARCH_PROVIDER') || 'postgres').toLowerCase();
+
+      if (searchProvider !== 'typesense') {
+        logger.log('Typesense search is disabled (active provider: postgres). Client initialization skipped.');
+        return null;
+      }
+
       const nodes = configService.get<Array<{ host: string; port: number; protocol: string }>>(
         'typesense.nodes',
         [{ host: 'localhost', port: 8108, protocol: 'http' }],
