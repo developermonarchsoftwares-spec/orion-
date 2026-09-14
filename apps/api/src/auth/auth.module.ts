@@ -6,6 +6,7 @@ import { PasswordService } from './services/password.service';
 import { AuthTokenService } from './services/auth-token.service';
 import { AuthService } from './services/auth.service';
 import { AuthController } from './auth.controller';
+import { AdminAuthController } from './admin-auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -31,7 +32,7 @@ import { UserModule } from '../modules/user/user.module';
       }),
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, AdminAuthController],
   providers: [
     PasswordService,
     AuthTokenService,
