@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-const mockBusinesses = [
-  { name: "Sunrise Bakery & Café", industry: "Restaurant", location: "Austin, TX", score: 92, status: "No Website", phone: true, email: false, credits: 2 },
-  { name: "TechFlow Solutions", industry: "Technology", location: "San Francisco, CA", score: 88, status: "Has Website", phone: false, email: true, credits: 3 },
-  { name: "Apex Builders Inc", industry: "Construction", location: "Houston, TX", score: 75, status: "Has Website", phone: true, email: true, credits: 1 },
-  { name: "Wellness First Clinic", industry: "Healthcare", location: "New York, NY", score: 60, status: "Has Website", phone: true, email: false, credits: 2 },
-  { name: "Legal Eagles LLP", industry: "Legal", location: "Chicago, IL", score: 95, status: "Has Website", phone: true, email: true, credits: 3 },
-  { name: "Prime Real Estate", industry: "Real Estate", location: "Miami, FL", score: 82, status: "Has Website", phone: true, email: true, credits: 2 },
+const samplePreviewBusinesses = [
+  { name: "Apex Robotics & Automation", industry: "Robotics & AI", location: "Pune, MH", score: 92, status: "Verified", phone: true, email: true, credits: 1 },
+  { name: "CloudScale Technologies", industry: "Cloud & IT", location: "Hyderabad, TS", score: 88, status: "Verified", phone: true, email: true, credits: 1 },
+  { name: "BioGenix Life Sciences", industry: "Biotech & Pharma", location: "Ahmedabad, GJ", score: 85, status: "Verified", phone: true, email: false, credits: 1 },
+  { name: "OmniPack Global Logistics", industry: "Logistics", location: "Gurugram, HR", score: 91, status: "Verified", phone: true, email: true, credits: 1 },
+  { name: "Zenith Solar Structures", industry: "Clean Energy", location: "Ahmedabad, GJ", score: 84, status: "Verified", phone: true, email: false, credits: 1 },
+  { name: "Sterling Infra Concretes", industry: "Civil Infrastructure", location: "Noida, UP", score: 89, status: "Verified", phone: true, email: true, credits: 1 },
 ];
 
 function ScoreBar({ score }: { score: number }) {
@@ -46,7 +46,7 @@ export function HeroSection() {
         </Link>
       </div>
       <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400 fade-in-up animation-delay-300">
-        No credit card required • 14-day free trial
+        No credit card required • 5 daily free credits
       </p>
 
       <div className="mt-16 sm:mt-24 w-full max-w-5xl fade-in-up animation-delay-400">
@@ -77,7 +77,7 @@ export function HeroSection() {
                 {[
                   { label: "Dashboard", icon: "📊", active: false },
                   { label: "Discover", icon: "🔍", active: true },
-                  { label: "My Leads", icon: "👥", active: false, badge: 30 },
+                  { label: "My Leads", icon: "👥", active: false },
                   { label: "Saved Searches", icon: "🔖", active: false },
                   { label: "Credits", icon: "⚡", active: false },
                   { label: "Settings", icon: "⚙️", active: false },
@@ -93,25 +93,17 @@ export function HeroSection() {
                       <span className="text-[10px]">{item.icon}</span>
                       <span>{item.label}</span>
                     </div>
-                    {item.badge && (
-                      <span className={cn(
-                        "text-[9px] rounded-full px-1.5 py-0.5 font-semibold",
-                        item.active ? "bg-zinc-700 text-white" : "bg-zinc-200 text-zinc-700"
-                      )}>
-                        {item.badge}
-                      </span>
-                    )}
                   </div>
                 ))}
               </nav>
               <div className="mt-auto pt-4 border-t border-zinc-200">
                 <div className="flex items-center gap-2 px-2">
                   <div className="h-6 w-6 rounded-full bg-zinc-900 text-white flex items-center justify-center text-[9px] font-bold">
-                    AT
+                    OP
                   </div>
                   <div>
-                    <div className="text-[10px] font-semibold text-zinc-900">Alex T.</div>
-                    <div className="text-[9px] text-zinc-500">2,450 credits</div>
+                    <div className="text-[10px] font-semibold text-zinc-900">Enterprise Team</div>
+                    <div className="text-[9px] text-zinc-500">Active Workspace</div>
                   </div>
                 </div>
               </div>
@@ -140,15 +132,15 @@ export function HeroSection() {
               {/* Stats Mini Cards */}
               <div className="grid grid-cols-4 gap-2 mb-4">
                 {[
-                  { label: "New Today", value: "47", trend: "+12%" },
-                  { label: "High Score", value: "156", trend: "+8%" },
-                  { label: "No Website", value: "892", trend: "-3%" },
-                  { label: "Credits", value: "2,450", trend: "-15%" },
+                  { label: "Daily Free", value: "5", trend: "Credits" },
+                  { label: "Platform", value: "B2B", trend: "India" },
+                  { label: "Search Engine", value: "PostgreSQL", trend: "Active" },
+                  { label: "Zero-Cost", value: "Re-unlock", trend: "0 Credits" },
                 ].map((stat) => (
                   <div key={stat.label} className="bg-white rounded-lg border border-zinc-200 p-2">
                     <div className="text-[9px] text-zinc-500">{stat.label}</div>
                     <div className="flex items-end justify-between mt-0.5">
-                      <span className="text-sm font-bold text-zinc-900">{stat.value}</span>
+                      <span className="text-xs font-bold text-zinc-900">{stat.value}</span>
                       <span className="text-[9px] font-semibold text-zinc-700">{stat.trend}</span>
                     </div>
                   </div>
@@ -168,7 +160,7 @@ export function HeroSection() {
                   <span className="text-right">Action</span>
                 </div>
                 {/* Table Rows */}
-                {mockBusinesses.map((biz, i) => (
+                {samplePreviewBusinesses.map((biz, i) => (
                   <div
                     key={i}
                     className={cn(
@@ -209,7 +201,7 @@ export function HeroSection() {
                         </span>
                       ) : (
                         <span className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-zinc-900 text-white">
-                          {biz.credits} Credits
+                          {biz.credits} Credit
                         </span>
                       )}
                     </div>
@@ -217,13 +209,9 @@ export function HeroSection() {
                 ))}
                 {/* Table Footer */}
                 <div className="flex items-center justify-between px-3 py-2 bg-zinc-50 text-[9px] text-zinc-500">
-                  <span>Showing 1–6 of 125,430</span>
+                  <span>Verified Indian Enterprise Registry</span>
                   <div className="flex gap-1">
                     <span className="px-2 py-0.5 rounded bg-zinc-900 text-white font-semibold">1</span>
-                    <span className="px-2 py-0.5 rounded bg-white border border-zinc-200">2</span>
-                    <span className="px-2 py-0.5 rounded bg-white border border-zinc-200">3</span>
-                    <span className="text-zinc-400">...</span>
-                    <span className="px-2 py-0.5 rounded bg-white border border-zinc-200">→</span>
                   </div>
                 </div>
               </div>
