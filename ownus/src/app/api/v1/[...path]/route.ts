@@ -72,35 +72,56 @@ async function proxyRequest(
   }
 
   try {
-    const upstreamRes = await fetch(targetUrl.toString(), {
-      method: req.method,
-      headers,
-      body,
-      redirect: 'manual',
-    });
-
-    const resHeaders = new Headers();
-    upstreamRes.headers.forEach((val, key) => {
-      const lowerKey = key.toLowerCase();
-      if (!['transfer-encoding', 'connection', 'keep-alive'].includes(lowerKey)) {
-        resHeaders.set(key, val);
+    let upstreamRes: Response;
+    try {
+      upstreamRes = await fetch(targetUrl.toString(), {
+        method: req.method,
+        headers,
+        body,
+        redirect: 'manual',
+      });
+    } catch (firstErr: any) {
+      if (targetUrl.hostname === '127.0.0.1' || targetUrl.hostname === 'localhost') {
+        const altHost = targetUrl.hostname === '127.0.0.1' ? 'localhost' : '127.0.0.1';
+        const altUrl = new URL(targetUrl.toString());
+        altUrl.hostname = altHost;
+        headers.set('host', altUrl.host);
+        upstreamRes = await fetch(altUrl.toString(), {
+          method: req.method,
+          headers,
+          body,
+          redirect: 'manual',
+        });
+      } else {
+        throw firstErr;
       }
-    });
+    }
 
     // Handle OAuth redirects (Google/Microsoft 302 redirect)
     if (upstreamRes.status >= 300 && upstreamRes.status < 400) {
       const location = upstreamRes.headers.get('location');
       if (location) {
-        resHeaders.set('location', location);
+        const redirectHeaders = new Headers();
+        redirectHeaders.set('location', location);
         return new NextResponse(null, {
           status: upstreamRes.status,
           statusText: upstreamRes.statusText,
-          headers: resHeaders,
+          headers: redirectHeaders,
         });
       }
     }
 
-    return new NextResponse(upstreamRes.body, {
+    const resHeaders = new Headers();
+    upstreamRes.headers.forEach((val, key) => {
+      const lowerKey = key.toLowerCase();
+      if (!['transfer-encoding', 'connection', 'keep-alive', 'content-encoding', 'content-length'].includes(lowerKey)) {
+        resHeaders.set(key, val);
+      }
+    });
+
+    const bodyBuffer = await upstreamRes.arrayBuffer();
+
+    return new NextResponse(bodyBuffer, {
       status: upstreamRes.status,
       statusText: upstreamRes.statusText,
       headers: resHeaders,

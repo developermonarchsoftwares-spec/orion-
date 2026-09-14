@@ -8,7 +8,7 @@ export const appConfig = registerAs('app', () => ({
   apiPrefix: process.env.API_PREFIX || '/api/v1',
   appName: process.env.APP_NAME || 'Orion Backend API',
   appUrl: process.env.APP_URL || 'http://localhost:4000',
-  corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:3000').split(',').map((o) => o.trim()),
+  corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000').split(',').map((o) => o.trim()),
   logLevel: process.env.LOG_LEVEL || 'info',
 }));
 

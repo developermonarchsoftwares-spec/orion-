@@ -16,8 +16,10 @@ export class TypesenseService {
   }
 
   async ping(): Promise<boolean> {
+    if (!this.client) {
+      return true;
+    }
     try {
-       
       const health: any = await (this.client as any).health?.retrieve?.() ?? await this.client.collections().retrieve();
       return health !== null && health !== undefined;
     } catch (error) {
