@@ -111,104 +111,107 @@ export default function CreditsPage() {
       id: "free",
       slug: "free",
       name: "Free Plan",
-      description: "Standard access for early prospecting and exploring verified business intelligence.",
+      description: "Explore verified business records with daily replenished credits.",
       priceInr: 0,
       priceAnnualInr: 0,
+      periodText: "free forever",
       credits: 5,
-      userLimit: 1,
       billingType: "DAILY_FREE",
-      badgeText: "5 Daily Credits",
       popular: false,
+      ctaText: "Get Started Free",
       features: [
-        "5 Daily Verified Leads",
-        "Search & Discovery Engine",
-        "Basic Contact Details",
+        "5 Daily verified leads",
+        "Search & discovery engine",
+        "Basic contact details",
         "Daily reset at 11:59 PM",
-        "Community Support",
+        "Community support",
       ],
     },
     {
       id: "starter",
       slug: "starter",
       name: "Starter Pack",
-      description: "Ideal for individual founders, freelancers, and sales reps building focused pipelines.",
+      description: "For individual founders and sales reps building targeted lead lists.",
       priceInr: 99,
       priceAnnualInr: 79,
+      periodText: "/pack",
       credits: 100,
-      userLimit: 1,
       billingType: "ONE_TIME",
-      badgeText: "Save 20% with Annual Billing",
       popular: false,
+      ctaText: "Buy Starter",
       features: [
-        "100 Lifetime Lead Credits",
-        "Credits Never Expire",
-        "Direct Mobile & Email Unlocks",
-        "CSV / Spreadsheet Export",
-        "Single User License",
-        "Standard Support",
+        "100 Lifetime lead credits",
+        "Credits never expire",
+        "Direct phone & email unlocks",
+        "CSV & spreadsheet export",
+        "Single user license",
+        "Standard email support",
       ],
     },
     {
       id: "growth",
       slug: "growth",
       name: "Growth Pack",
-      description: "Best for growing sales teams and agencies looking for rapid pipeline scale.",
+      description: "Ideal for growing sales teams scaling outbound client acquisition.",
       priceInr: 299,
       priceAnnualInr: 239,
+      periodText: "/pack",
       credits: 350,
-      userLimit: 1,
       billingType: "ONE_TIME",
       popular: true,
-      badgeText: "Most Popular • Save 20% Annual",
+      badgeText: "Most Popular",
+      ctaText: "Buy Growth",
       features: [
-        "350 Lifetime Lead Credits",
-        "Credits Never Expire",
-        "Direct Decision Maker Contacts",
-        "Full Export & Filter Capabilities",
-        "Single User License",
-        "Priority Email Support",
+        "350 Lifetime lead credits",
+        "Credits never expire",
+        "Decision maker contacts",
+        "Full filter & export capabilities",
+        "Single user license",
+        "Priority email support",
       ],
     },
     {
       id: "agency",
       slug: "agency",
       name: "Agency Pack",
-      description: "High-volume lead intelligence for outreach agencies and enterprise outbound teams.",
+      description: "High-volume lead intelligence for outreach agencies and teams.",
       priceInr: 999,
       priceAnnualInr: 799,
+      periodText: "/pack",
       credits: 1500,
-      userLimit: 1,
       billingType: "ONE_TIME",
-      badgeText: "Best Value • Save 20% Annual",
       popular: false,
+      badgeText: "Best Value",
+      ctaText: "Buy Agency",
       features: [
-        "1,500 Lifetime Lead Credits",
-        "Credits Never Expire",
-        "Full Executive & CXO Contacts",
-        "Bulk Export Engine",
-        "Single User License",
-        "Priority VIP Support",
+        "1,500 Lifetime lead credits",
+        "Credits never expire",
+        "Full executive & CXO contacts",
+        "Bulk export engine",
+        "Single user license",
+        "Priority VIP support",
       ],
     },
     {
       id: "enterprise",
       slug: "enterprise",
       name: "Enterprise Plan",
-      description: "Custom high-volume intelligence, dedicated infrastructure, and team workspace management.",
+      description: "High-volume intelligence, dedicated infrastructure and workspace.",
       priceInr: null,
       priceAnnualInr: null,
+      periodText: "tailored",
       credits: 0,
-      userLimit: null,
       billingType: "CUSTOM",
-      badgeText: "Custom Solution",
       popular: false,
+      badgeText: "Enterprise",
+      ctaText: "Contact Sales",
       features: [
-        "Custom High-Volume Credit Allocation",
-        "Unlimited Team Users & RBAC",
-        "Team Workspace Collaboration",
-        "Bulk Export Engine",
-        "Dedicated API Access",
-        "24x7 Priority Account Manager",
+        "Custom high-volume credits",
+        "Unlimited team users & RBAC",
+        "Team workspace collaboration",
+        "Bulk export engine",
+        "Dedicated API access",
+        "24x7 Priority account manager",
       ],
     },
   ];
@@ -375,6 +378,7 @@ export default function CreditsPage() {
             const isCustom = pkg.billingType === "CUSTOM" || pkg.priceInr === null;
             const isPopular = pkg.popular;
             const isPurchasing = purchasingPkgId === pkg.id;
+            const badge = pkg.badgeText || (isPopular ? "Most Popular" : undefined);
 
             const price = isAnnual && pkg.priceAnnualInr ? pkg.priceAnnualInr : pkg.priceInr;
 
@@ -382,80 +386,54 @@ export default function CreditsPage() {
               <div
                 key={pkg.id}
                 className={cn(
-                  "border rounded-xl p-5 flex flex-col justify-between transition-all relative overflow-hidden",
+                  "rounded-xl p-5 flex flex-col justify-between transition-all relative overflow-hidden",
                   isPopular
-                    ? "bg-zinc-900 dark:bg-zinc-900 text-white border-zinc-800 dark:border-zinc-700 shadow-md transform lg:-translate-y-1 ring-2 ring-zinc-900 dark:ring-zinc-100"
-                    : "bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 hover:shadow-xs"
+                    ? "bg-zinc-900 text-white dark:bg-neutral-900 shadow-md ring-2 ring-zinc-900 dark:ring-white relative"
+                    : "bg-white dark:bg-neutral-900 ring-1 ring-gray-200 dark:ring-neutral-800 hover:ring-gray-300 dark:hover:ring-neutral-700 shadow-sm"
                 )}
               >
-                {isPopular && (
-                  <div className="absolute top-0 right-0 bg-white text-zinc-950 text-[9px] font-black px-2 py-0.5 rounded-bl-lg uppercase tracking-wider">
-                    Most Popular
-                  </div>
-                )}
-
                 <div>
-                  {/* Plan Name & Tag */}
-                  <div className="mb-3">
-                    <span className={cn(
-                      "text-[10px] font-bold uppercase tracking-wider block mb-1",
-                      isPopular ? "text-amber-400" : "text-zinc-500"
-                    )}>
-                      {pkg.userLimit ? `${pkg.userLimit} User` : "Unlimited Users"}
-                    </span>
-                    <h3 className={cn("text-base font-bold", isPopular ? "text-white" : "text-zinc-900 dark:text-zinc-100")}>
+                  {/* Plan Name & Badge */}
+                  <div className="flex items-center justify-between gap-x-2 mb-1.5">
+                    <h3 className={cn("text-base font-bold", isPopular ? "text-white" : "text-gray-900 dark:text-white")}>
                       {pkg.name}
                     </h3>
-                  </div>
-
-                  {/* Pricing Display */}
-                  <div className="mb-4">
-                    {isCustom ? (
-                      <div className="flex items-baseline gap-1">
-                        <span className={cn("text-2xl font-black tracking-tight", isPopular ? "text-white" : "text-zinc-900 dark:text-zinc-100")}>
-                          Custom
-                        </span>
-                        <span className={cn("text-[11px]", isPopular ? "text-zinc-400" : "text-zinc-500")}>
-                          pricing
-                        </span>
-                      </div>
-                    ) : isFree ? (
-                      <div className="flex items-baseline gap-1">
-                        <span className={cn("text-2xl font-black tracking-tight font-mono", isPopular ? "text-white" : "text-zinc-900 dark:text-zinc-100")}>
-                          ₹0
-                        </span>
-                        <span className={cn("text-[11px]", isPopular ? "text-zinc-400" : "text-zinc-500")}>
-                          / 5 daily leads
-                        </span>
-                      </div>
-                    ) : (
-                      <div>
-                        <div className="flex items-baseline gap-1">
-                          <span className={cn("text-2xl font-black tracking-tight font-mono", isPopular ? "text-white" : "text-zinc-900 dark:text-zinc-100")}>
-                            ₹{price?.toLocaleString()}
-                          </span>
-                          <span className={cn("text-[11px]", isPopular ? "text-zinc-400" : "text-zinc-500")}>
-                            / {pkg.credits} credits
-                          </span>
-                        </div>
-                        <p className={cn("text-[10px] mt-0.5", isPopular ? "text-zinc-400" : "text-zinc-500")}>
-                          ₹{(price / (pkg.credits || 1)).toFixed(2)} / lead • Never expires
-                        </p>
-                      </div>
+                    {badge && (
+                      <span className={cn(
+                        "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider shrink-0",
+                        isPopular
+                          ? "bg-white text-zinc-900"
+                          : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                      )}>
+                        {badge}
+                      </span>
                     )}
                   </div>
 
+                  {/* Description */}
+                  <p className={cn("text-xs leading-5 min-h-[40px] mb-4", isPopular ? "text-zinc-300" : "text-gray-500 dark:text-gray-400")}>
+                    {pkg.description}
+                  </p>
+
+                  {/* Pricing Display */}
+                  <div className="flex items-baseline gap-x-1 mb-6">
+                    <span className={cn("text-3xl font-bold tracking-tight font-mono", isPopular ? "text-white" : "text-gray-900 dark:text-white")}>
+                      {isCustom ? "Custom" : isFree ? "₹0" : `₹${price?.toLocaleString()}`}
+                    </span>
+                    <span className={cn("text-xs font-semibold", isPopular ? "text-zinc-400" : "text-gray-500 dark:text-gray-400")}>
+                      {pkg.periodText || (isFree ? "free forever" : isCustom ? "tailored" : "/pack")}
+                    </span>
+                  </div>
+
                   {/* Features List */}
-                  <ul className="space-y-2.5 mb-6 text-xs border-t pt-4 border-zinc-100 dark:border-zinc-800">
-                    {(pkg.features || []).map((feat: string, i: number) => (
-                      <li key={i} className="flex items-start gap-2 text-[11px]">
+                  <ul role="list" className="space-y-2.5 text-xs text-gray-600 dark:text-gray-400 mb-6">
+                    {(pkg.features || []).map((feature: string, i: number) => (
+                      <li key={i} className="flex gap-x-2 items-start">
                         <Check className={cn(
-                          "w-3.5 h-3.5 mt-0.5 shrink-0",
+                          "h-4 w-4 shrink-0 mt-0.5",
                           isPopular ? "text-amber-400" : "text-emerald-600 dark:text-emerald-400"
                         )} />
-                        <span className={cn(isPopular ? "text-zinc-300" : "text-zinc-600 dark:text-zinc-400")}>
-                          {feat}
-                        </span>
+                        <span className={isPopular ? "text-zinc-200" : ""}>{feature}</span>
                       </li>
                     ))}
                   </ul>
@@ -466,25 +444,25 @@ export default function CreditsPage() {
                   onClick={() => handlePurchase(pkg)}
                   disabled={isPurchasing || (isFree && dailyCredits > 0)}
                   className={cn(
-                    "w-full py-2.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 text-center",
+                    "mt-auto block w-full rounded-lg px-3 py-2.5 text-center text-xs font-semibold transition-all cursor-pointer",
                     isPopular
                       ? "bg-white text-zinc-900 hover:bg-zinc-100 shadow-sm"
                       : isFree
-                      ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 cursor-default"
-                      : "border border-zinc-300 dark:border-zinc-700 bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 hover:opacity-90 shadow-xs"
+                      ? "border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-400 cursor-default"
+                      : "border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 shadow-xs"
                   )}
                 >
                   {isPurchasing ? (
-                    <>
+                    <span className="flex items-center justify-center gap-2">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       Processing...
-                    </>
+                    </span>
                   ) : isFree ? (
-                    "Active Plan (5/Day)"
+                    "Get Started Free"
                   ) : isCustom ? (
                     "Contact Sales"
                   ) : (
-                    `Buy ${pkg.name}`
+                    pkg.ctaText || `Buy ${pkg.name.replace(" Pack", "")}`
                   )}
                 </button>
               </div>

@@ -84,11 +84,20 @@ export type LeadStatus =
 export interface CreditPackage {
   id: string;
   name: string;
+  slug?: string;
   credits: number;
   price: number;
+  priceInr?: number | null;
+  priceAnnualInr?: number | null;
   pricePerCredit?: number;
   popular?: boolean;
   features: string[];
+  description?: string;
+  userLimit?: number;
+  billingType?: string;
+  badgeText?: string;
+  periodText?: string;
+  ctaText?: string;
 }
 
 export interface CreditTransaction {

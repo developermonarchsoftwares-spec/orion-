@@ -260,17 +260,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ path: s
 
   // Credit Packages
   if (fullPath === 'credit/packages' || fullPath === 'credit/admin/packages') {
-    const mapped = creditPackages.map((pkg) => ({
-      id: pkg.id,
-      name: pkg.name,
-      credits: pkg.credits,
-      priceInr: pkg.price * 83, // INR equivalent
-      pricePerCreditInr: (pkg.pricePerCredit ?? 0.2) * 83,
-      isPopular: pkg.popular,
-      features: pkg.features,
-      billingType: pkg.name === 'Enterprise' ? 'CUSTOM' : 'FIXED',
-    }));
-    return createResponse(mapped);
+    return createResponse(creditPackages);
   }
 
   // Credit Config
@@ -1023,20 +1013,27 @@ export async function POST(req: NextRequest, context: { params: Promise<{ path: 
 
   // Payment order creation
   if (fullPath === 'payments/create-order') {
+    const pkg = creditPackages.find((p) => p.id === body.packageId || p.slug === body.packageId);
+    const isAnnual = body.billingCycle === 'annual';
+    const amount = pkg ? (isAnnual && pkg.priceAnnualInr ? pkg.priceAnnualInr : (pkg.priceInr || 99)) : 99;
     return createResponse({
       orderId: `order_${Date.now()}`,
-      amount: body.amount || 2400,
+      amount: body.amount || amount,
       currency: 'INR',
       status: 'created',
+      packageId: body.packageId,
     });
   }
 
   // Payment verification
   if (fullPath === 'payments/verify') {
+    const pkg = creditPackages.find((p) => p.id === body.packageId || p.slug === body.packageId);
+    const addedCredits = pkg?.credits || 100;
     return createResponse({
       success: true,
       verified: true,
-      message: 'Payment verified and credits credited successfully',
+      creditsAdded: addedCredits,
+      message: `Payment verified and ${addedCredits} credits credited successfully!`,
     });
   }
 
