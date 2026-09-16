@@ -39,4 +39,6 @@ WORKDIR /app/apps/api
 
 EXPOSE 4000
 
+USER node
+
 CMD ["node", "dist/main.js"]

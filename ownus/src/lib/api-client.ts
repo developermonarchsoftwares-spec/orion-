@@ -23,7 +23,7 @@ export interface ApiResponse<T = any> {
   timestamp: string;
 }
 
-class ApiClient {
+export class ApiClient {
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
 
@@ -73,8 +73,14 @@ class ApiClient {
       headers.set('Content-Type', 'application/json');
     }
 
-    if (this.accessToken) {
-      headers.set('Authorization', `Bearer ${this.accessToken}`);
+    const effectiveToken =
+      this.accessToken ||
+      (typeof window !== 'undefined'
+        ? localStorage.getItem('orion_access_token') || localStorage.getItem('orion_admin_token')
+        : null);
+
+    if (effectiveToken && !headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${effectiveToken}`);
     }
 
     try {

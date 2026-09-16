@@ -67,6 +67,21 @@ export class TestAppHelper {
       const userIds = usersFound.map((u) => u.id);
 
       if (userIds.length > 0) {
+        // Delete lead unlocks
+        await this.db
+          .delete(schema.leadUnlocks)
+          .where(inArray(schema.leadUnlocks.userId, userIds));
+
+        // Delete saved leads
+        await this.db
+          .delete(schema.savedLeads)
+          .where(inArray(schema.savedLeads.userId, userIds));
+
+        // Delete saved searches
+        await this.db
+          .delete(schema.savedSearches)
+          .where(inArray(schema.savedSearches.userId, userIds));
+
         // Delete audit logs associated with these users
         await this.db
           .delete(schema.auditLogs)
@@ -98,7 +113,76 @@ export class TestAppHelper {
           .where(inArray(schema.users.id, userIds));
       }
     } catch (err: any) {
-      console.warn(`[TestAppHelper] Cleanup warning: ${err.message}`);
+      console.warn(`[TestAppHelper] User Cleanup warning: ${err.message}`);
+    }
+  }
+
+  async createTestBusiness(params: {
+    slug: string;
+    name: string;
+    contactEmail: string;
+    contactPhone: string;
+    city?: string;
+    state?: string;
+  }) {
+    // 1. Insert business
+    const [biz] = await this.db
+      .insert(schema.businesses)
+      .values({
+        slug: params.slug,
+        name: params.name,
+        legalName: `${params.name} Pvt Ltd`,
+        status: 'PUBLISHED',
+        publishedAt: new Date(),
+        employeeCountRange: '50-200',
+        annualRevenueRange: '10M-50M',
+      })
+      .returning();
+
+    // 2. Insert primary location
+    await this.db.insert(schema.businessLocations).values({
+      businessId: biz.id,
+      addressLine1: '42 Cyber City Tower 3',
+      city: params.city || 'Bangalore',
+      district: params.city || 'Bangalore',
+      state: params.state || 'Karnataka',
+      pincode: '560001',
+      country: 'India',
+      isPrimary: true,
+    });
+
+    // 3. Insert primary contact
+    await this.db.insert(schema.businessContacts).values({
+      businessId: biz.id,
+      fullName: 'Vikram Aditya Sharma',
+      title: 'Chief Technology Officer',
+      email: params.contactEmail,
+      phone: params.contactPhone,
+      isPrimary: true,
+      isDecisionMaker: true,
+    });
+
+    return biz;
+  }
+
+  async cleanupBusinesses(slugs: string[]): Promise<void> {
+    if (!slugs.length) return;
+    try {
+      const found = await this.db
+        .select({ id: schema.businesses.id })
+        .from(schema.businesses)
+        .where(inArray(schema.businesses.slug, slugs));
+
+      const bizIds = found.map((b) => b.id);
+      if (bizIds.length > 0) {
+        await this.db.delete(schema.leadUnlocks).where(inArray(schema.leadUnlocks.businessId, bizIds));
+        await this.db.delete(schema.savedLeads).where(inArray(schema.savedLeads.businessId, bizIds));
+        await this.db.delete(schema.businessContacts).where(inArray(schema.businessContacts.businessId, bizIds));
+        await this.db.delete(schema.businessLocations).where(inArray(schema.businessLocations.businessId, bizIds));
+        await this.db.delete(schema.businesses).where(inArray(schema.businesses.id, bizIds));
+      }
+    } catch (err: any) {
+      console.warn(`[TestAppHelper] Business Cleanup warning: ${err.message}`);
     }
   }
 

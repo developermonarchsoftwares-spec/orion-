@@ -42,6 +42,15 @@ export class ImportBatchRepository {
       .returning();
     return updated;
   }
+
+  async findAll(limit = 50, offset = 0) {
+    return this.db.query.importBatches.findMany({
+      orderBy: [desc(schema.importBatches.createdAt)],
+      limit,
+      offset,
+      with: { source: true },
+    });
+  }
 }
 
 @Injectable()

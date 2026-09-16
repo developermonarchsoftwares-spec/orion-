@@ -14,6 +14,7 @@ import * as schema from '../../../database/schema';
 export interface ICreateBusinessAggregateInput {
   name: string;
   legalName?: string;
+  status?: typeof schema.businessStatusEnum.enumValues[number];
   industryId?: string;
   categoryId?: string;
   businessTypeId?: string;
@@ -111,7 +112,8 @@ export class BusinessService {
           name: input.name,
           legalName: input.legalName || input.name,
           slug: uniqueSlug,
-          status: 'DRAFT',
+          status: input.status || 'DRAFT',
+          publishedAt: input.status === 'PUBLISHED' ? new Date() : undefined,
           industryId: input.industryId,
           categoryId: input.categoryId,
           businessTypeId: input.businessTypeId,
@@ -227,8 +229,8 @@ export class BusinessService {
         })
         .where(eq(schema.businesses.id, business.id));
 
-      // 7. Non-destructive change log
-      await this.historyService.logChange({
+      // 7. Non-destructive change log (executed within the same transaction)
+      await tx.insert(schema.businessHistory).values({
         businessId: business.id,
         changedById: input.createdById,
         changeType: 'INITIAL_CREATION',

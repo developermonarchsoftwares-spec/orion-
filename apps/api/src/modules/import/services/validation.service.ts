@@ -89,15 +89,15 @@ export class ValidationService {
         }
       }
 
-      // 3. Phone Validation
+      // 3. Phone Validation (Supports Indian 10-digit mobile [6-9] and landline with STD code [1-5])
       if (contact.phone) {
-        const phoneRegex = /^\+91[6-9]\d{9}$/;
+        const phoneRegex = /^\+91[1-9]\d{9}$/;
         if (!phoneRegex.test(contact.phone)) {
           logs.push({
             ruleName: 'INVALID_PHONE_FORMAT',
             field: 'contacts.phone',
             severity: ValidationSeverity.WARNING,
-            message: `Phone '${contact.phone}' is not a valid Indian mobile format (+91XXXXXXXXXX)`,
+            message: `Phone '${contact.phone}' is not a valid Indian phone format (+91XXXXXXXXXX)`,
             passed: false,
           });
         }

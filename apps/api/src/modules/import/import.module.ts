@@ -19,8 +19,12 @@ import { ImportPipelineService } from './services/import-pipeline.service';
 import { ImportBatchWorker } from './workers/import-batch.worker';
 import { PublishWorker } from './workers/publish.worker';
 
+import { AdminImportController } from './controllers/admin-import.controller';
+import { AdminImportService } from './services/admin-import.service';
+
 @Module({
   imports: [BusinessModule],
+  controllers: [AdminImportController],
   providers: [
     ImportBatchRepository,
     ImportRecordRepository,
@@ -34,6 +38,7 @@ import { PublishWorker } from './workers/publish.worker';
     ReviewService,
     PublishingService,
     ImportPipelineService,
+    AdminImportService,
     ImportBatchWorker,
     PublishWorker,
   ],
@@ -50,6 +55,7 @@ import { PublishWorker } from './workers/publish.worker';
     ReviewService,
     PublishingService,
     ImportPipelineService,
+    AdminImportService,
     ImportBatchWorker,
     PublishWorker,
   ],

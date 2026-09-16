@@ -6,7 +6,7 @@ import { BusinessException } from '../../common/errors/business.exception';
 import { DRIZZLE_DATABASE } from '../../database/database.constants';
 import { DrizzleDb } from '../../database/database.provider';
 import * as schema from '../../database/schema';
-import { eq, and, sql, ilike, or } from 'drizzle-orm';
+import { eq, and, sql, ilike, or, inArray } from 'drizzle-orm';
 
 @Injectable()
 export class DiscoverService {
@@ -188,9 +188,9 @@ export class DiscoverService {
 
     if (businessIds.length > 0) {
       const [scores, locations, contacts] = await Promise.all([
-        this.db.select().from(schema.businessScores).where(sql`${schema.businessScores.businessId} IN ${businessIds}`),
-        this.db.select().from(schema.businessLocations).where(sql`${schema.businessLocations.businessId} IN ${businessIds}`),
-        this.db.select().from(schema.businessContacts).where(sql`${schema.businessContacts.businessId} IN ${businessIds}`),
+        this.db.select().from(schema.businessScores).where(inArray(schema.businessScores.businessId, businessIds)),
+        this.db.select().from(schema.businessLocations).where(inArray(schema.businessLocations.businessId, businessIds)),
+        this.db.select().from(schema.businessContacts).where(inArray(schema.businessContacts.businessId, businessIds)),
       ]);
 
       scores.forEach((s) => { scoresMap[s.businessId] = s.orionScore; });
@@ -270,6 +270,22 @@ export class DiscoverService {
     const fullProfile = await this.businessRepo.findFullBusinessProfile(businessId);
     if (!fullProfile) {
       throw new BusinessException('Business not found', 'BUSINESS_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    // Enforce publication state: unpublished businesses (DRAFT, PENDING_REVIEW, ARCHIVED)
+    // must NOT be accessible to regular users or anonymous visitors
+    if (fullProfile.status !== 'PUBLISHED') {
+      let isCallerAdmin = false;
+      if (userId) {
+        const caller = await this.db.query.users.findFirst({
+          where: eq(schema.users.id, userId),
+          columns: { role: true },
+        });
+        isCallerAdmin = caller?.role === 'ADMIN' || caller?.role === 'SUPER_ADMIN';
+      }
+      if (!isCallerAdmin) {
+        throw new BusinessException('Business not found', 'BUSINESS_NOT_FOUND', HttpStatus.NOT_FOUND);
+      }
     }
 
     // Check if current user has unlocked this business
@@ -452,8 +468,8 @@ export class DiscoverService {
 
     if (relatedIds.length > 0) {
       const [scores, locations] = await Promise.all([
-        this.db.select().from(schema.businessScores).where(sql`${schema.businessScores.businessId} IN ${relatedIds}`),
-        this.db.select().from(schema.businessLocations).where(sql`${schema.businessLocations.businessId} IN ${relatedIds}`),
+        this.db.select().from(schema.businessScores).where(inArray(schema.businessScores.businessId, relatedIds)),
+        this.db.select().from(schema.businessLocations).where(inArray(schema.businessLocations.businessId, relatedIds)),
       ]);
       scores.forEach((s) => { scoresMap[s.businessId] = s.orionScore; });
       locations.forEach((l) => { if (l.isPrimary || !locationsMap[l.businessId]) locationsMap[l.businessId] = l; });

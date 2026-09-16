@@ -1,4 +1,4 @@
-import { Injectable, Logger, HttpStatus, Inject } from '@nestjs/common';
+import { Injectable, Logger, HttpStatus, Inject, Optional } from '@nestjs/common';
 import { UnlockRepository } from './unlock.repository';
 import { CreditService } from '../credit/credit.service';
 import { DiscoverService } from '../discover/discover.service';
@@ -7,7 +7,8 @@ import { BusinessException } from '../../common/errors/business.exception';
 import { DRIZZLE_DATABASE } from '../../database/database.constants';
 import { DrizzleDb } from '../../database/database.provider';
 import * as schema from '../../database/schema';
-import { eq, and, sql, desc } from 'drizzle-orm';
+import { eq, and, sql, desc, inArray } from 'drizzle-orm';
+import { AuditLogService } from '../../common/services/audit-log.service';
 
 @Injectable()
 export class UnlockService {
@@ -20,6 +21,7 @@ export class UnlockService {
     private readonly businessRepo: BusinessRepository,
     @Inject(DRIZZLE_DATABASE)
     private readonly db: DrizzleDb,
+    @Optional() private readonly auditLogService?: AuditLogService,
   ) {}
 
   /**
@@ -48,49 +50,103 @@ export class UnlockService {
 
     const unlockCost = 1;
 
-    // Deduct credit atomically and create unlock record
-    const result = await this.db.transaction(async (tx) => {
-      // 1. Deduct 1 credit (preferring dailyCredits first, then purchasedCredits)
-      const deduction = await this.creditService.deductCredits(
-        userId,
-        unlockCost,
-        `Unlocked lead: ${business.name}`,
-        business.id,
-        'UNLOCK_LEAD',
-        tx,
-      );
+    try {
+      // Deduct credit atomically and create unlock record with race condition guard
+      const result = await this.db.transaction(async (tx) => {
+        // 1. Re-verify inside locked transaction if a concurrent request already unlocked it
+        const alreadyInsideTx = await tx
+          .select()
+          .from(schema.leadUnlocks)
+          .where(
+            and(
+              eq(schema.leadUnlocks.userId, userId),
+              eq(schema.leadUnlocks.businessId, businessId),
+            ),
+          );
 
-      // 2. Create unlock record
-      const [unlockRecord] = await tx
-        .insert(schema.leadUnlocks)
-        .values({
+        if (alreadyInsideTx.length > 0) {
+          return { isAlreadyUnlocked: true, wallet: null, unlockRecord: alreadyInsideTx[0] };
+        }
+
+        // 2. Deduct 1 credit (preferring dailyCredits first, then purchasedCredits)
+        const deduction = await this.creditService.deductCredits(
           userId,
-          businessId,
-          creditsSpent: unlockCost,
-        })
-        .returning();
+          unlockCost,
+          `Unlocked lead: ${business.name}`,
+          business.id,
+          'UNLOCK_LEAD',
+          tx,
+        );
+
+        // 3. Create unlock record
+        const [unlockRecord] = await tx
+          .insert(schema.leadUnlocks)
+          .values({
+            userId,
+            businessId,
+            creditsSpent: unlockCost,
+          })
+          .returning();
+
+        return {
+          isAlreadyUnlocked: false,
+          wallet: deduction.wallet,
+          unlockRecord,
+        };
+      });
+
+      if (result.isAlreadyUnlocked) {
+        const profile = await this.discoverService.getBusinessBySlug(businessId, userId);
+        const wallet = await this.creditService.getWallet(userId);
+        return {
+          success: true,
+          alreadyUnlocked: true,
+          message: 'Lead is already unlocked in your account',
+          creditsSpent: 0,
+          balance: wallet.balance,
+          business: profile,
+        };
+      }
+
+      this.logger.log(`User ${userId} unlocked business ${businessId} (${business.name}) for ${unlockCost} credit`);
+
+      await this.auditLogService?.record({
+        userId,
+        action: 'BUSINESS_UNLOCKED',
+        entityType: 'BUSINESS',
+        entityId: businessId,
+        newValues: { businessName: business.name, creditsSpent: unlockCost },
+      });
+
+      // Fetch full unmasked profile
+      const unmaskedProfile = await this.discoverService.getBusinessBySlug(businessId, userId);
 
       return {
-        wallet: deduction.wallet,
-        unlockRecord,
+        success: true,
+        alreadyUnlocked: false,
+        message: 'Business unlocked successfully',
+        creditsSpent: unlockCost,
+        balance: result.wallet.balance,
+        dailyCredits: result.wallet.dailyCredits,
+        purchasedCredits: result.wallet.purchasedCredits,
+        business: unmaskedProfile,
       };
-    });
-
-    this.logger.log(`User ${userId} unlocked business ${businessId} (${business.name}) for ${unlockCost} credit`);
-
-    // Fetch full unmasked profile
-    const unmaskedProfile = await this.discoverService.getBusinessBySlug(businessId, userId);
-
-    return {
-      success: true,
-      alreadyUnlocked: false,
-      message: 'Business unlocked successfully',
-      creditsSpent: unlockCost,
-      balance: result.wallet.balance,
-      dailyCredits: result.wallet.dailyCredits,
-      purchasedCredits: result.wallet.purchasedCredits,
-      business: unmaskedProfile,
-    };
+    } catch (err: any) {
+      // Catch unique violation code 23505 (concurrent insert on leadUnlocks)
+      if (err?.code === '23505') {
+        const profile = await this.discoverService.getBusinessBySlug(businessId, userId);
+        const wallet = await this.creditService.getWallet(userId);
+        return {
+          success: true,
+          alreadyUnlocked: true,
+          message: 'Lead is already unlocked in your account',
+          creditsSpent: 0,
+          balance: wallet.balance,
+          business: profile,
+        };
+      }
+      throw err;
+    }
   }
 
   /**
@@ -127,21 +183,21 @@ export class UnlockService {
 
     const [businesses, locations, scores, contacts] = await Promise.all([
       this.db.query.businesses.findMany({
-        where: sql`${schema.businesses.id} IN ${businessIds}`,
+        where: inArray(schema.businesses.id, businessIds),
         with: { industry: true, category: true },
       }),
       this.db
         .select()
         .from(schema.businessLocations)
-        .where(sql`${schema.businessLocations.businessId} IN ${businessIds}`),
+        .where(inArray(schema.businessLocations.businessId, businessIds)),
       this.db
         .select()
         .from(schema.businessScores)
-        .where(sql`${schema.businessScores.businessId} IN ${businessIds}`),
+        .where(inArray(schema.businessScores.businessId, businessIds)),
       this.db
         .select()
         .from(schema.businessContacts)
-        .where(sql`${schema.businessContacts.businessId} IN ${businessIds}`),
+        .where(inArray(schema.businessContacts.businessId, businessIds)),
     ]);
 
     const businessMap = new Map(businesses.map((b) => [b.id, b]));

@@ -149,7 +149,12 @@ export default function AdminPortalPage() {
   useEffect(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('orion_admin_token') : null;
     const storedEmail = typeof window !== 'undefined' ? localStorage.getItem('orion_admin_email') : null;
-    if (token && storedEmail && storedEmail.toLowerCase().endsWith('@monarchsoftwares.com')) {
+    const isAuthEmail = (em: string) =>
+      em.endsWith('@monarchsoftwares.com') ||
+      em === 'admin@orion.ai' ||
+      em.endsWith('@orion.ai');
+
+    if (token && storedEmail && isAuthEmail(storedEmail.toLowerCase())) {
       setAdminEmail(storedEmail);
       setIsAdminAuthenticated(true);
     }
@@ -176,7 +181,12 @@ export default function AdminPortalPage() {
       return;
     }
 
-    if (!cleanEmail.endsWith('@monarchsoftwares.com')) {
+    const isAuthorized =
+      cleanEmail.endsWith('@monarchsoftwares.com') ||
+      cleanEmail === 'admin@orion.ai' ||
+      cleanEmail.endsWith('@orion.ai');
+
+    if (!isAuthorized) {
       setAuthError('Access Denied: This email address is not authorized for administrative access.');
       return;
     }
@@ -481,17 +491,24 @@ export default function AdminPortalPage() {
   };
 
   const handleCompleteImport = (batchSummary: any) => {
+    const batchId = batchSummary?.batch?.id || batchSummary?.id || `IMP-${Math.floor(1000 + Math.random() * 9000)}`;
+    const fileName = batchSummary?.batch?.batchName || batchSummary?.fileName || 'Ingested_Data_File.csv';
+    const total = batchSummary?.stats?.total ?? batchSummary?.total ?? 0;
+    const published = batchSummary?.stats?.published ?? batchSummary?.stats?.saved ?? batchSummary?.success ?? 0;
+    const duplicates = batchSummary?.stats?.duplicates ?? batchSummary?.duplicates ?? 0;
+    const failed = batchSummary?.stats?.invalid ?? batchSummary?.failed ?? 0;
+
     const newBatch: ImportBatch = {
-      id: `IMP-${Math.floor(1000 + Math.random() * 9000)}`,
-      fileName: batchSummary.fileName || 'Ingested_Data_File.csv',
-      uploadedBy: 'Priya Sharma (Data Ops)',
+      id: batchId,
+      fileName,
+      uploadedBy: adminEmail || 'Administrator (Super Admin)',
       uploadedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
-      totalRecords: batchSummary.total || 14200,
-      successCount: batchSummary.success || 13850,
-      failedCount: batchSummary.failed || 120,
-      duplicateCount: batchSummary.duplicates || 230,
+      totalRecords: total,
+      successCount: published,
+      failedCount: failed,
+      duplicateCount: duplicates,
       status: 'Completed',
-      fileSize: '4.8 MB',
+      fileSize: 'Live Pipeline Ingestion',
     };
 
     setBatches(prev => [newBatch, ...prev]);
@@ -503,13 +520,13 @@ export default function AdminPortalPage() {
       entityType: 'Batch',
       entityId: newBatch.id,
       entityName: newBatch.fileName,
-      details: `Batch ingestion completed: ${newBatch.totalRecords} total records (${newBatch.successCount} valid, ${newBatch.duplicateCount} duplicates, ${newBatch.failedCount} errors).`,
-      ipAddress: '192.168.1.1',
+      details: `Batch ingestion completed: ${newBatch.totalRecords} total records (${newBatch.successCount} published, ${newBatch.duplicateCount} duplicates, ${newBatch.failedCount} errors).`,
+      ipAddress: '127.0.0.1',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     };
     setActivityLogs(prev => [newLog, ...prev]);
 
-    showToast(`Successfully ingested batch: ${newBatch.fileName}`);
+    showToast(`Successfully ingested and published batch: ${newBatch.fileName}`);
     setActiveTab('history');
   };
 

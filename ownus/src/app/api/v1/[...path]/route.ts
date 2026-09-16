@@ -26,6 +26,15 @@ async function proxyRequest(
   context: { params: Promise<{ path: string[] }> },
 ): Promise<NextResponse> {
   const { path } = await context.params;
+
+  // Block path traversal attempts
+  if (!path || path.some((seg) => seg.includes('..') || seg.includes('/') || seg.includes('\\'))) {
+    return NextResponse.json(
+      { success: false, statusCode: 400, message: 'Invalid path parameters' },
+      { status: 400 },
+    );
+  }
+
   const fullPath = path.join('/');
 
   // Gateway Liveness / Readiness health probe
@@ -81,8 +90,30 @@ async function proxyRequest(
 
   let body: ArrayBuffer | undefined = undefined;
   if (req.method !== 'GET' && req.method !== 'HEAD') {
+    const contentLength = Number(req.headers.get('content-length') || 0);
+    const MAX_PAYLOAD_BYTES = 10 * 1024 * 1024; // 10MB
+    if (contentLength > MAX_PAYLOAD_BYTES) {
+      return NextResponse.json(
+        {
+          success: false,
+          statusCode: 413,
+          message: 'Payload too large. Maximum request body size is 10MB.',
+        },
+        { status: 413 },
+      );
+    }
     try {
       body = await req.arrayBuffer();
+      if (body.byteLength > MAX_PAYLOAD_BYTES) {
+        return NextResponse.json(
+          {
+            success: false,
+            statusCode: 413,
+            message: 'Payload too large. Maximum request body size is 10MB.',
+          },
+          { status: 413 },
+        );
+      }
     } catch {
       // Body may be empty for certain calls
     }
@@ -183,13 +214,21 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ path
   return proxyRequest(req, context);
 }
 
-export async function OPTIONS() {
+export async function OPTIONS(req: NextRequest) {
+  const origin = req.headers.get('origin') || '';
+  const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000')
+    .split(',')
+    .map((o) => o.trim());
+
+  const allowOrigin = allowedOrigins.includes(origin) ? origin : (allowedOrigins[0] || 'http://localhost:3000');
+
   return new NextResponse(null, {
     status: 204,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': allowOrigin,
       'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, x-request-id, x-refresh-token',
+      'Access-Control-Allow-Credentials': 'true',
     },
   });
 }

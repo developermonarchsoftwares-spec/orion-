@@ -1,4 +1,4 @@
-import { Injectable, Logger, HttpStatus, Inject } from '@nestjs/common';
+import { Injectable, Logger, HttpStatus, Inject, Optional } from '@nestjs/common';
 import { RazorpayService } from './razorpay.service';
 import { CreditService } from '../credit/credit.service';
 import { CreatePaymentOrderDto, VerifyPaymentDto } from './dto/payment.dto';
@@ -7,6 +7,7 @@ import { DRIZZLE_DATABASE } from '../../database/database.constants';
 import { DrizzleDb } from '../../database/database.provider';
 import * as schema from '../../database/schema';
 import { eq, and, desc } from 'drizzle-orm';
+import { AuditLogService } from '../../common/services/audit-log.service';
 
 @Injectable()
 export class PaymentService {
@@ -17,6 +18,7 @@ export class PaymentService {
     private readonly creditService: CreditService,
     @Inject(DRIZZLE_DATABASE)
     private readonly db: DrizzleDb,
+    @Optional() private readonly auditLogService?: AuditLogService,
   ) {}
 
   /**
@@ -73,7 +75,7 @@ export class PaymentService {
   }
 
   /**
-   * Verifies Razorpay payment signature and atomically credits wallet
+   * Verifies Razorpay payment signature and atomically credits wallet with strict idempotency
    */
   async verifyPayment(userId: string, dto: VerifyPaymentDto) {
     const pkg = await this.creditService.getPackageByIdOrSlug(dto.packageId);
@@ -81,6 +83,37 @@ export class PaymentService {
       throw new BusinessException('Invalid credit package', 'INVALID_PACKAGE', HttpStatus.BAD_REQUEST);
     }
 
+    // 1. Idempotency Check: Prevent replay attacks where the same payment ID is submitted multiple times
+    const existingTx = await this.db.query.creditTransactions.findFirst({
+      where: and(
+        eq(schema.creditTransactions.referenceId, dto.razorpayPaymentId),
+        eq(schema.creditTransactions.type, 'PACKAGE_PURCHASE'),
+      ),
+    });
+
+    if (existingTx) {
+      this.logger.warn(`Duplicate payment verification attempt for payment ID ${dto.razorpayPaymentId}. Returning existing confirmation.`);
+      const wallet = await this.creditService.getWallet(userId);
+      return {
+        success: true,
+        alreadyProcessed: true,
+        message: 'This payment has already been verified and credited to your account.',
+        creditsAdded: pkg.credits,
+        balance: wallet.balance,
+        dailyCredits: wallet.dailyCredits,
+        purchasedCredits: wallet.purchasedCredits,
+        transactionId: existingTx.id,
+        invoice: {
+          invoiceNumber: `INV-${existingTx.id.substring(0, 8).toUpperCase()}`,
+          packageName: pkg.name,
+          amount: pkg.priceInr,
+          currency: 'INR',
+          date: existingTx.createdAt,
+        },
+      };
+    }
+
+    // 2. Cryptographic signature verification
     const isValid = this.razorpayService.verifyPaymentSignature({
       orderId: dto.razorpayOrderId,
       paymentId: dto.razorpayPaymentId,
@@ -88,6 +121,14 @@ export class PaymentService {
     });
 
     if (!isValid) {
+      await this.auditLogService?.record({
+        userId,
+        action: 'PAYMENT_VERIFICATION_FAILED',
+        entityType: 'PAYMENT',
+        entityId: dto.razorpayPaymentId,
+        newValues: { orderId: dto.razorpayOrderId, packageId: dto.packageId },
+      });
+
       throw new BusinessException(
         'Payment signature verification failed. Transaction cannot be validated.',
         'PAYMENT_VERIFICATION_FAILED',
@@ -114,8 +155,17 @@ export class PaymentService {
 
     this.logger.log(`Payment verified for user ${userId}. Credited ${pkg.credits} purchased credits. Payment ID: ${dto.razorpayPaymentId}`);
 
+    await this.auditLogService?.record({
+      userId,
+      action: 'PAYMENT_VERIFIED',
+      entityType: 'PAYMENT',
+      entityId: dto.razorpayPaymentId,
+      newValues: { creditsAdded: pkg.credits, amountInr: pkg.priceInr, packageId: pkg.id },
+    });
+
     return {
       success: true,
+      alreadyProcessed: false,
       message: `Successfully credited ${pkg.credits} credits to your account!`,
       creditsAdded: pkg.credits,
       balance: result.wallet.balance,
@@ -133,7 +183,7 @@ export class PaymentService {
   }
 
   /**
-   * Handles asynchronous Razorpay webhook events
+   * Handles asynchronous Razorpay webhook events with duplicate webhook protection
    */
   async handleWebhook(rawBody: string, signature: string, eventPayload: any) {
     const isValid = this.razorpayService.verifyWebhookSignature(rawBody, signature);
@@ -151,7 +201,20 @@ export class PaymentService {
       const packageSlug = paymentEntity?.notes?.packageSlug || paymentEntity?.notes?.packageId;
       const credits = Number(paymentEntity?.notes?.credits);
 
-      if (userId && credits && credits > 0) {
+      if (userId && credits && credits > 0 && paymentEntity?.id) {
+        // Idempotency: verify webhook event has not already credited this payment ID
+        const existingTx = await this.db.query.creditTransactions.findFirst({
+          where: and(
+            eq(schema.creditTransactions.referenceId, paymentEntity.id),
+            eq(schema.creditTransactions.type, 'PACKAGE_PURCHASE'),
+          ),
+        });
+
+        if (existingTx) {
+          this.logger.log(`Webhook: Payment ${paymentEntity.id} already recorded. Skipping duplicate credit.`);
+          return { status: 'ok', alreadyProcessed: true };
+        }
+
         await this.creditService.addCredits(
           userId,
           credits,

@@ -65,10 +65,14 @@ export class RazorpayService {
       return true;
     }
 
-    return crypto.timingSafeEqual(
-      Buffer.from(expectedSignature, 'utf-8'),
-      Buffer.from(params.signature, 'utf-8'),
-    );
+    const bufExpected = Buffer.from(expectedSignature, 'utf-8');
+    const bufActual = Buffer.from(params.signature, 'utf-8');
+
+    if (bufExpected.length !== bufActual.length) {
+      return false;
+    }
+
+    return crypto.timingSafeEqual(bufExpected, bufActual);
   }
 
   /**
@@ -81,9 +85,13 @@ export class RazorpayService {
       .update(rawBody)
       .digest('hex');
 
-    return crypto.timingSafeEqual(
-      Buffer.from(expectedSignature, 'utf-8'),
-      Buffer.from(signature, 'utf-8'),
-    );
+    const bufExpected = Buffer.from(expectedSignature, 'utf-8');
+    const bufActual = Buffer.from(signature, 'utf-8');
+
+    if (bufExpected.length !== bufActual.length) {
+      return false;
+    }
+
+    return crypto.timingSafeEqual(bufExpected, bufActual);
   }
 }

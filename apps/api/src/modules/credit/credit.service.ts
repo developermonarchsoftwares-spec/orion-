@@ -1,4 +1,4 @@
-import { Injectable, Logger, HttpStatus, Inject } from '@nestjs/common';
+import { Injectable, Logger, HttpStatus, Inject, Optional } from '@nestjs/common';
 import { CreditRepository } from './credit.repository';
 import { ICreditPackage, IPricingConfig } from './credit.constants';
 import { BusinessException } from '../../common/errors/business.exception';
@@ -7,6 +7,7 @@ import { DrizzleDb } from '../../database/database.provider';
 import * as schema from '../../database/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { CreditTransactionType } from '@orion/shared';
+import { AuditLogService } from '../../common/services/audit-log.service';
 
 @Injectable()
 export class CreditService {
@@ -16,6 +17,7 @@ export class CreditService {
     private readonly creditRepo: CreditRepository,
     @Inject(DRIZZLE_DATABASE)
     private readonly db: DrizzleDb,
+    @Optional() private readonly auditLogService?: AuditLogService,
   ) {}
 
   /**
@@ -494,6 +496,14 @@ export class CreditService {
           metadata: { adminId, dailyDelta, purchasedDelta, reason },
         })
         .returning();
+
+      await this.auditLogService?.record({
+        userId: adminId,
+        action: 'CREDIT_ADJUSTMENT',
+        entityType: 'USER_WALLET',
+        entityId: wallet.id,
+        newValues: { targetUserId: userId, dailyDelta, purchasedDelta, totalDelta, reason, newBalance },
+      });
 
       return { wallet: updatedWallet, transaction };
     });

@@ -19,9 +19,11 @@ function setupApp(app: INestApplication) {
   app.use(
     helmet({
       crossOriginEmbedderPolicy: false,
+      frameguard: { action: 'deny' },
       contentSecurityPolicy: {
         directives: {
           defaultSrc: [`'self'`],
+          frameAncestors: [`'none'`],
           styleSrc: [`'self'`, `'unsafe-inline'`],
           imgSrc: [`'self'`, 'data:', 'validator.swagger.io'],
           scriptSrc: [`'self'`, `https: 'unsafe-inline'`],
@@ -38,7 +40,7 @@ function setupApp(app: INestApplication) {
     origin: corsOrigins,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-request-id', 'x-refresh-token'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-request-id', 'x-refresh-token', 'x-api-key'],
   });
 
   // Global API Prefix

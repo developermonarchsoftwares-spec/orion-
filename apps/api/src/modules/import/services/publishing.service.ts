@@ -36,6 +36,7 @@ export class PublishingService {
       const aggregateInput: ICreateBusinessAggregateInput = {
         name: payload.name,
         legalName: payload.legalName,
+        status: 'PUBLISHED',
         description: payload.description,
         foundingYear: payload.foundingYear,
         locations: payload.locations?.map((loc) => ({

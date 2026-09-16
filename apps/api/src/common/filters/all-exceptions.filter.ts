@@ -43,11 +43,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = String(res);
       }
     } else if (exception instanceof Error) {
-      message = exception.message;
+      const isProd = process.env.NODE_ENV === 'production';
+      message = isProd ? 'Internal server error occurred' : exception.message;
       this.logger.error(
         `Unhandled Error [${request.method} ${request.url}] (ReqID: ${requestId}): ${exception.message}`,
         exception.stack,
       );
+    }
+
+    // In production, ensure no unhandled 500 leaks raw system/database details
+    if (status >= 500 && process.env.NODE_ENV === 'production') {
+      message = 'An unexpected server error occurred. Please contact support.';
+      details = undefined;
     }
 
     const errorResponse = {
