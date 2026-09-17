@@ -18,6 +18,7 @@
     "start:web": "npm --prefix ownus run dev"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "concurrently": "^10.0.5",
     "prettier": "^3.5.1",
     "typescript": "^5.7.3"

@@ -20,7 +20,7 @@ export const databaseProviders: Provider[] = [
         connectionString: databaseUrl,
         max: maxConnections,
         idleTimeoutMillis,
-        connectionTimeoutMillis: 5000,
+        connectionTimeoutMillis: 15000,
       });
 
       pool.on('error', (err) => {

@@ -3,15 +3,17 @@
 import { cn, formatRelativeDate } from "@/lib/utils";
 import { Plus, Play, Pencil, Trash2, Bell, BellOff, Clock, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { apiClient } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
 
 export default function SavedSearchesPage() {
+  const { user, isLoading: authLoading } = useAuth();
   const [searches, setSearches] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchSearches = async () => {
+  const fetchSearches = useCallback(async () => {
     try {
       const res = await apiClient.savedSearches.list();
       if (Array.isArray(res)) {
@@ -22,11 +24,13 @@ export default function SavedSearchesPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchSearches();
-  }, []);
+    if (!authLoading && user) {
+      fetchSearches();
+    }
+  }, [authLoading, user, fetchSearches]);
 
   const toggleAlert = async (id: string, currentAlert: boolean) => {
     try {

@@ -511,28 +511,31 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
           </div>
 
           {/* Raw Preview Table */}
-          <div className="space-y-2">
-            <h3 className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
-              <Eye className="w-4 h-4 text-zinc-400" />
-              <span>Evaluated Rows Preview (Showing first {Math.min(previewData.records.length, 10)})</span>
-            </h3>
-            <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-x-auto">
-              <table className="w-full text-left border-collapse text-[11px]">
-                <thead className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 font-bold text-zinc-500 uppercase">
-                  <tr>
-                    <th className="p-2.5">Row</th>
-                    <th className="p-2.5">Status</th>
-                    <th className="p-2.5">Business Name</th>
-                    <th className="p-2.5">GSTIN</th>
-                    <th className="p-2.5">Location</th>
-                    <th className="p-2.5">Phone</th>
-                    <th className="p-2.5">Validation Issues / Remarks</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                  {previewData.records.slice(0, 10).map((rec: any) => (
-                    <tr key={rec.rowNumber} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/40">
-                      <td className="p-2.5 font-mono text-zinc-500">#{rec.rowNumber}</td>
+          {(() => {
+            const recordsList = previewData.previewRecords || previewData.records || [];
+            return (
+              <div className="space-y-2">
+                <h3 className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                  <Eye className="w-4 h-4 text-zinc-400" />
+                  <span>Evaluated Rows Preview (Showing first {Math.min(recordsList.length, 10)})</span>
+                </h3>
+                <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-[11px]">
+                    <thead className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 font-bold text-zinc-500 uppercase">
+                      <tr>
+                        <th className="p-2.5">Row</th>
+                        <th className="p-2.5">Status</th>
+                        <th className="p-2.5">Business Name</th>
+                        <th className="p-2.5">GSTIN</th>
+                        <th className="p-2.5">Location</th>
+                        <th className="p-2.5">Phone</th>
+                        <th className="p-2.5">Validation Issues / Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                      {recordsList.slice(0, 10).map((rec: any) => (
+                        <tr key={rec.rowNumber} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/40">
+                          <td className="p-2.5 font-mono text-zinc-500">#{rec.rowNumber}</td>
                       <td className="p-2.5">
                         <span
                           className={cn(
@@ -563,6 +566,8 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
               </table>
             </div>
           </div>
+          );
+          })()}
 
           {/* Navigation Buttons */}
           <div className="flex justify-between pt-4 border-t border-zinc-200 dark:border-zinc-800">

@@ -628,6 +628,16 @@ export default function DiscoverPage() {
               </select>
             </div>
 
+            {/* Save Search Button */}
+            <button
+              onClick={() => setIsSaveSearchOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs font-semibold text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+              title="Save current search criteria as an alert"
+            >
+              <Bookmark className="w-3.5 h-3.5" />
+              <span>Save Search</span>
+            </button>
+
           </div>
 
           {/* Active Filter Tags Row */}
@@ -1108,9 +1118,9 @@ export default function DiscoverPage() {
           try {
             await apiClient.savedSearches.create({
               name,
-              criteria: filters as any,
-              notificationFrequency: freq,
-              emailAlerts: emailAlert,
+              filters: (filters || {}) as any,
+              alertFrequency: freq.toUpperCase(),
+              alertEnabled: emailAlert,
             });
             toast.success(`Search "${name}" saved! Alerts set to ${freq}.`);
           } catch (err: any) {

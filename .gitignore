@@ -45,6 +45,9 @@ next-env.d.ts
 # Testing
 coverage/
 **/coverage/
+playwright-report/
+test-results/
+blob-report/
 
 # IDE & OS
 .DS_Store

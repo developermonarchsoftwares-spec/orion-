@@ -1,0 +1,273 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { Shield, Lock, FileText, Database, UserCheck, RefreshCw, Key, CheckCircle, Mail } from 'lucide-react';
+
+export const metadata: Metadata = {
+  title: 'Privacy Policy | Orion',
+  description: 'Learn how Orion and Monarch Softwares collect, process, safeguard, and manage your account data, business intelligence, CSV uploads, and user rights.',
+};
+
+export default function PrivacyPage() {
+  const lastUpdated = 'September 18, 2026';
+
+  const sections = [
+    { id: 'overview', title: '1. Overview & Scope' },
+    { id: 'account-data', title: '2. Account Data We Collect' },
+    { id: 'google-oauth', title: '3. Google OAuth & Third-Party Auth' },
+    { id: 'lead-data', title: '4. Business & Lead Intelligence Data' },
+    { id: 'csv-uploads', title: '5. CSV Uploads & Customer Datasets' },
+    { id: 'credits-payments', title: '6. Credits, Billing & Payments' },
+    { id: 'data-usage', title: '7. How We Use Your Data' },
+    { id: 'security', title: '8. Data Security & Storage Safeguards' },
+    { id: 'retention-deletion', title: '9. Data Retention & Deletion' },
+    { id: 'user-rights', title: '10. Your Rights & Choices' },
+    { id: 'contact', title: '11. Contacting Us' },
+  ];
+
+  return (
+    <div className="bg-white dark:bg-black text-gray-900 dark:text-gray-100 min-h-screen pt-28 pb-20 sm:pt-32 sm:pb-24">
+      {/* Header Banner */}
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 mb-12">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-neutral-900 text-gray-700 dark:text-neutral-300 border border-gray-200 dark:border-neutral-800 mb-4">
+          <Shield className="w-3.5 h-3.5 text-gray-900 dark:text-white" />
+          <span>Legal & Transparency</span>
+        </div>
+        <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-gray-900 dark:text-white mb-4">
+          Privacy Policy
+        </h1>
+        <p className="text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-3xl leading-relaxed">
+          Orion (&quot;we,&quot; &quot;our,&quot; or &quot;us&quot;), a Monarch Softwares product, is committed to safeguarding your privacy and ensuring transparent handling of your personal and business data.
+        </p>
+        <div className="mt-4 flex items-center gap-4 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+          <span>Last Updated: <strong className="text-gray-900 dark:text-white font-medium">{lastUpdated}</strong></span>
+          <span>&bull;</span>
+          <span>Effective Date: September 1, 2026</span>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          {/* Quick Navigation Sidebar (Desktop) */}
+          <aside className="hidden lg:block lg:col-span-4">
+            <div className="sticky top-28 p-5 rounded-xl border border-gray-200 dark:border-neutral-800 bg-gray-50/50 dark:bg-neutral-950/50 backdrop-blur-sm">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-neutral-500 mb-3">
+                Contents
+              </h3>
+              <nav className="flex flex-col space-y-1.5 text-sm">
+                {sections.map((sec) => (
+                  <a
+                    key={sec.id}
+                    href={`#${sec.id}`}
+                    className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors py-1 hover:translate-x-0.5 duration-150"
+                  >
+                    {sec.title}
+                  </a>
+                ))}
+              </nav>
+            </div>
+          </aside>
+
+          {/* Policy Document Content */}
+          <main className="lg:col-span-8 space-y-12 text-sm sm:text-base leading-relaxed text-gray-700 dark:text-gray-300">
+            {/* Section 1: Overview & Scope */}
+            <section id="overview" className="scroll-mt-28">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-neutral-800 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-gray-900 dark:text-white" />
+                1. Overview & Scope
+              </h2>
+              <p className="mb-3">
+                This Privacy Policy describes how Orion collects, stores, uses, and protects information when you access or use our websites, API endpoints, web applications, and related services (collectively, the &quot;Platform&quot;).
+              </p>
+              <p>
+                By signing up for an account, authenticating via single sign-on, uploading business files, or consuming Orion lead discovery services, you acknowledge the data handling practices described in this document.
+              </p>
+            </section>
+
+            {/* Section 2: Account Data We Collect */}
+            <section id="account-data" className="scroll-mt-28">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-neutral-800 flex items-center gap-2">
+                <UserCheck className="w-5 h-5 text-gray-900 dark:text-white" />
+                2. Account Data We Collect
+              </h2>
+              <p className="mb-3">
+                When you register, create a profile, or configure workspace preferences, we collect information necessary to identify and maintain your account:
+              </p>
+              <ul className="list-disc pl-5 space-y-2 mb-4">
+                <li><strong className="text-gray-900 dark:text-white">Identity & Profile Information:</strong> Name, email address, password hash (salted and encrypted), organization or company name, and avatar image (if provided).</li>
+                <li><strong className="text-gray-900 dark:text-white">Account Preferences:</strong> Notification choices, UI display themes, saved search filters, and tag configurations.</li>
+                <li><strong className="text-gray-900 dark:text-white">Usage & Telemetry:</strong> Log data including IP addresses, browser types, session timestamps, and page request counts strictly for fraud mitigation and rate limiting.</li>
+              </ul>
+            </section>
+
+            {/* Section 3: Google OAuth & Third-Party Auth */}
+            <section id="google-oauth" className="scroll-mt-28">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-neutral-800 flex items-center gap-2">
+                <Key className="w-5 h-5 text-gray-900 dark:text-white" />
+                3. Google OAuth & Third-Party Auth
+              </h2>
+              <p className="mb-3">
+                Orion offers authentication via Google OAuth 2.0. When you choose to authenticate using Google:
+              </p>
+              <div className="p-4 rounded-lg bg-gray-50 dark:bg-neutral-900/60 border border-gray-200 dark:border-neutral-800 mb-4 space-y-2 text-sm">
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                  <span>We only request basic profile permissions (email address, full name, profile picture) required to verify your identity and populate your user profile.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                  <span>We do not request or store access to your private Google Drive files, Gmail inbox, contacts, or calendar data.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                  <span>Orion&apos;s use and transfer of information received from Google APIs adheres to the <strong className="text-gray-900 dark:text-white">Google API Services User Data Policy</strong>, including the Limited Use requirements.</span>
+                </div>
+              </div>
+              <p>
+                Tokens received from OAuth providers are encrypted and handled exclusively by our backend authentication exchange to issue scoped Orion session tokens.
+              </p>
+            </section>
+
+            {/* Section 4: Business & Lead Intelligence Data */}
+            <section id="lead-data" className="scroll-mt-28">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-neutral-800 flex items-center gap-2">
+                <Database className="w-5 h-5 text-gray-900 dark:text-white" />
+                4. Business & Lead Intelligence Data
+              </h2>
+              <p className="mb-3">
+                Orion is an AI-powered B2B intelligence engine. We process company details to enable business discovery:
+              </p>
+              <ul className="list-disc pl-5 space-y-2 mb-4">
+                <li><strong className="text-gray-900 dark:text-white">Public Registry Information:</strong> Official corporate registration filings, registered business entity names, incorporation dates, business classifications (NIC/NAICS), and public registrar statuses.</li>
+                <li><strong className="text-gray-900 dark:text-white">Digital Presence Signals:</strong> Public business websites, professional profiles, verified business emails, official telephone lines, and company locations.</li>
+                <li><strong className="text-gray-900 dark:text-white">Lead Unlocking & Masking:</strong> Contact details in search results remain masked until an authorized user spends credits to unlock the lead. Unlocked records are saved to the user&apos;s private workspace.</li>
+              </ul>
+            </section>
+
+            {/* Section 5: CSV Uploads & Customer Datasets */}
+            <section id="csv-uploads" className="scroll-mt-28">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-neutral-800 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-gray-900 dark:text-white" />
+                5. CSV Uploads & Customer Datasets
+              </h2>
+              <p className="mb-3">
+                Users may upload CSV spreadsheets to import prospective accounts, match existing contacts, or request lead enrichment:
+              </p>
+              <div className="p-4 rounded-lg bg-gray-50 dark:bg-neutral-900/60 border border-gray-200 dark:border-neutral-800 space-y-2 text-sm mb-4">
+                <p className="font-semibold text-gray-900 dark:text-white">Strict Tenant Isolation & Confidentiality:</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>Your uploaded CSV spreadsheets are stored in isolated private storage buckets and associated strictly with your organization account.</li>
+                  <li>We do <strong className="text-gray-900 dark:text-white">not</strong> sell, rent, or cross-pool your uploaded customer lists or proprietary prospecting spreadsheets with other users.</li>
+                  <li>CSV files are sanitized prior to parsing to prevent formula injection attacks, and temporary parsing artifacts are deleted post-processing.</li>
+                </ul>
+              </div>
+            </section>
+
+            {/* Section 6: Credits, Billing & Payments */}
+            <section id="credits-payments" className="scroll-mt-28">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-neutral-800 flex items-center gap-2">
+                <Lock className="w-5 h-5 text-gray-900 dark:text-white" />
+                6. Credits, Billing & Payments
+              </h2>
+              <p className="mb-3">
+                Orion utilizes a credit ledger mechanism to govern lead unlocking and premium intelligence reports:
+              </p>
+              <ul className="list-disc pl-5 space-y-2 mb-4">
+                <li><strong className="text-gray-900 dark:text-white">Credit Balances:</strong> We maintain a cryptographic transactional ledger tracking daily credit allocations, purchased credit packs, and credit deductions for unlocked records.</li>
+                <li><strong className="text-gray-900 dark:text-white">Payment Processing:</strong> All commercial transactions and credit purchases are processed directly through certified third-party payment gateways. Orion never receives or stores your full credit card numbers or security CVV codes.</li>
+                <li><strong className="text-gray-900 dark:text-white">Billing History:</strong> Invoices, payment IDs, and transaction timestamps are preserved for accounting, dispute management, and tax compliance.</li>
+              </ul>
+            </section>
+
+            {/* Section 7: How We Use Your Data */}
+            <section id="data-usage" className="scroll-mt-28">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-neutral-800 flex items-center gap-2">
+                <RefreshCw className="w-5 h-5 text-gray-900 dark:text-white" />
+                7. How We Use Your Data
+              </h2>
+              <p className="mb-3">We process collected data exclusively for lawful purposes:</p>
+              <ul className="list-disc pl-5 space-y-2">
+                <li>Operating, maintaining, and enhancing the Orion platform features.</li>
+                <li>Authenticating user sessions and enforcing role-based permissions.</li>
+                <li>Facilitating search queries, filter indexing, and AI opportunity scoring.</li>
+                <li>Processing credit purchases, balance deductions, and invoices.</li>
+                <li>Protecting against malicious traffic, abuse, scraping, and security breaches.</li>
+                <li>Sending essential administrative notices, transactional receipts, and security alerts.</li>
+              </ul>
+            </section>
+
+            {/* Section 8: Data Security & Storage Safeguards */}
+            <section id="security" className="scroll-mt-28">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-neutral-800 flex items-center gap-2">
+                <Shield className="w-5 h-5 text-gray-900 dark:text-white" />
+                8. Data Security & Storage Safeguards
+              </h2>
+              <p className="mb-3">
+                We implement industry-standard software safeguards to defend your data against unauthorized access, alteration, or disclosure:
+              </p>
+              <ul className="list-disc pl-5 space-y-2 mb-4">
+                <li><strong className="text-gray-900 dark:text-white">Transport Security:</strong> All client-to-server traffic is encrypted using modern TLS (HTTPS) with secure cipher suites.</li>
+                <li><strong className="text-gray-900 dark:text-white">Session Security:</strong> Access and refresh tokens are signed with high-entropy secrets and transported in secure, HTTP-only cookies to defend against XSS exfiltration.</li>
+                <li><strong className="text-gray-900 dark:text-white">Administrative Protection:</strong> The internal administration console is guarded behind a two-factor OTP authentication gateway.</li>
+                <li><strong className="text-gray-900 dark:text-white">Tenant Isolation:</strong> Database queries enforce relational tenant boundary constraints, ensuring accounts cannot query data belonging to other organizations.</li>
+              </ul>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                For detailed information on our defensive engineering measures, review our dedicated <Link href="/security" className="underline hover:text-gray-900 dark:hover:text-white">Security Architecture Overview</Link>.
+              </p>
+            </section>
+
+            {/* Section 9: Data Retention & Deletion */}
+            <section id="retention-deletion" className="scroll-mt-28">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-neutral-800 flex items-center gap-2">
+                <Database className="w-5 h-5 text-gray-900 dark:text-white" />
+                9. Data Retention & Deletion
+              </h2>
+              <p className="mb-3">
+                We retain account information for as long as your account remains active or as required to fulfill legal and accounting obligations.
+              </p>
+              <ul className="list-disc pl-5 space-y-2 mb-4">
+                <li><strong className="text-gray-900 dark:text-white">Account Deletion:</strong> You may submit an account deletion request at any time. Upon verified confirmation, personal profile records, saved searches, and unlocked lead associations will be permanently purged within 30 days.</li>
+                <li><strong className="text-gray-900 dark:text-white">CSV Upload Retention:</strong> Temporary CSV files uploaded for batch matching are retained for a maximum of 30 days to facilitate review and export, after which raw files are deleted.</li>
+                <li><strong className="text-gray-900 dark:text-white">Financial Records:</strong> Transaction logs and invoice records are preserved for the statutory minimum period required by tax authorities.</li>
+              </ul>
+            </section>
+
+            {/* Section 10: Your Rights & Choices */}
+            <section id="user-rights" className="scroll-mt-28">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-neutral-800 flex items-center gap-2">
+                <UserCheck className="w-5 h-5 text-gray-900 dark:text-white" />
+                10. Your Rights & Choices
+              </h2>
+              <p className="mb-3">
+                Depending on your jurisdiction (including GDPR in Europe and CCPA/CPRA in the United States), you have specific statutory rights:
+              </p>
+              <ul className="list-disc pl-5 space-y-2 mb-4">
+                <li><strong className="text-gray-900 dark:text-white">Right of Access & Portability:</strong> You may request a copy of all personal data held in association with your user account.</li>
+                <li><strong className="text-gray-900 dark:text-white">Right to Rectification:</strong> You may correct inaccurate or incomplete profile details via your account settings.</li>
+                <li><strong className="text-gray-900 dark:text-white">Right to Erasure:</strong> You may request deletion of your account and personal identifiers.</li>
+                <li><strong className="text-gray-900 dark:text-white">Right to Restrict or Object:</strong> You can opt out of non-essential marketing communications or withdraw consent at any time.</li>
+              </ul>
+            </section>
+
+            {/* Section 11: Contacting Us */}
+            <section id="contact" className="scroll-mt-28">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-neutral-800 flex items-center gap-2">
+                <Mail className="w-5 h-5 text-gray-900 dark:text-white" />
+                11. Contacting Us
+              </h2>
+              <p className="mb-3">
+                If you have questions, concerns, or requests regarding this Privacy Policy or our data practices, please reach out to our privacy compliance team:
+              </p>
+              <div className="p-4 rounded-xl border border-gray-200 dark:border-neutral-800 bg-gray-50/50 dark:bg-neutral-950/50">
+                <p className="font-semibold text-gray-900 dark:text-white mb-1">Monarch Softwares &ndash; Orion Privacy Office</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Email: <a href="mailto:privacy@monarchsoftwares.com" className="text-gray-900 dark:text-white underline font-medium">privacy@monarchsoftwares.com</a></p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Requests are typically reviewed and answered within 2 to 3 business days.
+                </p>
+              </div>
+            </section>
+          </main>
+        </div>
+      </div>
+    </div>
+  );
+}

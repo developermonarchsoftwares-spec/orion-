@@ -79,6 +79,10 @@ export class ApiClient {
         ? localStorage.getItem('orion_access_token') || localStorage.getItem('orion_admin_token')
         : null);
 
+    if (effectiveToken && !this.accessToken) {
+      this.accessToken = effectiveToken;
+    }
+
     if (effectiveToken && !headers.has('Authorization')) {
       headers.set('Authorization', `Bearer ${effectiveToken}`);
     }
