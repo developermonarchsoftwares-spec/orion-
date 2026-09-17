@@ -118,15 +118,18 @@ export function AdminSidebar({
   return (
     <aside
       className={cn(
-        'sticky top-14 h-[calc(100vh-3.5rem)] flex flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 transition-all duration-200 z-30 shrink-0 select-none',
+        'sticky top-0 h-screen flex flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 transition-all duration-200 z-30 shrink-0 select-none',
         isCollapsed ? 'w-16' : 'w-64'
       )}
     >
       {/* Header / Environment Badge */}
-      <div className="h-12 border-b border-zinc-200 dark:border-zinc-800 px-3 flex items-center justify-between">
+      <div className="h-16 border-b border-zinc-200 dark:border-zinc-800 px-3.5 flex items-center justify-between shrink-0">
         {!isCollapsed ? (
           <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-zinc-900 dark:bg-zinc-100 animate-pulse" />
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
             <span className="text-xs font-bold tracking-wider text-zinc-900 dark:text-zinc-100 uppercase">
               DATA PLATFORM
             </span>
@@ -135,13 +138,16 @@ export function AdminSidebar({
             </span>
           </div>
         ) : (
-          <span className="h-2 w-2 rounded-full bg-zinc-900 dark:bg-zinc-100 mx-auto animate-pulse" />
+          <span className="relative flex h-2 w-2 mx-auto">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+          </span>
         )}
 
         <button
           onClick={onToggleCollapse}
           title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="p-1 rounded-md text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+          className="p-1.5 rounded-md text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors cursor-pointer"
         >
           {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>
@@ -167,41 +173,41 @@ export function AdminSidebar({
                   className={cn(
                     'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-all text-left cursor-pointer group relative',
                     isActive
-                      ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 font-semibold shadow-xs'
-                      : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900'
+                      ? 'bg-zinc-800/90 text-white font-semibold shadow-xs border border-zinc-700/60'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900/60'
                   )}
                 >
+                  {isActive && (
+                    <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-indigo-500" />
+                  )}
                   <Icon
                     className={cn(
                       'w-4 h-4 shrink-0 transition-transform group-hover:scale-105',
-                      isActive ? 'text-white dark:text-zinc-900' : 'text-zinc-400 dark:text-zinc-500'
+                      isActive ? 'text-indigo-400' : 'text-zinc-400 dark:text-zinc-500'
                     )}
                   />
                   {!isCollapsed && (
                     <>
                       <span className="truncate flex-1">{item.label}</span>
                       {item.badge && (
-                        <span className={cn(
-                          'text-[10px] font-mono px-1.5 py-0.2 rounded-full font-semibold',
-                          isActive ? 'bg-zinc-800 text-zinc-100 dark:bg-zinc-200 dark:text-zinc-900' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700'
-                        )}>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/20">
                           {item.badge}
                         </span>
                       )}
                       {item.alertCount ? (
-                        <span className="text-[10px] font-mono bg-zinc-900 text-white dark:bg-white dark:text-zinc-950 px-1.5 py-0.2 rounded-full font-bold">
+                        <span className="text-[10px] font-mono bg-rose-500/20 text-rose-300 border border-rose-500/30 px-1.5 py-0.5 rounded-full font-bold">
                           {item.alertCount}
                         </span>
                       ) : null}
                       {item.tag && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
                           {item.tag}
                         </span>
                       )}
                     </>
                   )}
                   {isCollapsed && item.alertCount ? (
-                    <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-zinc-900 dark:bg-white ring-2 ring-white dark:ring-zinc-950" />
+                    <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-zinc-950" />
                   ) : null}
                 </button>
               );
@@ -211,17 +217,22 @@ export function AdminSidebar({
       </div>
 
       {/* Cluster Footer Health */}
-      <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
+      <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40">
         {!isCollapsed ? (
           <div className="flex items-center justify-between text-[11px] text-zinc-500">
-            <div className="flex items-center gap-1.5">
-              <Server className="w-3.5 h-3.5 text-zinc-400" />
-              <span className="font-mono font-medium">Cluster: 99.98%</span>
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span className="font-mono font-medium text-zinc-700 dark:text-zinc-300">Cluster: 99.98%</span>
             </div>
-            <span className="text-[10px] font-semibold text-zinc-700 dark:text-zinc-300">Healthy</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
+              Optimal
+            </span>
           </div>
         ) : (
-          <Server className="w-4 h-4 text-zinc-400 mx-auto" />
+          <Server className="w-4 h-4 text-emerald-400 mx-auto" />
         )}
       </div>
     </aside>

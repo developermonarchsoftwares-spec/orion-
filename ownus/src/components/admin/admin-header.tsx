@@ -239,32 +239,37 @@ export function AdminHeader({
   };
 
   return (
-    <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md px-6 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-14 z-20">
+    <header className="h-16 shrink-0 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-xl px-6 flex items-center justify-between sticky top-0 z-20">
       {/* Title and Breadcrumb */}
-      <div>
-        <div className="flex items-center gap-2 text-[11px] text-zinc-400 font-mono">
-          <span>ORION ADMIN</span>
-          <span>/</span>
-          <span className="uppercase text-zinc-600 dark:text-zinc-300 font-semibold">{activeTab}</span>
+      <div className="flex flex-col justify-center">
+        <div className="flex items-center gap-2 text-[10px] font-mono tracking-wide leading-none mb-1">
+          <span className="text-zinc-400 font-semibold flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+            ORION ADMIN
+          </span>
+          <span className="text-zinc-600">/</span>
+          <span className="uppercase text-indigo-400 font-bold bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded leading-none">
+            {activeTab}
+          </span>
         </div>
-        <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 tracking-tight flex items-center gap-2">
+        <h1 className="text-lg font-bold text-white tracking-tight leading-tight">
           {current.title}
         </h1>
       </div>
 
       {/* Action Toolbar */}
-      <div className="flex items-center flex-wrap gap-2.5">
+      <div className="flex items-center gap-2.5">
         {/* Global Admin Search Trigger */}
         <button
           onClick={onOpenSearch}
           type="button"
-          className="flex items-center gap-2.5 px-3 py-1.5 text-xs text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-800 transition-colors cursor-pointer w-48 sm:w-60 justify-between"
+          className="flex items-center gap-2.5 px-3 h-9 text-xs text-zinc-400 bg-zinc-900/90 hover:bg-zinc-900 rounded-xl border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer w-48 sm:w-60 justify-between shadow-xs"
         >
           <div className="flex items-center gap-2 truncate">
             <Search className="w-3.5 h-3.5 text-zinc-400" />
-            <span className="truncate">Search businesses, users, tickets...</span>
+            <span className="truncate">Search businesses, users...</span>
           </div>
-          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono font-semibold text-zinc-400 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded">
+          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono font-semibold text-zinc-400 bg-zinc-950 border border-zinc-800 rounded">
             ⌘K
           </kbd>
         </button>
@@ -274,11 +279,11 @@ export function AdminHeader({
           <button
             onClick={() => setShowNotifDropdown(prev => !prev)}
             title="Platform Notifications"
-            className="p-1.5 text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-white bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer relative"
+            className="h-9 w-9 flex items-center justify-center text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 rounded-xl transition-all cursor-pointer relative shadow-xs"
           >
             <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-[9px] font-bold rounded-full flex items-center justify-center ring-2 ring-white dark:ring-zinc-950">
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-indigo-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center ring-2 ring-zinc-950">
                 {unreadCount}
               </span>
             )}
@@ -286,12 +291,12 @@ export function AdminHeader({
 
           {/* Notifications Dropdown Panel */}
           {showNotifDropdown && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl p-4 z-50 text-zinc-100 animate-in fade-in">
+            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-zinc-900/95 border border-zinc-800 rounded-2xl shadow-2xl p-4 z-50 text-zinc-100 animate-in fade-in backdrop-blur-xl">
               <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-zinc-300">Admin Notifications</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-zinc-200">Admin Notifications</span>
                   {unreadCount > 0 && (
-                    <span className="text-[10px] font-mono font-bold bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-200">
+                    <span className="text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.5 rounded-full">
                       {unreadCount} new
                     </span>
                   )}
@@ -307,23 +312,23 @@ export function AdminHeader({
                   )}
                   <button
                     onClick={() => setShowNotifDropdown(false)}
-                    className="text-zinc-400 hover:text-zinc-200 p-0.5"
+                    className="text-zinc-400 hover:text-zinc-200 p-0.5 cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
 
-              <div className="max-h-80 overflow-y-auto space-y-1.5 py-2 divide-y divide-zinc-800/40">
+              <div className="max-h-80 overflow-y-auto space-y-1.5 py-2 divide-y divide-zinc-800/40 scrollbar-thin">
                 {notifications.map(item => (
                   <div
                     key={item.id}
                     onClick={() => handleNotificationClick(item)}
-                    className={`p-2.5 rounded-lg flex items-start gap-3 cursor-pointer transition ${
+                    className={`p-2.5 rounded-xl flex items-start gap-3 cursor-pointer transition ${
                       item.read ? 'hover:bg-zinc-800/40' : 'bg-zinc-800/30 hover:bg-zinc-800/70 border border-zinc-800'
                     }`}
                   >
-                    <div className="p-1.5 rounded-md bg-zinc-800 border border-zinc-700 mt-0.5 shrink-0">
+                    <div className="p-1.5 rounded-lg bg-zinc-800 border border-zinc-700 mt-0.5 shrink-0">
                       {getNotificationIcon(item.type)}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -347,9 +352,9 @@ export function AdminHeader({
           <button
             onClick={onRefreshData}
             title="Refresh current data"
-            className="p-1.5 text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-white bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+            className="h-9 w-9 flex items-center justify-center text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 rounded-xl transition-all cursor-pointer shadow-xs"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </button>
         )}
 
@@ -357,18 +362,23 @@ export function AdminHeader({
         <Link
           href="/dashboard"
           title="Exit Admin Console to User Portal"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-white bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 transition-colors"
+          className="inline-flex items-center gap-1.5 px-3 h-9 rounded-xl text-xs font-medium text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 transition-all shadow-xs"
         >
-          <ExternalLink className="w-3.5 h-3.5" />
+          <ExternalLink className="w-3.5 h-3.5 text-zinc-400" />
           <span className="hidden sm:inline">User Portal</span>
         </Link>
 
         {/* Admin Identity Badge */}
         {adminEmail && (
-          <div className="hidden lg:flex items-center gap-2 px-2.5 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[11px]">
-            <div className="w-1.5 h-1.5 rounded-full bg-zinc-900 dark:bg-zinc-100 animate-pulse" />
-            <span className="font-medium text-zinc-700 dark:text-zinc-300 truncate max-w-[160px]">{adminEmail}</span>
-            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-300 dark:border-zinc-700">ADMIN</span>
+          <div className="hidden lg:flex items-center gap-2 px-3 h-9 rounded-xl bg-zinc-900 border border-zinc-800 text-[11px] shadow-xs">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
+            <span className="font-medium text-zinc-200 truncate max-w-[170px]">{adminEmail}</span>
+            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              ADMIN
+            </span>
           </div>
         )}
 
@@ -377,7 +387,7 @@ export function AdminHeader({
           <button
             onClick={onSignOut}
             title="Sign out of Admin Portal"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-2.5 h-9 rounded-xl text-xs font-medium text-zinc-400 hover:text-rose-400 hover:bg-zinc-900 border border-zinc-800 hover:border-rose-500/30 transition-all cursor-pointer shadow-xs"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Logout</span>
@@ -387,9 +397,9 @@ export function AdminHeader({
         {/* Quick Ingest Button */}
         <button
           onClick={() => onNavigateTab('import')}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:opacity-90 shadow-xs transition-all cursor-pointer"
+          className="inline-flex items-center gap-2 px-3.5 h-9 rounded-xl text-xs font-semibold bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:via-indigo-500 hover:to-violet-500 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 border border-white/10 transition-all cursor-pointer shrink-0"
         >
-          <UploadCloud className="w-3.5 h-3.5" />
+          <UploadCloud className="w-4 h-4" />
           <span>New Import</span>
         </button>
       </div>

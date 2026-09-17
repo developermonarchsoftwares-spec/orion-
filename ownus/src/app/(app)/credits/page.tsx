@@ -408,8 +408,8 @@ export default function CreditsPage() {
                         className={cn(
                           "inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider truncate max-w-full",
                           isPopular
-                            ? "bg-white text-zinc-900 shadow-xs"
-                            : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700"
+                            ? "bg-white text-zinc-900 dark:bg-white dark:text-zinc-900 shadow-xs"
+                            : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 border border-zinc-200/60 dark:border-zinc-700"
                         )}
                       >
                         {badge}
@@ -426,7 +426,7 @@ export default function CreditsPage() {
 
                   {/* Description - Fixed Height for Uniform Horizontal Alignment */}
                   <p className={cn(
-                    "text-xs leading-relaxed h-12 line-clamp-2 mt-2 mb-4",
+                    "text-xs leading-relaxed min-h-[38px] line-clamp-2 mt-2 mb-4",
                     isPopular ? "text-zinc-300" : "text-gray-500 dark:text-gray-400"
                   )}>
                     {pkg.description}
@@ -463,7 +463,7 @@ export default function CreditsPage() {
                   className={cn(
                     "mt-auto block w-full rounded-lg px-3 py-2.5 text-center text-xs font-semibold transition-all cursor-pointer",
                     isPopular
-                      ? "bg-white text-zinc-900 hover:bg-zinc-100 shadow-sm font-bold"
+                      ? "bg-white text-zinc-900 hover:bg-zinc-100 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 shadow-sm font-bold"
                       : isFree
                       ? "border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-400 cursor-default"
                       : "border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 shadow-xs"
