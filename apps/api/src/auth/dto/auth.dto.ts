@@ -24,6 +24,12 @@ export class RegisterDto {
   @MaxLength(100)
   lastName!: string;
 
+  @ApiPropertyOptional({ example: 'Alex Vance', description: 'User display name' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  displayName?: string;
+
   @ApiPropertyOptional({ example: 'Acme Corp', description: 'Organization / Company name' })
   @IsOptional()
   @IsString()

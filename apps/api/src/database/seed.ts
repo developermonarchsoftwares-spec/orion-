@@ -117,7 +117,7 @@ async function seedDatabase() {
         userLimit: 1,
         billingType: 'DAILY_FREE',
         popular: false,
-        badgeText: '5 Daily Credits',
+        badgeText: '5 Daily Free',
         features: [
           '5 Daily Verified Leads',
           'Search & Discovery Engine',
@@ -137,7 +137,7 @@ async function seedDatabase() {
         userLimit: 1,
         billingType: 'ONE_TIME',
         popular: false,
-        badgeText: 'Save 20% with Annual Billing',
+        badgeText: null,
         features: [
           '100 Lifetime Lead Credits',
           'Credits Never Expire',
@@ -158,7 +158,7 @@ async function seedDatabase() {
         userLimit: 1,
         billingType: 'ONE_TIME',
         popular: true,
-        badgeText: 'Most Popular • Save 20% Annual',
+        badgeText: 'Most Popular',
         features: [
           '350 Lifetime Lead Credits',
           'Credits Never Expire',
@@ -179,7 +179,7 @@ async function seedDatabase() {
         userLimit: 1,
         billingType: 'ONE_TIME',
         popular: false,
-        badgeText: 'Best Value • Save 20% Annual',
+        badgeText: 'Best Value',
         features: [
           '1,500 Lifetime Lead Credits',
           'Credits Never Expire',
@@ -200,7 +200,7 @@ async function seedDatabase() {
         userLimit: null,
         billingType: 'CUSTOM',
         popular: false,
-        badgeText: 'Custom Solution',
+        badgeText: 'Custom',
         features: [
           'Custom High-Volume Credit Allocation',
           'Unlimited Team Users & RBAC',

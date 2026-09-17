@@ -217,7 +217,7 @@ export default function CreditsPage() {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-16 text-zinc-900 dark:text-zinc-100">
+    <div className="max-w-6xl mx-auto space-y-8 pt-6 pb-16 text-zinc-900 dark:text-zinc-100">
       
       {/* Top Header */}
       <div>
@@ -372,13 +372,21 @@ export default function CreditsPage() {
         </div>
 
         {/* 5 Package Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           {displayPackages.map((pkg) => {
             const isFree = pkg.priceInr === 0;
             const isCustom = pkg.billingType === "CUSTOM" || pkg.priceInr === null;
             const isPopular = pkg.popular;
             const isPurchasing = purchasingPkgId === pkg.id;
-            const badge = pkg.badgeText || (isPopular ? "Most Popular" : undefined);
+
+            // Formatted concise badge to prevent truncation and card overflow
+            let badge = pkg.badgeText;
+            if (isAnnual && pkg.priceInr && pkg.priceInr > 0) {
+              badge = isPopular ? "Most Popular • 20% Off" : pkg.slug === "agency" ? "Best Value • 20% Off" : "Save 20%";
+            } else if (pkg.badgeText && pkg.badgeText.toLowerCase().includes("annual")) {
+              badge = isPopular ? "Most Popular" : pkg.slug === "agency" ? "Best Value" : null;
+            }
+            if (!badge && isPopular) badge = "Most Popular";
 
             const price = isAnnual && pkg.priceAnnualInr ? pkg.priceAnnualInr : pkg.priceInr;
 
@@ -386,38 +394,47 @@ export default function CreditsPage() {
               <div
                 key={pkg.id}
                 className={cn(
-                  "rounded-xl p-5 flex flex-col justify-between transition-all relative overflow-hidden",
+                  "rounded-2xl p-5 flex flex-col justify-between transition-all relative overflow-hidden h-full",
                   isPopular
-                    ? "bg-zinc-900 text-white dark:bg-neutral-900 shadow-md ring-2 ring-zinc-900 dark:ring-white relative"
-                    : "bg-white dark:bg-neutral-900 ring-1 ring-gray-200 dark:ring-neutral-800 hover:ring-gray-300 dark:hover:ring-neutral-700 shadow-sm"
+                    ? "bg-zinc-900 text-white dark:bg-neutral-900 shadow-lg ring-2 ring-zinc-900 dark:ring-white"
+                    : "bg-white dark:bg-neutral-900 ring-1 ring-zinc-200 dark:ring-neutral-800 hover:ring-zinc-300 dark:hover:ring-neutral-700 shadow-sm"
                 )}
               >
-                <div>
-                  {/* Plan Name & Badge */}
-                  <div className="flex items-center justify-between gap-x-2 mb-1.5">
-                    <h3 className={cn("text-base font-bold", isPopular ? "text-white" : "text-gray-900 dark:text-white")}>
-                      {pkg.name}
-                    </h3>
-                    {badge && (
-                      <span className={cn(
-                        "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider shrink-0",
-                        isPopular
-                          ? "bg-white text-zinc-900"
-                          : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-                      )}>
+                <div className="flex flex-col flex-1">
+                  {/* Badge Row with Fixed Height for Consistent Baseline */}
+                  <div className="h-6 mb-2 flex items-center justify-between">
+                    {badge ? (
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider truncate max-w-full",
+                          isPopular
+                            ? "bg-white text-zinc-900 shadow-xs"
+                            : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700"
+                        )}
+                      >
                         {badge}
                       </span>
+                    ) : (
+                      <div className="h-5" />
                     )}
                   </div>
 
-                  {/* Description */}
-                  <p className={cn("text-xs leading-5 min-h-[40px] mb-4", isPopular ? "text-zinc-300" : "text-gray-500 dark:text-gray-400")}>
+                  {/* Plan Name */}
+                  <h3 className={cn("text-base font-bold tracking-tight leading-snug", isPopular ? "text-white" : "text-gray-900 dark:text-white")}>
+                    {pkg.name}
+                  </h3>
+
+                  {/* Description - Fixed Height for Uniform Horizontal Alignment */}
+                  <p className={cn(
+                    "text-xs leading-relaxed h-12 line-clamp-2 mt-2 mb-4",
+                    isPopular ? "text-zinc-300" : "text-gray-500 dark:text-gray-400"
+                  )}>
                     {pkg.description}
                   </p>
 
-                  {/* Pricing Display */}
-                  <div className="flex items-baseline gap-x-1 mb-6">
-                    <span className={cn("text-3xl font-bold tracking-tight font-mono", isPopular ? "text-white" : "text-gray-900 dark:text-white")}>
+                  {/* Pricing Display - Standardized Height */}
+                  <div className="flex items-baseline gap-x-1.5 mb-5 pb-4 border-b border-zinc-100 dark:border-zinc-800/80">
+                    <span className={cn("text-3xl font-extrabold tracking-tight font-mono", isPopular ? "text-white" : "text-gray-900 dark:text-white")}>
                       {isCustom ? "Custom" : isFree ? "₹0" : `₹${price?.toLocaleString()}`}
                     </span>
                     <span className={cn("text-xs font-semibold", isPopular ? "text-zinc-400" : "text-gray-500 dark:text-gray-400")}>
@@ -426,11 +443,11 @@ export default function CreditsPage() {
                   </div>
 
                   {/* Features List */}
-                  <ul role="list" className="space-y-2.5 text-xs text-gray-600 dark:text-gray-400 mb-6">
+                  <ul role="list" className="space-y-2.5 text-xs text-gray-600 dark:text-gray-400 mb-6 flex-1">
                     {(pkg.features || []).map((feature: string, i: number) => (
-                      <li key={i} className="flex gap-x-2 items-start">
+                      <li key={i} className="flex gap-x-2 items-start leading-snug">
                         <Check className={cn(
-                          "h-4 w-4 shrink-0 mt-0.5",
+                          "h-3.5 w-3.5 shrink-0 mt-0.5",
                           isPopular ? "text-white" : "text-zinc-900 dark:text-zinc-100"
                         )} />
                         <span className={isPopular ? "text-zinc-200" : ""}>{feature}</span>
@@ -446,7 +463,7 @@ export default function CreditsPage() {
                   className={cn(
                     "mt-auto block w-full rounded-lg px-3 py-2.5 text-center text-xs font-semibold transition-all cursor-pointer",
                     isPopular
-                      ? "bg-white text-zinc-900 hover:bg-zinc-100 shadow-sm"
+                      ? "bg-white text-zinc-900 hover:bg-zinc-100 shadow-sm font-bold"
                       : isFree
                       ? "border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-400 cursor-default"
                       : "border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 shadow-xs"

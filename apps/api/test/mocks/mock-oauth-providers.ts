@@ -10,7 +10,7 @@ export class MockGoogleOAuthProvider implements IOAuthProvider {
   getAuthorizationUrl(state: string, codeChallenge?: string): string {
     const params = new URLSearchParams({
       client_id: 'mock-google-client-id-test.apps.googleusercontent.com',
-      redirect_uri: 'http://localhost:4000/api/v1/auth/google/callback',
+      redirect_uri: 'https://orion-api-snowy.vercel.app/api/v1/auth/google/callback',
       response_type: 'code',
       scope: 'openid email profile',
       state,

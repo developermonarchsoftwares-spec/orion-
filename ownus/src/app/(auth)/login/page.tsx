@@ -204,7 +204,7 @@ function LoginForm() {
             </div>
           </div>
           
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2" suppressHydrationWarning>
             <input
               id="remember"
               type="checkbox"

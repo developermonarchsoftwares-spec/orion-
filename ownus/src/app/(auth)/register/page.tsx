@@ -87,9 +87,9 @@ export default function RegisterPage() {
       return;
     }
 
-    const parts = name.trim().split(" ");
-    const firstName = parts[0] || "";
-    const lastName = parts.slice(1).join(" ") || "";
+    const parts = name.trim().split(/\s+/);
+    const firstName = parts[0] || "User";
+    const lastName = parts.slice(1).join(" ") || firstName;
 
     setIsLoading(true);
     setExistingAccountError(null);
@@ -294,7 +294,7 @@ export default function RegisterPage() {
             )}
           </div>
 
-          <div className="flex items-start space-x-2 pt-1">
+          <div className="flex items-start space-x-2 pt-1" suppressHydrationWarning>
             <input
               id="terms"
               type="checkbox"

@@ -70,7 +70,7 @@ export default function SavedSearchesPage() {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-12 text-zinc-900 dark:text-zinc-100">
+    <div className="max-w-6xl mx-auto space-y-8 pt-6 pb-12 text-zinc-900 dark:text-zinc-100">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>

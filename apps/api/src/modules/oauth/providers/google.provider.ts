@@ -27,7 +27,7 @@ export class GoogleOAuthProvider implements IOAuthProvider {
     this.clientId = this.sanitizeValue(this.configService.get<string>('GOOGLE_CLIENT_ID'), 'GOOGLE_CLIENT_ID');
     this.clientSecret = this.sanitizeValue(this.configService.get<string>('GOOGLE_CLIENT_SECRET'), 'GOOGLE_CLIENT_SECRET');
     let rawCallback = this.sanitizeValue(this.configService.get<string>('GOOGLE_CALLBACK_URL'), 'GOOGLE_CALLBACK_URL');
-    this.callbackUrl = rawCallback || 'http://localhost:4000/api/v1/auth/google/callback';
+    this.callbackUrl = rawCallback || 'https://orion-api-snowy.vercel.app/api/v1/auth/google/callback';
 
     const isConfig = this.isConfigured();
     const suffix = isConfig && this.clientId.length >= 4 

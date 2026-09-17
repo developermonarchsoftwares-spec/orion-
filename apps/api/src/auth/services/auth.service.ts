@@ -17,6 +17,7 @@ export interface IAuthResult {
     email: string;
     firstName: string;
     lastName: string;
+    displayName?: string | null;
     role: UserRole;
     status: UserStatus;
     organizationName?: string | null;
@@ -64,6 +65,7 @@ export class AuthService {
           passwordHash,
           firstName: dto.firstName.trim(),
           lastName: dto.lastName.trim(),
+          displayName: dto.displayName?.trim() || `${dto.firstName.trim()} ${dto.lastName.trim()}`.trim(),
           organizationName: dto.organizationName?.trim(),
           phoneNumber: dto.phoneNumber?.trim(),
           role: 'USER',
@@ -143,6 +145,7 @@ export class AuthService {
         email: newUser.email,
         firstName: newUser.firstName,
         lastName: newUser.lastName,
+        displayName: newUser.displayName || `${newUser.firstName} ${newUser.lastName}`.trim(),
         role: newUser.role as UserRole,
         status: newUser.status as UserStatus,
         organizationName: newUser.organizationName,
@@ -225,6 +228,7 @@ export class AuthService {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
+        displayName: user.displayName || `${user.firstName} ${user.lastName}`.trim(),
         role: user.role as UserRole,
         status: user.status as UserStatus,
         organizationName: user.organizationName,

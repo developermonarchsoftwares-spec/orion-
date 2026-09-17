@@ -13,7 +13,7 @@ function runDiagnostics() {
 
   const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim().replace(/^["']|["']$/g, '');
   const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || '').trim().replace(/^["']|["']$/g, '');
-  const callbackUrl = (process.env.GOOGLE_CALLBACK_URL || 'http://localhost:4000/api/v1/auth/google/callback').trim().replace(/^["']|["']$/g, '');
+  const callbackUrl = (process.env.GOOGLE_CALLBACK_URL || 'https://orion-api-snowy.vercel.app/api/v1/auth/google/callback').trim().replace(/^["']|["']$/g, '');
 
   const isClientIdConfigured = Boolean(clientId) && !clientId.includes('your-') && !clientId.includes('demo-');
   const isSecretConfigured = Boolean(clientSecret) && !clientSecret.includes('your-') && !clientSecret.includes('demo-');
@@ -27,7 +27,7 @@ function runDiagnostics() {
     console.error('Please make sure you have saved (Ctrl+S) apps/api/.env with:');
     console.error('  GOOGLE_CLIENT_ID=<your-real-google-client-id>');
     console.error('  GOOGLE_CLIENT_SECRET=<your-real-google-client-secret>');
-    console.error('  GOOGLE_CALLBACK_URL=http://localhost:4000/api/v1/auth/google/callback');
+    console.error('  GOOGLE_CALLBACK_URL=https://orion-api-snowy.vercel.app/api/v1/auth/google/callback');
     process.exit(1);
   }
 

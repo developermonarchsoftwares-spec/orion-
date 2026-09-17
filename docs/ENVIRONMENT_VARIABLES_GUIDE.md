@@ -32,7 +32,7 @@ These variables configure application runtime mode, ports, base URLs, and CORS s
 | `CORS_ORIGINS` | **Yes** | `https://orion-api-snowy.vercel.app` | Comma-separated allowed frontend origins for CORS browser security. |
 | `NEXT_PUBLIC_API_URL` | **Yes** | `https://orion-api-snowy.vercel.app/api/v1` | Public API endpoint used by client-side React components. |
 | `NEXT_PUBLIC_APP_URL` | **Yes** | `https://orion-api-snowy.vercel.app` | Public web application domain. |
-| `BACKEND_API_URL` | No | `https://orion-api-snowy.vercel.app/api/v1` | Upstream API target used by Next.js serverless proxy route. |
+| `BACKEND_API_URL` | No | `http://127.0.0.1:4000/api/v1` | Upstream NestJS API target used by Next.js serverless proxy route. In production, set to your separate NestJS backend deployment (e.g., Render/Railway/VPS URL). Must NOT match the frontend domain to avoid circular proxy loops. |
 | `LOG_LEVEL` | No | `info` | Logger verbosity (`error`, `warn`, `info`, `debug`). |
 
 ---
