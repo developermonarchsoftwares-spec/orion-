@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { apiClient } from './api-client';
 
 export interface User {
@@ -114,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshProfile();
   }, [refreshProfile]);
 
-  const handleOAuthTokens = async (accessToken: string, refreshToken: string) => {
+  const handleOAuthTokens = useCallback(async (accessToken: string, refreshToken: string) => {
     setIsLoading(true);
     try {
       apiClient.setTokens(accessToken, refreshToken);
@@ -122,9 +122,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [refreshProfile]);
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
       const res = await apiClient.auth.login({ email, password });
@@ -134,9 +134,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [refreshProfile]);
 
-  const register = async (data: any) => {
+  const register = useCallback(async (data: any) => {
     setIsLoading(true);
     try {
       const res = await apiClient.auth.register(data);
@@ -146,9 +146,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [refreshProfile]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await apiClient.auth.logout();
     } catch {
@@ -158,9 +158,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setWallet(null);
     }
-  };
+  }, []);
 
-  const setWalletBalance = (newBalance: number, dailyCredits?: number, purchasedCredits?: number) => {
+  const setWalletBalance = useCallback((newBalance: number, dailyCredits?: number, purchasedCredits?: number) => {
     setWallet((prev) => {
       if (!prev) {
         return {
@@ -178,23 +178,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         purchasedCredits: purchasedCredits !== undefined ? purchasedCredits : prev.purchasedCredits,
       };
     });
-  };
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      user,
+      wallet,
+      isAuthenticated: !!user,
+      isLoading,
+      login,
+      register,
+      logout,
+      refreshProfile,
+      handleOAuthTokens,
+      setWalletBalance,
+    }),
+    [user, wallet, isLoading, login, register, logout, refreshProfile, handleOAuthTokens, setWalletBalance]
+  );
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        wallet,
-        isAuthenticated: !!user,
-        isLoading,
-        login,
-        register,
-        logout,
-        refreshProfile,
-        handleOAuthTokens,
-        setWalletBalance,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
