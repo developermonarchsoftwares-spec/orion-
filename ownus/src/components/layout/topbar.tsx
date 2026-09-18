@@ -90,8 +90,12 @@ export function Topbar() {
   const notifRef = useRef<HTMLDivElement>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>(DEFAULT_NOTIFICATIONS);
 
-  const { resolvedTheme, setTheme } = useTheme();
-  const isDark = resolvedTheme === 'dark';
+  const { resolvedTheme, setTheme, theme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  const isDark = mounted ? (resolvedTheme === 'dark' || theme === 'dark') : true;
 
   const toggleTheme = () => setTheme(isDark ? 'light' : 'dark');
 

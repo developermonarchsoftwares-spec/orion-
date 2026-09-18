@@ -173,7 +173,7 @@ export function AdminSidebar({
                   className={cn(
                     'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-all text-left cursor-pointer group relative',
                     isActive
-                      ? 'bg-zinc-800/90 text-white font-semibold shadow-xs border border-zinc-700/60'
+                      ? 'bg-indigo-50/90 dark:bg-zinc-800/90 text-indigo-700 dark:text-white font-semibold shadow-xs border border-indigo-200/80 dark:border-zinc-700/60'
                       : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900/60'
                   )}
                 >
@@ -183,24 +183,24 @@ export function AdminSidebar({
                   <Icon
                     className={cn(
                       'w-4 h-4 shrink-0 transition-transform group-hover:scale-105',
-                      isActive ? 'text-indigo-400' : 'text-zinc-400 dark:text-zinc-500'
+                      isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-400 dark:text-zinc-500'
                     )}
                   />
                   {!isCollapsed && (
                     <>
                       <span className="truncate flex-1">{item.label}</span>
                       {item.badge && (
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/20">
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md font-semibold bg-blue-500/15 text-blue-500 dark:text-blue-400 border border-blue-500/20">
                           {item.badge}
                         </span>
                       )}
                       {item.alertCount ? (
-                        <span className="text-[10px] font-mono bg-rose-500/20 text-rose-300 border border-rose-500/30 px-1.5 py-0.5 rounded-full font-bold">
+                        <span className="text-[10px] font-mono bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/30 px-1.5 py-0.5 rounded-full font-bold">
                           {item.alertCount}
                         </span>
                       ) : null}
                       {item.tag && (
-                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
+                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
                           {item.tag}
                         </span>
                       )}

@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useTheme } from 'next-themes';
 import { 
   Search, 
   UploadCloud, 
@@ -29,6 +28,8 @@ interface AdminHeaderProps {
   isRefreshing?: boolean;
   adminEmail?: string;
   onSignOut?: () => void;
+  isDark?: boolean;
+  onToggleTheme?: () => void;
 }
 
 const TAB_TITLES: Record<AdminTab, { title: string; subtitle: string }> = {
@@ -200,13 +201,13 @@ export function AdminHeader({
   onRefreshData,
   isRefreshing,
   adminEmail,
-  onSignOut
+  onSignOut,
+  isDark = true,
+  onToggleTheme,
 }: AdminHeaderProps) {
   const current = TAB_TITLES[activeTab] || { title: 'Admin Platform', subtitle: 'Platform Operations' };
   const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
-  const { theme, setTheme, resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === 'dark';
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -225,24 +226,24 @@ export function AdminHeader({
   const getNotificationIcon = (type: NotificationItem['type']) => {
     switch (type) {
       case 'payment':
-        return <CreditCard className="w-3.5 h-3.5 text-zinc-300" />;
+        return <CreditCard className="w-3.5 h-3.5 text-zinc-700 dark:text-zinc-300" />;
       case 'support':
-        return <LifeBuoy className="w-3.5 h-3.5 text-zinc-300" />;
+        return <LifeBuoy className="w-3.5 h-3.5 text-zinc-700 dark:text-zinc-300" />;
       case 'publish':
-        return <CheckCircle2 className="w-3.5 h-3.5 text-zinc-300" />;
+        return <CheckCircle2 className="w-3.5 h-3.5 text-zinc-700 dark:text-zinc-300" />;
       case 'user':
-        return <UserPlus className="w-3.5 h-3.5 text-zinc-300" />;
+        return <UserPlus className="w-3.5 h-3.5 text-zinc-700 dark:text-zinc-300" />;
       case 'import':
-        return <UploadCloud className="w-3.5 h-3.5 text-zinc-300" />;
+        return <UploadCloud className="w-3.5 h-3.5 text-zinc-700 dark:text-zinc-300" />;
       case 'validation':
-        return <FileCheck2 className="w-3.5 h-3.5 text-zinc-300" />;
+        return <FileCheck2 className="w-3.5 h-3.5 text-zinc-700 dark:text-zinc-300" />;
       default:
-        return <AlertCircle className="w-3.5 h-3.5 text-zinc-300" />;
+        return <AlertCircle className="w-3.5 h-3.5 text-zinc-700 dark:text-zinc-300" />;
     }
   };
 
   return (
-    <header className="h-16 shrink-0 border-b border-zinc-200 dark:border-zinc-800/80 bg-white/90 dark:bg-zinc-950/80 backdrop-blur-xl px-6 flex items-center justify-between sticky top-0 z-20 transition-colors duration-300">
+    <header className="h-16 shrink-0 border-b border-zinc-200 dark:border-zinc-800/80 bg-white/90 dark:bg-zinc-950/80 backdrop-blur-xl px-6 flex items-center justify-between sticky top-0 z-20 transition-colors duration-200">
       {/* Title and Breadcrumb */}
       <div className="flex flex-col justify-center">
         <div className="flex items-center gap-2 text-[10px] font-mono tracking-wide leading-none mb-1">
@@ -250,7 +251,7 @@ export function AdminHeader({
             <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
             ORION ADMIN
           </span>
-          <span className="text-zinc-400 dark:text-zinc-600">/</span>
+          <span className="text-zinc-300 dark:text-zinc-600">/</span>
           <span className="uppercase text-indigo-600 dark:text-indigo-400 font-bold bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 px-1.5 py-0.5 rounded leading-none">
             {activeTab}
           </span>
@@ -266,13 +267,13 @@ export function AdminHeader({
         <button
           onClick={onOpenSearch}
           type="button"
-          className="flex items-center gap-2.5 px-3 h-9 text-xs text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-900/90 hover:bg-zinc-200 dark:hover:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer w-48 sm:w-60 justify-between shadow-xs"
+          className="flex items-center gap-2.5 px-3 h-9 text-xs text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-900/90 hover:bg-zinc-200/80 dark:hover:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer w-48 sm:w-60 justify-between shadow-xs"
         >
           <div className="flex items-center gap-2 truncate">
             <Search className="w-3.5 h-3.5 text-zinc-400" />
             <span className="truncate">Search businesses, users...</span>
           </div>
-          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono font-semibold text-zinc-400 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded">
+          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono font-semibold text-zinc-500 dark:text-zinc-400 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded">
             ⌘K
           </kbd>
         </button>
@@ -282,7 +283,7 @@ export function AdminHeader({
           <button
             onClick={() => setShowNotifDropdown(prev => !prev)}
             title="Platform Notifications"
-            className="h-9 w-9 flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-850 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 rounded-xl transition-all cursor-pointer relative shadow-xs"
+            className="h-9 w-9 flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200/80 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 rounded-xl transition-all cursor-pointer relative shadow-xs"
           >
             <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
@@ -294,7 +295,7 @@ export function AdminHeader({
 
           {/* Notifications Dropdown Panel */}
           {showNotifDropdown && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-zinc-900/95 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-4 z-50 text-zinc-900 dark:text-zinc-100 animate-in fade-in backdrop-blur-xl">
+            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white/95 dark:bg-zinc-900/95 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-4 z-50 text-zinc-900 dark:text-zinc-100 animate-in fade-in backdrop-blur-xl">
               <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-zinc-800 dark:text-zinc-200">Admin Notifications</span>
@@ -308,7 +309,7 @@ export function AdminHeader({
                   {unreadCount > 0 && (
                     <button
                       onClick={handleMarkAllRead}
-                      className="text-[11px] text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition"
+                      className="text-[11px] text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition"
                     >
                       Mark all read
                     </button>
@@ -322,15 +323,15 @@ export function AdminHeader({
                 </div>
               </div>
 
-              <div className="max-h-80 overflow-y-auto space-y-1.5 py-2 divide-y divide-zinc-200 dark:divide-zinc-800/40 scrollbar-thin">
+              <div className="max-h-80 overflow-y-auto space-y-1.5 py-2 divide-y divide-zinc-100 dark:divide-zinc-800/40 scrollbar-thin">
                 {notifications.map(item => (
                   <div
                     key={item.id}
                     onClick={() => handleNotificationClick(item)}
                     className={`p-2.5 rounded-xl flex items-start gap-3 cursor-pointer transition ${
-                      item.read
-                        ? 'hover:bg-zinc-100 dark:hover:bg-zinc-800/40'
-                        : 'bg-zinc-50 dark:bg-zinc-800/30 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-800'
+                      item.read 
+                        ? 'hover:bg-zinc-100/70 dark:hover:bg-zinc-800/40' 
+                        : 'bg-zinc-50 dark:bg-zinc-800/30 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 border border-zinc-200/80 dark:border-zinc-800'
                     }`}
                   >
                     <div className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 mt-0.5 shrink-0">
@@ -339,9 +340,9 @@ export function AdminHeader({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1">
                         <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">{item.title}</span>
-                        <span className="text-[10px] text-zinc-400 shrink-0">{item.time}</span>
+                        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 shrink-0">{item.time}</span>
                       </div>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed line-clamp-2">
+                      <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5 leading-relaxed line-clamp-2">
                         {item.description}
                       </p>
                     </div>
@@ -353,55 +354,56 @@ export function AdminHeader({
         </div>
 
         {/* Theme Toggle Button */}
-        <button
-          id="admin-theme-toggle"
-          onClick={() => setTheme(isDark ? 'light' : 'dark')}
-          title={isDark ? 'Switch to Light theme' : 'Switch to Dark theme'}
-          aria-label={isDark ? 'Switch to Light theme' : 'Switch to Dark theme'}
-          className="group relative h-9 w-9 flex items-center justify-center bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-600 rounded-xl transition-all duration-200 cursor-pointer shadow-xs overflow-hidden"
-        >
-          {/* Animated icon swap */}
-          <span
-            className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${
-              isDark ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 scale-75'
-            }`}
+        {onToggleTheme && (
+          <button
+            id="admin-theme-toggle"
+            onClick={onToggleTheme}
+            title={isDark ? 'Switch to Light theme' : 'Switch to Dark theme'}
+            aria-label={isDark ? 'Switch to Light theme' : 'Switch to Dark theme'}
+            className="group relative h-9 w-9 flex items-center justify-center bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200/80 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 rounded-xl transition-all duration-200 cursor-pointer shadow-xs overflow-hidden"
           >
-            <Sun className="w-4 h-4 text-amber-400 group-hover:text-amber-300" />
-          </span>
-          <span
-            className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${
-              !isDark ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-2 scale-75'
-            }`}
-          >
-            <Moon className="w-4 h-4 text-indigo-400 group-hover:text-indigo-300" />
-          </span>
-          {/* Tooltip */}
-          <span className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-medium bg-zinc-900 dark:bg-zinc-800 text-zinc-200 border border-zinc-700 px-2 py-0.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
-            {isDark ? 'Light mode' : 'Dark mode'}
-          </span>
-        </button>
+            {/* Animated icon swap */}
+            <span
+              className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${
+                isDark ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 scale-75'
+              }`}
+            >
+              <Sun className="w-4 h-4 text-amber-500 group-hover:text-amber-600 dark:text-amber-400 dark:group-hover:text-amber-300" />
+            </span>
+            <span
+              className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${
+                !isDark ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-2 scale-75'
+              }`}
+            >
+              <Moon className="w-4 h-4 text-indigo-600 group-hover:text-indigo-700 dark:text-indigo-400 dark:group-hover:text-indigo-300" />
+            </span>
+            {/* Tooltip */}
+            <span className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-medium bg-zinc-900 dark:bg-zinc-800 text-white dark:text-zinc-200 border border-zinc-800 dark:border-zinc-700 px-2 py-0.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
+              {isDark ? 'Light mode' : 'Dark mode'}
+            </span>
+          </button>
+        )}
 
         {/* Refresh Button */}
         {onRefreshData && (
           <button
             onClick={onRefreshData}
             title="Refresh current data"
-            className="h-9 w-9 flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-850 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 rounded-xl transition-all cursor-pointer shadow-xs"
+            className="h-9 w-9 flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200/80 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 rounded-xl transition-all cursor-pointer shadow-xs"
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </button>
         )}
 
-
         {/* Admin Identity Badge */}
         {adminEmail && (
-          <div className="hidden lg:flex items-center gap-2 px-3 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[11px] shadow-xs">
+          <div className="hidden lg:flex items-center gap-2 px-3 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[11px] shadow-xs text-zinc-800 dark:text-zinc-200">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
             </span>
-            <span className="font-medium text-zinc-700 dark:text-zinc-200 truncate max-w-[170px]">{adminEmail}</span>
-            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-500/30">
+            <span className="font-medium truncate max-w-[170px]">{adminEmail}</span>
+            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30">
               ADMIN
             </span>
           </div>
@@ -412,7 +414,7 @@ export function AdminHeader({
           <button
             onClick={onSignOut}
             title="Sign out of Admin Portal"
-            className="inline-flex items-center gap-1.5 px-2.5 h-9 rounded-xl text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-rose-300 dark:hover:border-rose-500/30 transition-all cursor-pointer shadow-xs"
+            className="inline-flex items-center gap-1.5 px-2.5 h-9 rounded-xl text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-rose-300 dark:hover:border-rose-500/30 transition-all cursor-pointer shadow-xs"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Logout</span>
@@ -431,4 +433,3 @@ export function AdminHeader({
     </header>
   );
 }
-

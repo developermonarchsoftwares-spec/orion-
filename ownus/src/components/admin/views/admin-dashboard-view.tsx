@@ -105,15 +105,15 @@ const STATE_DISTRIBUTION_DATA = [
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-zinc-900/95 border border-zinc-700/80 rounded-xl p-3 shadow-2xl backdrop-blur-md text-xs space-y-1.5 min-w-[140px]">
-        <div className="font-semibold text-zinc-300 pb-1 border-b border-zinc-800">{label}</div>
+      <div className="bg-white/95 dark:bg-zinc-900/95 border border-zinc-200 dark:border-zinc-700/80 rounded-xl p-3 shadow-xl backdrop-blur-md text-xs space-y-1.5 min-w-[140px]">
+        <div className="font-semibold text-zinc-800 dark:text-zinc-300 pb-1 border-b border-zinc-200 dark:border-zinc-800">{label}</div>
         {payload.map((entry: any, index: number) => (
           <div key={`item-${index}`} className="flex items-center justify-between gap-3">
-            <span className="flex items-center gap-1.5 text-zinc-400">
+            <span className="flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400">
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color || entry.stroke || entry.fill }} />
               <span>{entry.name}:</span>
             </span>
-            <span className="font-mono font-bold text-zinc-100">
+            <span className="font-mono font-bold text-zinc-900 dark:text-zinc-100">
               {typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}
             </span>
           </div>
@@ -204,7 +204,7 @@ export function AdminDashboardView({
   ];
 
   return (
-    <div className="space-y-6 pb-12 text-zinc-100">
+    <div className="space-y-6 pb-12 text-zinc-900 dark:text-zinc-100">
       
       {/* 1. Executive Hero KPIs (Top 4 Strategic Cards) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -214,7 +214,7 @@ export function AdminDashboardView({
             <div
               key={idx}
               onClick={() => onNavigate(kpi.tab)}
-              className={`group relative overflow-hidden rounded-2xl p-5 bg-gradient-to-b from-zinc-900/90 to-zinc-950/90 border border-zinc-800/80 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer ${kpi.borderColor}`}
+              className={`group relative overflow-hidden rounded-2xl p-5 bg-gradient-to-b from-white to-zinc-50/50 dark:from-zinc-900/90 dark:to-zinc-950/90 border border-zinc-200 dark:border-zinc-800/80 shadow-xs hover:shadow-md dark:shadow-lg dark:hover:shadow-xl transition-all duration-300 cursor-pointer ${kpi.borderColor}`}
             >
               {/* Subtle ambient light gradient */}
               <div className={`absolute -top-12 -right-12 w-32 h-32 rounded-full bg-gradient-to-br ${kpi.accentColor} blur-2xl pointer-events-none group-hover:scale-125 transition-transform duration-500`} />
@@ -222,8 +222,8 @@ export function AdminDashboardView({
               <div className="relative z-10 flex flex-col justify-between h-full space-y-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <span className="text-xs font-semibold text-zinc-400 tracking-wide block">{kpi.label}</span>
-                    <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-white mt-1">
+                    <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 tracking-wide block">{kpi.label}</span>
+                    <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-zinc-900 dark:text-white mt-1">
                       {kpi.value}
                     </div>
                   </div>
@@ -234,9 +234,9 @@ export function AdminDashboardView({
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-[11px] text-zinc-400 truncate max-w-[170px]">{kpi.subtext}</span>
+                    <span className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate max-w-[170px]">{kpi.subtext}</span>
                     <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-mono font-bold ${
-                      kpi.isUp ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                      kpi.isUp ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
                     }`}>
                       {kpi.isUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                       {kpi.change}
@@ -244,9 +244,9 @@ export function AdminDashboardView({
                   </div>
 
                   {/* Micro Progress Track */}
-                  <div className="w-full bg-zinc-800/80 rounded-full h-1.5 overflow-hidden">
+                  <div className="w-full bg-zinc-200 dark:bg-zinc-800/80 rounded-full h-1.5 overflow-hidden">
                     <div 
-                      className="h-full rounded-full bg-gradient-to-r from-zinc-400 to-white transition-all duration-700" 
+                      className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-indigo-600 dark:from-zinc-400 dark:to-white transition-all duration-700" 
                       style={{ width: `${kpi.progressPercent}%` }}
                     />
                   </div>
@@ -265,19 +265,19 @@ export function AdminDashboardView({
             <div
               key={idx}
               onClick={() => onNavigate(kpi.tab)}
-              className="group p-3.5 rounded-xl bg-zinc-900/70 hover:bg-zinc-900 border border-zinc-800/80 hover:border-zinc-700 transition-all duration-200 cursor-pointer flex flex-col justify-between"
+              className="group p-3.5 rounded-xl bg-white dark:bg-zinc-900/70 hover:bg-zinc-50 dark:hover:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/80 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all duration-200 cursor-pointer flex flex-col justify-between shadow-xs"
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-medium text-zinc-400 truncate pr-1">{kpi.label}</span>
+                <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-400 truncate pr-1">{kpi.label}</span>
                 <div className={`p-1.5 rounded-lg border ${kpi.bg} ${kpi.color}`}>
                   <Icon className="w-3.5 h-3.5" />
                 </div>
               </div>
 
               <div className="flex items-baseline justify-between mt-1">
-                <span className="text-lg font-bold font-mono tracking-tight text-zinc-100">{kpi.value}</span>
+                <span className="text-lg font-bold font-mono tracking-tight text-zinc-900 dark:text-zinc-100">{kpi.value}</span>
                 <span className={`text-[10px] font-mono font-semibold inline-flex items-center ${
-                  kpi.isUp ? 'text-emerald-400' : kpi.isWarning ? 'text-rose-400' : 'text-zinc-400'
+                  kpi.isUp ? 'text-emerald-600 dark:text-emerald-400' : kpi.isWarning ? 'text-rose-600 dark:text-rose-400' : 'text-zinc-500 dark:text-zinc-400'
                 }`}>
                   {kpi.isUp ? <ArrowUpRight className="w-3 h-3 mr-0.5" /> : <ArrowDownRight className="w-3 h-3 mr-0.5" />}
                   {kpi.change}
@@ -289,98 +289,98 @@ export function AdminDashboardView({
       </div>
 
       {/* 3. Data Quality & Pipeline Health Bar */}
-      <div className="p-5 rounded-2xl border border-zinc-800/90 bg-gradient-to-r from-zinc-900/90 via-zinc-900/60 to-zinc-950/90 shadow-xl backdrop-blur-md relative overflow-hidden">
+      <div className="p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800/90 bg-white dark:bg-gradient-to-r dark:from-zinc-900/90 dark:via-zinc-900/60 dark:to-zinc-950/90 shadow-xs dark:shadow-xl backdrop-blur-md relative overflow-hidden">
         {/* Subtle accent line at top */}
         <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent" />
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+            <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20">
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-200">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-200">
                 Automated Data Quality & Validation Telemetry
               </h2>
-              <p className="text-[11px] text-zinc-400">Real-time schema conformance across continuous ingestion workers</p>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Real-time schema conformance across continuous ingestion workers</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Engine Online • Zero Ingest Lag
             </span>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-3 border-t border-zinc-800/60">
-          <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80 space-y-1.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-3 border-t border-zinc-200 dark:border-zinc-800/60">
+          <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800/80 space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Validation Success</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">Validation Success</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
             </div>
-            <div className="text-xl font-bold font-mono text-emerald-400">94.2%</div>
-            <div className="w-full bg-zinc-800 rounded-full h-1 overflow-hidden">
+            <div className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">94.2%</div>
+            <div className="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-1 overflow-hidden">
               <div className="h-full bg-emerald-500 rounded-full" style={{ width: '94.2%' }} />
             </div>
             <span className="text-[10px] text-zinc-500 block">Schema compliant</span>
           </div>
 
-          <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80 space-y-1.5">
+          <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800/80 space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Duplicate Rate</span>
-              <span className="w-2 h-2 rounded-full bg-indigo-400" />
+              <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">Duplicate Rate</span>
+              <span className="w-2 h-2 rounded-full bg-indigo-500" />
             </div>
-            <div className="text-xl font-bold font-mono text-indigo-400">3.4%</div>
-            <div className="w-full bg-zinc-800 rounded-full h-1 overflow-hidden">
+            <div className="text-xl font-bold font-mono text-indigo-600 dark:text-indigo-400">3.4%</div>
+            <div className="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-1 overflow-hidden">
               <div className="h-full bg-indigo-500 rounded-full" style={{ width: '3.4%' }} />
             </div>
             <span className="text-[10px] text-zinc-500 block">Auto-quarantined</span>
           </div>
 
-          <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80 space-y-1.5">
+          <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800/80 space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Approval Rate</span>
-              <span className="w-2 h-2 rounded-full bg-teal-400" />
+              <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">Approval Rate</span>
+              <span className="w-2 h-2 rounded-full bg-teal-500" />
             </div>
-            <div className="text-xl font-bold font-mono text-teal-400">88.5%</div>
-            <div className="w-full bg-zinc-800 rounded-full h-1 overflow-hidden">
+            <div className="text-xl font-bold font-mono text-teal-600 dark:text-teal-400">88.5%</div>
+            <div className="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-1 overflow-hidden">
               <div className="h-full bg-teal-500 rounded-full" style={{ width: '88.5%' }} />
             </div>
             <span className="text-[10px] text-zinc-500 block">Passed review</span>
           </div>
 
-          <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80 space-y-1.5">
+          <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800/80 space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Flagged Violations</span>
-              <span className="w-2 h-2 rounded-full bg-rose-400" />
+              <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">Flagged Violations</span>
+              <span className="w-2 h-2 rounded-full bg-rose-500" />
             </div>
-            <div className="text-xl font-bold font-mono text-rose-400">45</div>
-            <div className="w-full bg-zinc-800 rounded-full h-1 overflow-hidden">
+            <div className="text-xl font-bold font-mono text-rose-600 dark:text-rose-400">45</div>
+            <div className="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-1 overflow-hidden">
               <div className="h-full bg-rose-500 rounded-full" style={{ width: '15%' }} />
             </div>
             <span className="text-[10px] text-zinc-500 block">Requiring manual fix</span>
           </div>
 
-          <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80 space-y-1.5">
+          <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800/80 space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Avg Latency</span>
-              <span className="w-2 h-2 rounded-full bg-cyan-400" />
+              <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">Avg Latency</span>
+              <span className="w-2 h-2 rounded-full bg-cyan-500" />
             </div>
-            <div className="text-xl font-bold font-mono text-cyan-400">1.2s</div>
-            <div className="w-full bg-zinc-800 rounded-full h-1 overflow-hidden">
+            <div className="text-xl font-bold font-mono text-cyan-600 dark:text-cyan-400">1.2s</div>
+            <div className="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-1 overflow-hidden">
               <div className="h-full bg-cyan-500 rounded-full" style={{ width: '40%' }} />
             </div>
             <span className="text-[10px] text-zinc-500 block">Per batch row pipeline</span>
           </div>
 
-          <div className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80 space-y-1.5">
+          <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800/80 space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Published Today</span>
-              <span className="w-2 h-2 rounded-full bg-amber-400" />
+              <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">Published Today</span>
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
             </div>
-            <div className="text-xl font-bold font-mono text-amber-400">2,150</div>
-            <div className="w-full bg-zinc-800 rounded-full h-1 overflow-hidden">
+            <div className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400">2,150</div>
+            <div className="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-1 overflow-hidden">
               <div className="h-full bg-amber-500 rounded-full" style={{ width: '70%' }} />
             </div>
             <span className="text-[10px] text-zinc-500 block">Live in Discover search</span>
@@ -392,37 +392,37 @@ export function AdminDashboardView({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* Chart 1: Smooth Area Ingestion Flow */}
-        <div className="bg-zinc-900/80 rounded-2xl border border-zinc-800/80 p-5 shadow-xl backdrop-blur-md min-w-0 overflow-hidden">
+        <div className="bg-white dark:bg-zinc-900/80 rounded-2xl border border-zinc-200 dark:border-zinc-800/80 p-5 shadow-xs dark:shadow-xl backdrop-blur-md min-w-0 overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5">
             <div>
               <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-blue-400" />
-                <h3 className="text-sm font-bold text-white tracking-tight">Ingested vs Published Throughput</h3>
+                <Activity className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+                <h3 className="text-sm font-bold text-zinc-900 dark:text-white tracking-tight">Ingested vs Published Throughput</h3>
               </div>
-              <p className="text-[11px] text-zinc-400 mt-0.5">Daily record ingestion comparison across validation queues</p>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">Daily record ingestion comparison across validation queues</p>
             </div>
             <div className="flex items-center gap-2">
-              <div className="inline-flex rounded-lg p-0.5 bg-zinc-950 border border-zinc-800 text-[10px] font-medium text-zinc-400">
+              <div className="inline-flex rounded-lg p-0.5 bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
                 <button 
                   onClick={() => setTimeRange('7d')}
-                  className={`px-2 py-0.5 rounded-md transition ${timeRange === '7d' ? 'bg-zinc-800 text-white font-semibold' : 'hover:text-zinc-200'}`}
+                  className={`px-2 py-0.5 rounded-md transition ${timeRange === '7d' ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white font-semibold shadow-xs' : 'hover:text-zinc-900 dark:hover:text-zinc-200'}`}
                 >
                   7D
                 </button>
                 <button 
                   onClick={() => setTimeRange('30d')}
-                  className={`px-2 py-0.5 rounded-md transition ${timeRange === '30d' ? 'bg-zinc-800 text-white font-semibold' : 'hover:text-zinc-200'}`}
+                  className={`px-2 py-0.5 rounded-md transition ${timeRange === '30d' ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white font-semibold shadow-xs' : 'hover:text-zinc-900 dark:hover:text-zinc-200'}`}
                 >
                   30D
                 </button>
                 <button 
                   onClick={() => setTimeRange('90d')}
-                  className={`px-2 py-0.5 rounded-md transition ${timeRange === '90d' ? 'bg-zinc-800 text-white font-semibold' : 'hover:text-zinc-200'}`}
+                  className={`px-2 py-0.5 rounded-md transition ${timeRange === '90d' ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white font-semibold shadow-xs' : 'hover:text-zinc-900 dark:hover:text-zinc-200'}`}
                 >
                   90D
                 </button>
               </div>
-              <span className="text-[10px] font-mono font-semibold px-2 py-1 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              <span className="text-[10px] font-mono font-semibold px-2 py-1 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                 Avg: 5.3k/day
               </span>
             </div>
@@ -441,14 +441,14 @@ export function AdminDashboardView({
                     <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#27272A" />
-                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#A1A1AA', fontSize: 11 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#A1A1AA', fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#52525B20" />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#71717A', fontSize: 11 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#71717A', fontSize: 11 }} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend 
                   iconType="circle" 
                   wrapperStyle={{ fontSize: '11px', paddingTop: '12px' }}
-                  formatter={(value) => <span className="text-zinc-300 font-medium mr-2">{value}</span>}
+                  formatter={(value) => <span className="text-zinc-700 dark:text-zinc-300 font-medium mr-2">{value}</span>}
                 />
                 <Area 
                   type="monotone" 
@@ -474,16 +474,16 @@ export function AdminDashboardView({
         </div>
 
         {/* Chart 2: Batch Ingestion Volume & Failure Rate */}
-        <div className="bg-zinc-900/80 rounded-2xl border border-zinc-800/80 p-5 shadow-xl backdrop-blur-md min-w-0 overflow-hidden">
+        <div className="bg-white dark:bg-zinc-900/80 rounded-2xl border border-zinc-200 dark:border-zinc-800/80 p-5 shadow-xs dark:shadow-xl backdrop-blur-md min-w-0 overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5">
             <div>
               <div className="flex items-center gap-2">
-                <BarChart className="w-4 h-4 text-indigo-400" />
-                <h3 className="text-sm font-bold text-white tracking-tight">Batch Pipeline Volume & Error Rate</h3>
+                <BarChart className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+                <h3 className="text-sm font-bold text-zinc-900 dark:text-white tracking-tight">Batch Pipeline Volume & Error Rate</h3>
               </div>
-              <p className="text-[11px] text-zinc-400 mt-0.5">Historical records processed through CSV / XLSX pipelines</p>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">Historical records processed through CSV / XLSX pipelines</p>
             </div>
-            <span className="text-[10px] font-mono font-semibold px-2 py-1 rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 self-start sm:self-auto">
+            <span className="text-[10px] font-mono font-semibold px-2 py-1 rounded-md bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 self-start sm:self-auto">
               Total Ingested: 93.3k
             </span>
           </div>
@@ -491,14 +491,14 @@ export function AdminDashboardView({
           <div className="h-68 w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={IMPORTS_PER_DAY_DATA} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#27272A" />
-                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#A1A1AA', fontSize: 11 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#A1A1AA', fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#52525B20" />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#71717A', fontSize: 11 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#71717A', fontSize: 11 }} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend 
                   iconType="circle" 
                   wrapperStyle={{ fontSize: '11px', paddingTop: '12px' }}
-                  formatter={(value) => <span className="text-zinc-300 font-medium mr-2">{value}</span>}
+                  formatter={(value) => <span className="text-zinc-700 dark:text-zinc-300 font-medium mr-2">{value}</span>}
                 />
                 <Bar dataKey="total" name="Valid Ingests" fill="#6366F1" radius={[6, 6, 0, 0]} />
                 <Bar dataKey="failed" name="Schema Rejections" fill="#F43F5E" radius={[6, 6, 0, 0]} />
@@ -513,16 +513,16 @@ export function AdminDashboardView({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Chart 3: Cumulative Growth Curve */}
-        <div className="bg-zinc-900/80 rounded-2xl border border-zinc-800/80 p-5 shadow-xl backdrop-blur-md min-w-0 overflow-hidden flex flex-col justify-between">
+        <div className="bg-white dark:bg-zinc-900/80 rounded-2xl border border-zinc-200 dark:border-zinc-800/80 p-5 shadow-xs dark:shadow-xl backdrop-blur-md min-w-0 overflow-hidden flex flex-col justify-between">
           <div className="flex items-center justify-between mb-3">
             <div>
               <div className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-sm font-bold text-white tracking-tight">Cumulative Database Growth</h3>
+                <TrendingUp className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+                <h3 className="text-sm font-bold text-zinc-900 dark:text-white tracking-tight">Cumulative Database Growth</h3>
               </div>
-              <p className="text-[11px] text-zinc-400">Progressive milestone to 10M entities</p>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Progressive milestone to 10M entities</p>
             </div>
-            <span className="font-mono text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+            <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2 py-0.5 rounded-md">
               1.25M Live
             </span>
           </div>
@@ -536,12 +536,12 @@ export function AdminDashboardView({
                     <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#27272A" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#A1A1AA', fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#52525B20" />
+                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#71717A', fontSize: 11 }} />
                 <YAxis 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fill: '#A1A1AA', fontSize: 10 }}
+                  tick={{ fill: '#71717A', fontSize: 10 }}
                   tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`} 
                 />
                 <Tooltip content={<CustomTooltip />} />
@@ -560,16 +560,16 @@ export function AdminDashboardView({
         </div>
 
         {/* Chart 4: Industry Distribution Donut */}
-        <div className="bg-zinc-900/80 rounded-2xl border border-zinc-800/80 p-5 shadow-xl backdrop-blur-md min-w-0 overflow-hidden flex flex-col justify-between">
+        <div className="bg-white dark:bg-zinc-900/80 rounded-2xl border border-zinc-200 dark:border-zinc-800/80 p-5 shadow-xs dark:shadow-xl backdrop-blur-md min-w-0 overflow-hidden flex flex-col justify-between">
           <div className="flex items-center justify-between mb-3">
             <div>
               <div className="flex items-center gap-2">
-                <Database className="w-4 h-4 text-purple-400" />
-                <h3 className="text-sm font-bold text-white tracking-tight">Industry Breakdown</h3>
+                <Database className="w-4 h-4 text-purple-500 dark:text-purple-400" />
+                <h3 className="text-sm font-bold text-zinc-900 dark:text-white tracking-tight">Industry Breakdown</h3>
               </div>
-              <p className="text-[11px] text-zinc-400">Verified entities across priority sectors</p>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Verified entities across priority sectors</p>
             </div>
-            <span className="text-[10px] font-mono text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-md">
+            <span className="text-[10px] font-mono text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/20 px-2 py-0.5 rounded-md">
               7 Sectors
             </span>
           </div>
@@ -587,7 +587,7 @@ export function AdminDashboardView({
                   dataKey="value"
                 >
                   {INDUSTRY_DATA.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} stroke="#18181B" strokeWidth={2} />
+                    <Cell key={`cell-${index}`} fill={entry.color} stroke="currentColor" className="text-white dark:text-zinc-900" strokeWidth={2} />
                   ))}
                 </Pie>
                 <Tooltip content={<CustomTooltip />} />
@@ -597,30 +597,30 @@ export function AdminDashboardView({
                   align="center" 
                   iconType="circle" 
                   wrapperStyle={{ fontSize: '10px', paddingTop: '4px' }}
-                  formatter={(value) => <span className="text-zinc-400">{value}</span>}
+                  formatter={(value) => <span className="text-zinc-600 dark:text-zinc-400">{value}</span>}
                 />
               </PieChart>
             </ResponsiveContainer>
 
             {/* Centered Donut Label */}
             <div className="absolute top-[38%] left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-              <span className="text-[10px] uppercase font-bold text-zinc-500 block">Total</span>
-              <span className="text-base font-bold font-mono text-white">1.25M</span>
+              <span className="text-[10px] uppercase font-bold text-zinc-400 dark:text-zinc-500 block">Total</span>
+              <span className="text-base font-bold font-mono text-zinc-900 dark:text-white">1.25M</span>
             </div>
           </div>
         </div>
 
         {/* Chart 5: State Density Bars */}
-        <div className="bg-zinc-900/80 rounded-2xl border border-zinc-800/80 p-5 shadow-xl backdrop-blur-md min-w-0 overflow-hidden flex flex-col justify-between">
+        <div className="bg-white dark:bg-zinc-900/80 rounded-2xl border border-zinc-200 dark:border-zinc-800/80 p-5 shadow-xs dark:shadow-xl backdrop-blur-md min-w-0 overflow-hidden flex flex-col justify-between">
           <div className="flex items-center justify-between mb-3">
             <div>
               <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-amber-400" />
-                <h3 className="text-sm font-bold text-white tracking-tight">Top Indian Industrial Hubs</h3>
+                <Layers className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                <h3 className="text-sm font-bold text-zinc-900 dark:text-white tracking-tight">Top Indian Industrial Hubs</h3>
               </div>
-              <p className="text-[11px] text-zinc-400">MSME registration density by state</p>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400">MSME registration density by state</p>
             </div>
-            <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">
+            <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 px-2 py-0.5 rounded-md">
               Top 6
             </span>
           </div>
@@ -629,13 +629,13 @@ export function AdminDashboardView({
             {STATE_DISTRIBUTION_DATA.map((item, i) => (
               <div key={i} className="space-y-1">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-medium text-zinc-300">{item.state}</span>
+                  <span className="font-medium text-zinc-700 dark:text-zinc-300">{item.state}</span>
                   <div className="flex items-center gap-2 font-mono">
-                    <span className="text-zinc-100 font-bold">{item.count.toLocaleString()}</span>
-                    <span className="text-[10px] text-zinc-500">({item.percentage})</span>
+                    <span className="text-zinc-900 dark:text-zinc-100 font-bold">{item.count.toLocaleString()}</span>
+                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500">({item.percentage})</span>
                   </div>
                 </div>
-                <div className="w-full bg-zinc-800/80 rounded-full h-1.5 overflow-hidden">
+                <div className="w-full bg-zinc-100 dark:bg-zinc-800/80 rounded-full h-1.5 overflow-hidden">
                   <div 
                     className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500" 
                     style={{ width: item.percentage }}
@@ -652,38 +652,38 @@ export function AdminDashboardView({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Recent Ingestions Batch List */}
-        <div className="bg-zinc-900/80 rounded-2xl border border-zinc-800/80 shadow-xl overflow-hidden flex flex-col backdrop-blur-md">
-          <div className="p-4 border-b border-zinc-800/80 flex items-center justify-between bg-zinc-950/40">
+        <div className="bg-white dark:bg-zinc-900/80 rounded-2xl border border-zinc-200 dark:border-zinc-800/80 shadow-xs dark:shadow-xl overflow-hidden flex flex-col backdrop-blur-md">
+          <div className="p-4 border-b border-zinc-200 dark:border-zinc-800/80 flex items-center justify-between bg-zinc-50/70 dark:bg-zinc-950/40">
             <div className="flex items-center gap-2">
-              <div className="p-1 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              <div className="p-1 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                 <UploadCloud className="w-3.5 h-3.5" />
               </div>
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider">Recent Ingestion Batches</h3>
+              <h3 className="text-xs font-bold text-zinc-900 dark:text-white uppercase tracking-wider">Recent Ingestion Batches</h3>
             </div>
             <button
               onClick={() => onNavigate('history')}
-              className="text-[11px] font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer transition"
+              className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 cursor-pointer transition"
             >
               <span>View All</span>
               <ArrowRight className="w-3 h-3" />
             </button>
           </div>
 
-          <div className="divide-y divide-zinc-800/60 max-h-80 overflow-y-auto">
+          <div className="divide-y divide-zinc-100 dark:divide-zinc-800/60 max-h-80 overflow-y-auto">
             {batches.slice(0, 4).map((batch) => (
-              <div key={batch.id} className="p-3.5 hover:bg-zinc-800/40 transition-colors text-xs space-y-1.5">
+              <div key={batch.id} className="p-3.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors text-xs space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-semibold text-zinc-200 truncate max-w-[210px]">{batch.fileName}</span>
+                  <span className="font-semibold text-zinc-800 dark:text-zinc-200 truncate max-w-[210px]">{batch.fileName}</span>
                   <span className="font-mono text-[10px] text-zinc-400 shrink-0">{batch.id}</span>
                 </div>
-                <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                <div className="flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
                   <span>{batch.totalRecords.toLocaleString()} rows • {batch.fileSize}</span>
                   <span className={`font-mono text-[10px] px-2 py-0.5 rounded-full border ${
                     batch.status === 'Completed' 
-                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' 
                       : batch.status === 'Processing'
-                      ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                      : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                      ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
+                      : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
                   }`}>
                     {batch.status}
                   </span>
@@ -694,39 +694,39 @@ export function AdminDashboardView({
         </div>
 
         {/* Recently Published Records */}
-        <div className="bg-zinc-900/80 rounded-2xl border border-zinc-800/80 shadow-xl overflow-hidden flex flex-col backdrop-blur-md">
-          <div className="p-4 border-b border-zinc-800/80 flex items-center justify-between bg-zinc-950/40">
+        <div className="bg-white dark:bg-zinc-900/80 rounded-2xl border border-zinc-200 dark:border-zinc-800/80 shadow-xs dark:shadow-xl overflow-hidden flex flex-col backdrop-blur-md">
+          <div className="p-4 border-b border-zinc-200 dark:border-zinc-800/80 flex items-center justify-between bg-zinc-50/70 dark:bg-zinc-950/40">
             <div className="flex items-center gap-2">
-              <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                 <CheckCircle2 className="w-3.5 h-3.5" />
               </div>
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider">Live Discover Entities</h3>
+              <h3 className="text-xs font-bold text-zinc-900 dark:text-white uppercase tracking-wider">Live Discover Entities</h3>
             </div>
             <button
               onClick={() => onNavigate('published')}
-              className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer transition"
+              className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center gap-1 cursor-pointer transition"
             >
               <span>View All</span>
               <ArrowRight className="w-3 h-3" />
             </button>
           </div>
 
-          <div className="divide-y divide-zinc-800/60 max-h-80 overflow-y-auto">
+          <div className="divide-y divide-zinc-100 dark:divide-zinc-800/60 max-h-80 overflow-y-auto">
             {businesses.filter(b => b.status === 'published').slice(0, 4).map((b) => (
               <div
                 key={b.id}
                 onClick={() => onSelectBusiness(b)}
-                className="p-3.5 hover:bg-zinc-800/40 transition-colors text-xs space-y-1.5 cursor-pointer"
+                className="p-3.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors text-xs space-y-1.5 cursor-pointer"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-semibold text-zinc-200 truncate max-w-[210px]">{b.name}</span>
-                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                  <span className="font-semibold text-zinc-800 dark:text-zinc-200 truncate max-w-[210px]">{b.name}</span>
+                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
                     {b.opportunityScore} pts
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                <div className="flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
                   <span>{b.industry} • {b.city}</span>
-                  <span className="text-zinc-500">{b.updatedAt}</span>
+                  <span className="text-zinc-400 dark:text-zinc-500">{b.updatedAt}</span>
                 </div>
               </div>
             ))}
@@ -734,55 +734,55 @@ export function AdminDashboardView({
         </div>
 
         {/* System & Cluster Status */}
-        <div className="bg-zinc-900/80 rounded-2xl border border-zinc-800/80 shadow-xl p-5 flex flex-col justify-between space-y-4 backdrop-blur-md">
-          <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+        <div className="bg-white dark:bg-zinc-900/80 rounded-2xl border border-zinc-200 dark:border-zinc-800/80 shadow-xs dark:shadow-xl p-5 flex flex-col justify-between space-y-4 backdrop-blur-md">
+          <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                 <Server className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Enterprise Cluster Telemetry</h3>
-                <span className="text-[10px] text-zinc-400">Postgres • Upstash Redis • Typesense</span>
+                <h3 className="text-xs font-bold text-zinc-900 dark:text-white uppercase tracking-wider">Enterprise Cluster Telemetry</h3>
+                <span className="text-[10px] text-zinc-500 dark:text-zinc-400">Postgres • Upstash Redis • Typesense</span>
               </div>
             </div>
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
               OPTIMAL
             </span>
           </div>
 
           <div className="space-y-2.5 text-xs">
-            <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-950/60 border border-zinc-800/70">
-              <div className="flex items-center gap-2 text-zinc-300">
-                <HardDrive className="w-3.5 h-3.5 text-blue-400" />
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800/70">
+              <div className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300">
+                <HardDrive className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
                 <span>Primary Postgres Shards</span>
               </div>
-              <span className="font-mono font-bold text-emerald-400">99.99% Uptime</span>
+              <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">99.99% Uptime</span>
             </div>
 
-            <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-950/60 border border-zinc-800/70">
-              <div className="flex items-center gap-2 text-zinc-300">
-                <Activity className="w-3.5 h-3.5 text-indigo-400" />
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800/70">
+              <div className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300">
+                <Activity className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
                 <span>Bulk Ingestion Throughput</span>
               </div>
-              <span className="font-mono font-bold text-indigo-400">14,200 rec/s</span>
+              <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">14,200 rec/s</span>
             </div>
 
-            <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-950/60 border border-zinc-800/70">
-              <div className="flex items-center gap-2 text-zinc-300">
-                <Cpu className="w-3.5 h-3.5 text-purple-400" />
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800/70">
+              <div className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300">
+                <Cpu className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400" />
                 <span>Elasticsearch Index Latency</span>
               </div>
-              <span className="font-mono font-bold text-purple-400">18ms P95</span>
+              <span className="font-mono font-bold text-purple-600 dark:text-purple-400">18ms P95</span>
             </div>
           </div>
 
-          <div className="p-3 rounded-xl border border-zinc-800 bg-zinc-950/40 text-[11px] text-zinc-400 space-y-1">
-            <div className="flex items-center justify-between font-semibold text-zinc-200">
+          <div className="p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-950/40 text-[11px] text-zinc-500 dark:text-zinc-400 space-y-1">
+            <div className="flex items-center justify-between font-semibold text-zinc-800 dark:text-zinc-200">
               <span>Async Queue Health</span>
-              <span className="text-emerald-400 font-mono">0 Stuck</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-mono">0 Stuck</span>
             </div>
-            <p className="text-[10px] text-zinc-500">4 active background validation threads & Upstash BullMQ worker listening</p>
+            <p className="text-[10px] text-zinc-400 dark:text-zinc-500">4 active background validation threads & Upstash BullMQ worker listening</p>
           </div>
         </div>
 

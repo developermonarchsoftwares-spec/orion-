@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useTheme } from 'next-themes';
 import { 
   ShieldCheck, 
   ShieldAlert,
@@ -109,6 +110,18 @@ export default function AdminPortalPage() {
   // Navigation State
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // Unified theme state synced with global next-themes (saved in localStorage)
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  const isDark = mounted ? (resolvedTheme === 'dark' || theme === 'dark') : true;
+
+  const handleToggleTheme = () => {
+    setTheme(isDark ? 'light' : 'dark');
+  };
 
   // Core Data Stores
   const [records, setRecords] = useState<AdminBusinessRecord[]>(INITIAL_ADMIN_BUSINESSES);
@@ -1119,7 +1132,7 @@ export default function AdminPortalPage() {
   }
 
   return (
-    <div className="flex h-screen w-full bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 overflow-hidden font-sans transition-colors duration-300">
+    <div className={`${isDark ? 'dark' : ''} admin-portal flex h-screen w-full bg-slate-50 dark:bg-zinc-950 text-slate-900 dark:text-zinc-100 overflow-hidden font-sans transition-colors duration-200`}>
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border border-zinc-700 dark:border-zinc-300 px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5">
@@ -1147,6 +1160,8 @@ export default function AdminPortalPage() {
           onRefreshData={() => showToast('Platform synchronized with enterprise cluster.')}
           adminEmail={adminEmail}
           onSignOut={handleAdminSignOut}
+          isDark={isDark}
+          onToggleTheme={handleToggleTheme}
         />
 
         {/* Scrollable View Container */}

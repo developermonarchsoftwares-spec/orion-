@@ -246,7 +246,7 @@ export function BusinessRecordsView({
                   onBulkDelete(selectedIds);
                   setSelectedIds([]);
                 }}
-                className="px-2.5 py-1 rounded bg-white/10 dark:bg-black/10 hover:bg-white/20 dark:hover:bg-black/20 font-semibold text-zinc-900 dark:text-zinc-100 transition-colors cursor-pointer flex items-center gap-1"
+                className="px-2.5 py-1 rounded bg-white/10 dark:bg-black/10 hover:bg-white/20 dark:hover:bg-black/20 font-semibold text-white dark:text-zinc-900 transition-colors cursor-pointer flex items-center gap-1"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Delete</span>

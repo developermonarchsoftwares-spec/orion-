@@ -351,3 +351,199 @@
     animation: scroll 30s linear infinite;
   }
 }
+
+/* ==========================================================================
+   ADMIN PORTAL COMPREHENSIVE THEME SYSTEM
+   Ensures seamless, responsive, and visually stunning Light and Dark modes
+   across all pages, sections, cards, tables, grids, forms, modals & telemetry.
+   ========================================================================== */
+
+/* Main canvas background */
+.admin-portal:not(.dark) {
+  background-color: #F8FAFC !important;
+  color: #0F172A !important;
+}
+
+.admin-portal:not(.dark) main {
+  background-color: #F8FAFC !important;
+  color: #0F172A !important;
+}
+
+/* Card & Section Containers: Zinc 900 / 950 backgrounds -> Crisp white cards */
+.admin-portal:not(.dark) .bg-zinc-900,
+.admin-portal:not(.dark) .bg-zinc-950,
+.admin-portal:not(.dark) [class*="bg-zinc-900/"],
+.admin-portal:not(.dark) [class*="bg-zinc-950/"],
+.admin-portal:not(.dark) .bg-neutral-900,
+.admin-portal:not(.dark) .bg-neutral-950 {
+  background-color: #FFFFFF !important;
+}
+
+/* Subtle background panels & tracks: Zinc 800 backgrounds -> Soft Zinc/Slate 100 */
+.admin-portal:not(.dark) .bg-zinc-800,
+.admin-portal:not(.dark) [class*="bg-zinc-800/"] {
+  background-color: #F1F5F9 !important;
+}
+
+/* Dark gradient card headers & hero KPI cards */
+.admin-portal:not(.dark) [class*="from-zinc-900"],
+.admin-portal:not(.dark) [class*="from-zinc-950"] {
+  --tw-gradient-from: #FFFFFF !important;
+  --tw-gradient-to: #F8FAFC !important;
+  --tw-gradient-stops: #FFFFFF, #F8FAFC !important;
+  background-color: #FFFFFF !important;
+}
+.admin-portal:not(.dark) [class*="to-zinc-950"],
+.admin-portal:not(.dark) [class*="to-zinc-900"] {
+  --tw-gradient-to: #F8FAFC !important;
+}
+.admin-portal:not(.dark) [class*="via-zinc-900"] {
+  --tw-gradient-stops: #FFFFFF, #FFFFFF, #F8FAFC !important;
+}
+
+/* Hide dev overlay badge blocking sidebar footer */
+nextjs-portal {
+  display: none !important;
+}
+
+/* Card Borders: Zinc 800 / 700 borders -> Clean Slate/Zinc 200 */
+.admin-portal:not(.dark) .border-zinc-800,
+.admin-portal:not(.dark) .border-zinc-700,
+.admin-portal:not(.dark) [class*="border-zinc-800/"],
+.admin-portal:not(.dark) [class*="border-zinc-700/"],
+.admin-portal:not(.dark) .divide-zinc-800,
+.admin-portal:not(.dark) [class*="divide-zinc-800/"],
+.admin-portal:not(.dark) .divide-zinc-700 {
+  border-color: #E2E8F0 !important;
+}
+
+/* Card Elevation: add soft crisp shadow to white cards */
+.admin-portal:not(.dark) .rounded-2xl.border,
+.admin-portal:not(.dark) .rounded-xl.border {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+}
+
+/* Primary Headings & Numeric Values: White & Zinc 100/200 -> Deep Slate 900 */
+.admin-portal:not(.dark) .text-white:not([class*="bg-indigo-"]):not([class*="bg-blue-"]):not([class*="bg-emerald-"]):not([class*="bg-rose-"]):not([class*="bg-amber-"]):not([class*="bg-gradient-"]):not([class*="bg-purple-"]),
+.admin-portal:not(.dark) .text-zinc-100,
+.admin-portal:not(.dark) .text-zinc-200 {
+  color: #0F172A !important;
+}
+
+/* Secondary Labels & Subtext: Zinc 300 / 400 -> Slate 600 */
+.admin-portal:not(.dark) .text-zinc-300,
+.admin-portal:not(.dark) .text-zinc-400 {
+  color: #475569 !important;
+}
+
+/* Muted text */
+.admin-portal:not(.dark) .text-zinc-500 {
+  color: #64748B !important;
+}
+
+/* Hover States for list items, buttons, rows */
+.admin-portal:not(.dark) .hover\:bg-zinc-900:hover,
+.admin-portal:not(.dark) .hover\:bg-zinc-800:hover,
+.admin-portal:not(.dark) [class*="hover:bg-zinc-800/"]:hover,
+.admin-portal:not(.dark) [class*="hover:bg-zinc-900/"]:hover {
+  background-color: #F1F5F9 !important;
+}
+
+.admin-portal:not(.dark) .hover\:border-zinc-700:hover,
+.admin-portal:not(.dark) [class*="hover:border-zinc-700/"]:hover {
+  border-color: #CBD5E1 !important;
+}
+
+.admin-portal:not(.dark) .hover\:text-white:hover,
+.admin-portal:not(.dark) .hover\:text-zinc-100:hover {
+  color: #0F172A !important;
+}
+
+/* Form inputs, selects, textareas */
+.admin-portal:not(.dark) input:not([type="checkbox"]):not([type="radio"]),
+.admin-portal:not(.dark) select,
+.admin-portal:not(.dark) textarea {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+  border-color: #CBD5E1 !important;
+}
+
+.admin-portal:not(.dark) input::placeholder,
+.admin-portal:not(.dark) textarea::placeholder {
+  color: #94A3B8 !important;
+}
+
+.admin-portal:not(.dark) input:focus,
+.admin-portal:not(.dark) select:focus,
+.admin-portal:not(.dark) textarea:focus {
+  border-color: #6366F1 !important;
+  outline: 2px solid rgba(99, 102, 241, 0.2) !important;
+}
+
+/* Tables & Grids */
+.admin-portal:not(.dark) table {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+}
+
+.admin-portal:not(.dark) thead,
+.admin-portal:not(.dark) th {
+  background-color: #F8FAFC !important;
+  color: #475569 !important;
+  border-color: #E2E8F0 !important;
+}
+
+.admin-portal:not(.dark) td {
+  border-color: #F1F5F9 !important;
+  color: #1E293B !important;
+}
+
+.admin-portal:not(.dark) tbody tr:hover td,
+.admin-portal:not(.dark) tbody tr:hover {
+  background-color: #F8FAFC !important;
+}
+
+/* Modals & Dialogs */
+.admin-portal:not(.dark) [role="dialog"],
+.admin-portal:not(.dark) .fixed .bg-zinc-900,
+.admin-portal:not(.dark) .fixed .bg-zinc-950,
+.admin-portal:not(.dark) .fixed [class*="bg-zinc-900/"],
+.admin-portal:not(.dark) .fixed [class*="bg-zinc-950/"] {
+  background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+  color: #0F172A !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Charts & SVG Elements */
+.admin-portal:not(.dark) .recharts-cartesian-grid-horizontal line,
+.admin-portal:not(.dark) .recharts-cartesian-grid-vertical line {
+  stroke: #E2E8F0 !important;
+}
+
+.admin-portal:not(.dark) .recharts-text {
+  fill: #64748B !important;
+}
+
+.admin-portal:not(.dark) .recharts-default-tooltip {
+  background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+  color: #0F172A !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Progress bar gradient in KPI hero cards */
+.admin-portal:not(.dark) .from-zinc-400.to-white,
+.admin-portal:not(.dark) [class*="from-zinc-400"][class*="to-white"] {
+  --tw-gradient-from: #4F46E5 !important;
+  --tw-gradient-to: #6366F1 !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+/* Neutral Tags & Badges */
+.admin-portal:not(.dark) .bg-zinc-800.text-zinc-400 {
+  background-color: #F1F5F9 !important;
+  color: #475569 !important;
+  border-color: #CBD5E1 !important;
+}
+
