@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { 
   Search, 
@@ -15,7 +14,6 @@ import {
   UserPlus,
   LifeBuoy,
   FileCheck2,
-  ExternalLink,
   LogOut,
   X,
   Sun,
@@ -394,15 +392,6 @@ export function AdminHeader({
           </button>
         )}
 
-        {/* Exit to User Portal */}
-        <Link
-          href="/dashboard"
-          title="Exit Admin Console to User Portal"
-          className="inline-flex items-center gap-1.5 px-3 h-9 rounded-xl text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-850 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all shadow-xs"
-        >
-          <ExternalLink className="w-3.5 h-3.5 text-zinc-400" />
-          <span className="hidden sm:inline">User Portal</span>
-        </Link>
 
         {/* Admin Identity Badge */}
         {adminEmail && (
