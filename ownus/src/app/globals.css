@@ -547,3 +547,50 @@ nextjs-portal {
   border-color: #CBD5E1 !important;
 }
 
+/* ==========================================================================
+   Mobile Responsive Blocking Enforcement
+   Prevents access to the website content on mobile devices / viewports < 1024px.
+   Website is available strictly on desktop and laptop devices.
+   ========================================================================== */
+@media (max-width: 1023px) {
+  #desktop-website-container {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+  #mobile-responsive-blocker {
+    display: flex !important;
+    visibility: visible !important;
+  }
+  html, body {
+    overflow: hidden !important;
+    height: 100% !important;
+    position: fixed !important;
+    width: 100% !important;
+  }
+}
+
+html.mobile-blocked #desktop-website-container {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}
+
+html.mobile-blocked #mobile-responsive-blocker {
+  display: flex !important;
+  visibility: visible !important;
+}
+
+html.mobile-blocked,
+body.mobile-blocked {
+  overflow: hidden !important;
+  height: 100% !important;
+  position: fixed !important;
+  width: 100% !important;
+}
+
+

@@ -5,6 +5,7 @@ import './globals.css';
 import { cn } from '@/lib/utils';
 import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider } from '@/lib/auth-context';
+import { MobileResponsiveGuard } from '@/components/mobile-responsive-guard';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
@@ -52,7 +53,9 @@ export default function RootLayout({
       >
         <AuthProvider>
           <ThemeProvider>
-            {children}
+            <MobileResponsiveGuard>
+              {children}
+            </MobileResponsiveGuard>
             <Toaster position="bottom-right" />
           </ThemeProvider>
         </AuthProvider>
