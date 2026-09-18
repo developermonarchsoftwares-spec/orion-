@@ -1092,21 +1092,35 @@ async function proxyRequest(
         }
       } catch {}
 
-      let creditsToAdd = 100;
-      if (parsedBody.packageId === 'cdcc091d-282c-4bd6-93d2-2f5aa1955110' || parsedBody.packageId === 'growth') {
+      // Map package ID to credits amount
+      let creditsToAdd = 100; // default: starter
+      const pkgIdVerify = parsedBody.packageId || '';
+      if (pkgIdVerify === 'cdcc091d-282c-4bd6-93d2-2f5aa1955110' || pkgIdVerify === 'growth') {
         creditsToAdd = 350;
-      } else if (parsedBody.packageId === 'b8dfcad5-f348-40b7-801d-38124b909425' || parsedBody.packageId === 'agency') {
+      } else if (pkgIdVerify === 'b8dfcad5-f348-40b7-801d-38124b909425' || pkgIdVerify === 'agency') {
         creditsToAdd = 1500;
+      } else if (pkgIdVerify === '30ad3ee3-f861-4a59-b374-5af11f820194' || pkgIdVerify === 'starter') {
+        creditsToAdd = 100;
       }
+
+      // Accumulate on top of the current wallet sent by the client, not fixed baseline.
+      // The client passes currentDailyCredits and currentPurchasedCredits so we can add
+      // correctly without knowing the server-side wallet state.
+      const currentDaily = typeof parsedBody.currentDailyCredits === 'number' ? parsedBody.currentDailyCredits : 5;
+      const currentPurchased = typeof parsedBody.currentPurchasedCredits === 'number' ? parsedBody.currentPurchasedCredits : 0;
+
+      const newPurchased = currentPurchased + creditsToAdd;
+      const newBalance = currentDaily + newPurchased;
 
       return NextResponse.json({
         success: true,
         statusCode: 200,
-        message: 'Payment simulated and verified successfully.',
+        message: `Payment verified. ${creditsToAdd} credits added to your wallet!`,
         data: {
-          balance: 25 + creditsToAdd,
-          dailyCredits: 5,
-          purchasedCredits: 20 + creditsToAdd,
+          balance: newBalance,
+          dailyCredits: currentDaily,
+          purchasedCredits: newPurchased,
+          creditsAdded: creditsToAdd,
           verified: true,
         },
         timestamp: new Date().toISOString(),

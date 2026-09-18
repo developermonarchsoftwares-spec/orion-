@@ -61,6 +61,11 @@ export default function CreditsPage() {
     const price = isAnnual && pkg.priceAnnualInr ? pkg.priceAnnualInr : pkg.priceInr;
     setPurchasingPkgId(pkg.id);
 
+    // Snapshot the wallet state BEFORE the purchase so the fallback handler
+    // can correctly accumulate on top of the existing balance.
+    const snapshotDaily = wallet?.dailyCredits ?? 5;
+    const snapshotPurchased = wallet?.purchasedCredits ?? 0;
+
     try {
       // 1. Create Razorpay order
       const orderData = await apiClient.payments.createOrder({
@@ -78,13 +83,25 @@ export default function CreditsPage() {
         razorpaySignature: "demo_verified",
         packageId: pkg.id,
         billingCycle: isAnnual ? "annual" : "monthly",
+        // Pass current wallet snapshot so the fallback can accumulate correctly
+        currentDailyCredits: snapshotDaily,
+        currentPurchasedCredits: snapshotPurchased,
       });
 
       if (verifyRes.balance !== undefined) {
         setWalletBalance(verifyRes.balance, verifyRes.dailyCredits, verifyRes.purchasedCredits);
+      } else {
+        // Fallback: accumulate locally if the server didn't return a balance
+        const creditsAdded = verifyRes.creditsAdded ?? pkg.credits ?? 0;
+        setWalletBalance(
+          snapshotDaily + snapshotPurchased + creditsAdded,
+          snapshotDaily,
+          snapshotPurchased + creditsAdded,
+        );
       }
 
-      toast.success(verifyRes.message || `Successfully credited ${pkg.credits} credits to your wallet!`);
+      const creditsAdded = verifyRes.creditsAdded ?? pkg.credits;
+      toast.success(verifyRes.message || `Successfully credited ${creditsAdded} credits to your wallet!`);
 
       // Refresh transactions & payments
       const [newTxs, newPays] = await Promise.all([
