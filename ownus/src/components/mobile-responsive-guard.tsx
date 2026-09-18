@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useEffect, useState, useSyncExternalStore } from 'react';
-import { Monitor, Laptop, Smartphone, ShieldAlert, Copy, Check, RotateCw, AlertTriangle } from 'lucide-react';
-import { toast } from 'sonner';
+import React, { useEffect, useState } from 'react';
+import { Laptop } from 'lucide-react';
 
 interface MobileResponsiveGuardProps {
   children: React.ReactNode;
@@ -11,64 +10,30 @@ interface MobileResponsiveGuardProps {
 // Regex to detect mobile devices from userAgent
 const MOBILE_UA_REGEX = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i;
 
-function checkIsMobileOrSmallScreen(): { isBlocked: boolean; reason: string; width: number; height: number; isUA: boolean } {
+function checkIsMobileOrSmallScreen(): { isBlocked: boolean; width: number } {
   if (typeof window === 'undefined') {
-    return { isBlocked: false, reason: '', width: 1440, height: 900, isUA: false };
+    return { isBlocked: false, width: 1440 };
   }
 
   const width = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth || 0;
-  const height = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight || 0;
   const isUA = MOBILE_UA_REGEX.test(navigator.userAgent || '');
   
   // Block if:
   // 1. Screen width is less than 1024px (standard desktop/laptop breakpoint)
   // 2. Or User Agent identifies as a mobile device
-  if (isUA) {
-    return {
-      isBlocked: true,
-      reason: 'Mobile device detected via browser signature.',
-      width,
-      height,
-      isUA: true,
-    };
+  if (isUA || (width > 0 && width < 1024)) {
+    return { isBlocked: true, width };
   }
 
-  if (width > 0 && width < 1024) {
-    return {
-      isBlocked: true,
-      reason: `Screen width (${width}px) is below minimum desktop threshold (1024px).`,
-      width,
-      height,
-      isUA: false,
-    };
-  }
-
-  return {
-    isBlocked: false,
-    reason: '',
-    width,
-    height,
-    isUA: false,
-  };
+  return { isBlocked: false, width };
 }
 
 export function MobileResponsiveGuard({ children }: MobileResponsiveGuardProps) {
-  const [deviceInfo, setDeviceInfo] = useState<{
-    isBlocked: boolean;
-    reason: string;
-    width: number;
-    height: number;
-    isUA: boolean;
-  }>({
+  const [deviceInfo, setDeviceInfo] = useState<{ isBlocked: boolean; width: number }>({
     isBlocked: false,
-    reason: '',
     width: 1440,
-    height: 900,
-    isUA: false,
   });
-
   const [mounted, setMounted] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -108,191 +73,108 @@ export function MobileResponsiveGuard({ children }: MobileResponsiveGuardProps) 
     };
   }, []);
 
-  const handleCopyLink = async () => {
-    try {
-      const url = window.location.href;
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      toast.success('Link copied to clipboard! Open on your desktop or laptop.');
-      setTimeout(() => setCopied(false), 3000);
-    } catch {
-      toast.info('Please copy the URL from your browser address bar.');
-    }
-  };
-
-  const handleRefresh = () => {
-    const info = checkIsMobileOrSmallScreen();
-    setDeviceInfo(info);
-    if (!info.isBlocked) {
-      toast.success('Desktop viewport detected!');
-    } else {
-      toast.error('Device is still within mobile / restricted parameters.');
-    }
-  };
-
   return (
     <>
       {/* 
-        1. Pure CSS fallback overlay:
-        Guarantees that on viewports < 1024px, the mobile blocked message 
-        is shown IMMEDIATELY even before React hydration, and desktop content is hidden.
+        Mobile Responsive Access Restriction Screen:
+        Displays ONLY the UI elements specified in the exact design:
+        1. "ACCESS RESTRICTED • DESKTOP ONLY" pill badge
+        2. Supported (Laptop) vs Blocked (Phone with slash) device cards
+        3. "Mobile Responsive Blocked" heading
+        4. Operational explanatory paragraph
       */}
       <div
         id="mobile-responsive-blocker"
-        className={`fixed inset-0 z-[9999999] min-h-screen w-screen flex-col items-center justify-center p-4 sm:p-6 overflow-y-auto bg-slate-950 text-slate-100 dark:bg-zinc-950 dark:text-zinc-100 ${
+        className={`fixed inset-0 z-[99999999] min-h-screen w-screen flex-col items-center justify-center p-5 sm:p-6 overflow-y-auto bg-[#070A11] text-zinc-100 ${
           mounted && deviceInfo.isBlocked
             ? 'flex !important'
             : 'max-lg:flex lg:hidden'
         }`}
         style={{
-          // Extra safety to ensure no user interaction passes through
           touchAction: 'none',
         }}
       >
-        {/* Subtle glowing ambient backdrop */}
+        {/* Ambient background glow */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-indigo-600/15 dark:bg-indigo-500/10 rounded-full blur-3xl" />
-          <div className="absolute -bottom-32 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-rose-600/10 dark:bg-rose-500/10 rounded-full blur-3xl" />
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-950/20 rounded-full blur-3xl" />
         </div>
 
-        {/* Central Modal Card */}
-        <div className="relative w-full max-w-lg rounded-3xl border border-slate-800 bg-slate-900/90 dark:border-zinc-800 dark:bg-zinc-900/90 p-6 sm:p-8 shadow-2xl backdrop-blur-2xl text-center z-10 my-auto">
-          {/* Top Restricted Badge */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wide bg-rose-500/10 text-rose-400 border border-rose-500/20 mb-6">
-            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+        {/* Access Restriction Card */}
+        <div className="relative w-full max-w-[440px] rounded-[28px] border border-[#1A2333] bg-[#0E1420]/95 p-7 sm:p-9 shadow-2xl backdrop-blur-2xl text-center z-10 my-auto">
+          {/* 1. Restricted Pill Badge */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[11px] font-bold tracking-wider bg-[#28121B] text-[#FF5A79] border border-[#481B26] mb-7">
+            <span className="w-2 h-2 rounded-full bg-[#FF3B5C]" />
             <span>ACCESS RESTRICTED &bull; DESKTOP ONLY</span>
           </div>
 
-          {/* Visual Device Indicator Graphic */}
-          <div className="flex items-center justify-center gap-4 mb-6">
-            {/* Desktop / Laptop (Allowed) */}
-            <div className="relative flex flex-col items-center">
-              <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/10">
-                <Laptop className="w-8 h-8" />
+          {/* 2. Visual Device Indicator: Supported (Laptop) vs Blocked (Phone with slash) */}
+          <div className="flex items-center justify-center gap-4 sm:gap-6 mb-7">
+            {/* Desktop / Laptop - Supported */}
+            <div className="flex flex-col items-center">
+              <div className="w-16 h-16 sm:w-[70px] sm:h-[70px] rounded-2xl bg-[#09221B] border border-[#10B981]/40 flex items-center justify-center text-[#10B981] shadow-[0_0_20px_rgba(16,185,129,0.15)]">
+                <Laptop className="w-7 h-7 sm:w-8 sm:h-8" />
               </div>
-              <span className="mt-2 text-[11px] font-medium text-emerald-400 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                Supported
-              </span>
+              <div className="mt-2.5 flex items-center gap-1.5 text-xs font-semibold text-[#10B981]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
+                <span>Supported</span>
+              </div>
             </div>
 
-            {/* Separator / Arrow */}
-            <div className="text-slate-600 dark:text-zinc-600 font-mono text-sm">
+            {/* Separator */}
+            <div className="text-zinc-500 font-mono text-xs font-medium tracking-widest px-1">
               &mdash; VS &mdash;
             </div>
 
-            {/* Smartphone (Blocked) */}
-            <div className="relative flex flex-col items-center">
-              <div className="relative w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 shadow-lg shadow-rose-500/10">
-                <Smartphone className="w-8 h-8" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-10 h-0.5 bg-rose-500 rotate-45 rounded-full shadow" />
-                </div>
+            {/* Mobile Phone - Blocked */}
+            <div className="flex flex-col items-center">
+              <div className="relative w-16 h-16 sm:w-[70px] sm:h-[70px] rounded-2xl bg-[#281119] border border-[#F43F5E]/40 flex items-center justify-center text-[#F43F5E] shadow-[0_0_20px_rgba(244,63,94,0.15)]">
+                <svg
+                  className="w-7 h-7 sm:w-8 sm:h-8"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect width="13" height="19" x="5.5" y="2.5" rx="2.5" />
+                  <circle cx="12" cy="18" r="0.6" fill="currentColor" />
+                  <line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" strokeWidth="2.2" />
+                </svg>
               </div>
-              <span className="mt-2 text-[11px] font-medium text-rose-400 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                Blocked
-              </span>
+              <div className="mt-2.5 flex items-center gap-1.5 text-xs font-semibold text-[#F43F5E]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#F43F5E]" />
+                <span>Blocked</span>
+              </div>
             </div>
           </div>
 
-          {/* Title */}
+          {/* 3. Title */}
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white mb-3">
             Mobile Responsive Blocked
           </h1>
 
-          {/* Core Message */}
-          <p className="text-sm sm:text-base text-slate-300 dark:text-zinc-300 leading-relaxed mb-6 font-normal">
+          {/* 4. Explanatory Message */}
+          <p className="text-[13px] sm:text-sm text-zinc-300 leading-relaxed font-normal">
             This platform is not available on mobile devices. To ensure precision, high-density data analytics, and full operational capability, access is restricted to desktop and laptop devices.
           </p>
-
-          {/* Compatibility Breakdown Box */}
-          <div className="rounded-2xl bg-slate-950/60 dark:bg-zinc-950/60 border border-slate-800/80 dark:border-zinc-800/80 p-4 text-left mb-6 space-y-2.5">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-400 mb-2">
-              Device Compatibility Policy
-            </div>
-            
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 text-slate-200 dark:text-zinc-200">
-                <Monitor className="w-4 h-4 text-emerald-400" />
-                <span>Desktop Computers (PC / Mac / Linux)</span>
-              </div>
-              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                Available
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 text-slate-200 dark:text-zinc-200">
-                <Laptop className="w-4 h-4 text-emerald-400" />
-                <span>Laptops &amp; Notebooks (1024px+ screen)</span>
-              </div>
-              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                Available
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800 dark:border-zinc-800">
-              <div className="flex items-center gap-2 text-rose-300 dark:text-rose-400">
-                <Smartphone className="w-4 h-4 text-rose-400" />
-                <span>Mobile Phones &amp; Small Displays</span>
-              </div>
-              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                Blocked
-              </span>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex flex-col sm:flex-row items-center gap-3">
-            <button
-              onClick={handleCopyLink}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-medium text-sm transition-all duration-150 shadow-lg shadow-indigo-600/25"
-            >
-              {copied ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
-              <span>{copied ? 'Link Copied!' : 'Copy Link for Desktop'}</span>
-            </button>
-
-            <button
-              onClick={handleRefresh}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 text-slate-300 hover:text-white font-medium text-sm transition-all duration-150"
-              title="Check screen dimensions again"
-            >
-              <RotateCw className="w-4 h-4" />
-              <span>Check Again</span>
-            </button>
-          </div>
-
-          {/* Live Diagnostic Footer */}
-          {mounted && (
-            <div className="mt-6 pt-4 border-t border-slate-800/80 dark:border-zinc-800/80 text-[11px] text-slate-500 dark:text-zinc-500 flex flex-wrap items-center justify-between gap-2">
-              <span>
-                Detected: {deviceInfo.width} &times; {deviceInfo.height} px
-              </span>
-              <span>Min Required: 1024px</span>
-            </div>
-          )}
         </div>
       </div>
 
       {/* 
-        2. Website Content Wrapper:
-        - CSS: 'max-lg:hidden' ensures that on screen widths < 1024px, 
-          the website content is never rendered or reachable.
-        - JS: If device is detected as mobile via UA (even if simulated with large resolution),
-          deviceInfo.isBlocked completely removes or hides the content.
+        Website Content Wrapper:
+        Completely hides and prevents access to all other website content on mobile devices.
+        When blocked, content is fully hidden via CSS (display: none !important) and 
+        unmounted in React to prevent any background interactions, scrolling, or inspection.
       */}
-      <div
-        id="desktop-website-container"
-        className={`w-full min-h-screen ${
-          mounted && deviceInfo.isBlocked
-            ? 'hidden !important'
-            : 'max-lg:hidden lg:block'
-        }`}
-        aria-hidden={mounted ? deviceInfo.isBlocked : undefined}
-      >
-        {children}
-      </div>
+      {(!mounted || !deviceInfo.isBlocked) && (
+        <div
+          id="desktop-website-container"
+          className="w-full min-h-screen max-lg:hidden lg:block"
+        >
+          {children}
+        </div>
+      )}
     </>
   );
 }

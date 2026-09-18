@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useTheme } from 'next-themes';
+import { useAdminTheme } from '@/components/admin/admin-theme-context';
 import { 
   ShieldCheck, 
   ShieldAlert,
@@ -111,17 +111,8 @@ export default function AdminPortalPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-  // Unified theme state synced with global next-themes (saved in localStorage)
-  const { theme, setTheme, resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-  const isDark = mounted ? (resolvedTheme === 'dark' || theme === 'dark') : true;
-
-  const handleToggleTheme = () => {
-    setTheme(isDark ? 'light' : 'dark');
-  };
+  // Independent Admin Theme State (completely isolated from Customer Portal theme)
+  const { isDark, toggleAdminTheme } = useAdminTheme();
 
   // Core Data Stores
   const [records, setRecords] = useState<AdminBusinessRecord[]>(INITIAL_ADMIN_BUSINESSES);
@@ -1161,7 +1152,7 @@ export default function AdminPortalPage() {
           adminEmail={adminEmail}
           onSignOut={handleAdminSignOut}
           isDark={isDark}
-          onToggleTheme={handleToggleTheme}
+          onToggleTheme={toggleAdminTheme}
         />
 
         {/* Scrollable View Container */}
