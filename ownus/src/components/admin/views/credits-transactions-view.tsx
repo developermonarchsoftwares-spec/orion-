@@ -49,12 +49,12 @@ export const CreditsTransactionsView: React.FC<CreditsTransactionsViewProps> = (
   const [refundReason, setRefundReason] = useState('Customer reported invalid lead phone numbers');
 
   // Manual allocation form state
-  const [targetCustomer, setTargetCustomer] = useState('Aarav Singhania');
-  const [targetEmail, setTargetEmail] = useState('aarav@apexdigital.in');
-  const [targetCompany, setTargetCompany] = useState('Apex Digital Solutions Pvt Ltd');
-  const [targetPlan, setTargetPlan] = useState<CustomerPlan>('Enterprise');
-  const [creditsPurchased, setCreditsPurchased] = useState<number>(2000);
-  const [amountPaid, setAmountPaid] = useState<number>(18999);
+  const [targetCustomer, setTargetCustomer] = useState('');
+  const [targetEmail, setTargetEmail] = useState('');
+  const [targetCompany, setTargetCompany] = useState('');
+  const [targetPlan, setTargetPlan] = useState<CustomerPlan>('Starter');
+  const [creditsPurchased, setCreditsPurchased] = useState<number>(100);
+  const [amountPaid, setAmountPaid] = useState<number>(99);
   const [paymentMethod, setPaymentMethod] = useState<TransactionRecord['paymentMethod']>('Razorpay UPI');
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('Success');
 
@@ -71,10 +71,10 @@ export const CreditsTransactionsView: React.FC<CreditsTransactionsViewProps> = (
   });
 
   // KPI Dashboard computations
-  const creditsPurchasedToday = 7500;
-  const creditsUsedToday = 480;
-  const remainingCredits = 1840000;
-  const revenueToday = 63998;
+  const creditsPurchasedToday = transactions.reduce((acc, t) => acc + (t.creditsPurchased || 0), 0);
+  const creditsUsedToday = transactions.reduce((acc, t) => acc + (t.creditsUsed || 0), 0);
+  const remainingCredits = transactions.reduce((acc, t) => acc + (t.creditsPurchased - t.creditsUsed), 0);
+  const revenueToday = transactions.filter(t => t.paymentStatus === 'Success').reduce((acc, t) => acc + (t.amount || 0), 0);
   const pendingPayments = transactions.filter(t => t.paymentStatus === 'Pending').length;
   const refundRequests = transactions.filter(t => t.paymentStatus === 'Refunded').length;
 
@@ -231,7 +231,7 @@ export const CreditsTransactionsView: React.FC<CreditsTransactionsViewProps> = (
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3.5">
           <div className="text-[11px] text-zinc-400 font-medium uppercase tracking-wider">Remaining Pool</div>
-          <div className="text-xl font-bold text-zinc-100 mt-1">1.84M</div>
+          <div className="text-xl font-bold text-zinc-100 mt-1">{remainingCredits.toLocaleString()}</div>
           <div className="text-[10px] text-zinc-400 mt-1 font-mono">
             In user wallets
           </div>

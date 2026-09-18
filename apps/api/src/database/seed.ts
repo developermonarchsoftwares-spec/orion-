@@ -29,10 +29,12 @@ async function seedDatabase() {
   const db = drizzle(pool, { schema });
 
   try {
-    console.log('Seeding initial system administrator...');
-    const adminEmail = 'admin@orion.ai';
+    console.log('Verifying initial system administrator...');
+    const adminEmail = process.env.ADMIN_SEED_EMAIL || 'admin@monarchsoftwares.com';
     const existingAdmin = await db.query.users.findFirst({
       where: eq(schema.users.email, adminEmail),
+    }) || await db.query.users.findFirst({
+      where: eq(schema.users.email, 'subash@monarchsoftwares.com'),
     });
 
     if (!existingAdmin) {
@@ -42,7 +44,7 @@ async function seedDatabase() {
         .values({
           email: adminEmail,
           passwordHash,
-          firstName: 'System',
+          firstName: 'Monarch',
           lastName: 'Administrator',
           role: 'SUPER_ADMIN',
           status: 'ACTIVE',
@@ -62,9 +64,9 @@ async function seedDatabase() {
         lifetimeUsed: 0,
       });
 
-      console.log('✓ Created super admin user: admin@orion.ai');
+      console.log(`✓ Created super admin user: ${adminEmail}`);
     } else {
-      console.log('ℹ Super admin already exists.');
+      console.log(`ℹ Super admin already exists: ${existingAdmin.email}`);
       const adminWallet = await db.query.userWallets.findFirst({
         where: eq(schema.userWallets.userId, existingAdmin.id),
       });

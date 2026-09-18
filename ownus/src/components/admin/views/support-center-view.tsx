@@ -45,13 +45,13 @@ export const SupportCenterView: React.FC<SupportCenterViewProps> = ({
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   // New ticket form state
-  const [customerName, setCustomerName] = useState('Aarav Singhania');
-  const [customerEmail, setCustomerEmail] = useState('aarav@apexdigital.in');
-  const [company, setCompany] = useState('Apex Digital Solutions Pvt Ltd');
+  const [customerName, setCustomerName] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [company, setCompany] = useState('');
   const [subject, setSubject] = useState('');
   const [category, setCategory] = useState<SupportTicket['category']>('Billing & Credits');
   const [priority, setPriority] = useState<TicketPriority>('Medium');
-  const [assignedTo, setAssignedTo] = useState('Vikramaditya Sethi');
+  const [assignedTo, setAssignedTo] = useState('Orion Support');
 
   const filteredTickets = tickets.filter(ticket => {
     const matchesSearch = 
@@ -313,7 +313,7 @@ export const SupportCenterView: React.FC<SupportCenterViewProps> = ({
               const newMsg = {
                 id: `msg-${Date.now()}`,
                 sender: 'Support Agent' as const,
-                senderName: 'Vikramaditya Sethi',
+                senderName: 'Orion Administrator',
                 message,
                 timestamp: 'Just now',
                 isInternalNote

@@ -374,8 +374,8 @@ export function BusinessRecordsView({
               ) : (
                 <tr>
                   <td colSpan={9} className="p-12 text-center text-zinc-500">
-                    <p className="font-semibold text-sm">No business records found</p>
-                    <p className="text-xs text-zinc-400 mt-1">Try adjusting your filters or search keywords.</p>
+                    <p className="font-semibold text-sm">No business records available.</p>
+                    <p className="text-xs text-zinc-400 mt-1">Import new enterprise records or adjust your search filters.</p>
                   </td>
                 </tr>
               )}

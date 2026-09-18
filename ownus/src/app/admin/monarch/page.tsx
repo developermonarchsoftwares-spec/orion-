@@ -269,6 +269,36 @@ export default function AdminPortalPage() {
     showToast('Admin session terminated.');
   };
 
+  // Fetch real administrative data from backend when authenticated
+  useEffect(() => {
+    if (!isAdminAuthenticated) return;
+
+    let isMounted = true;
+    const fetchAdminData = async () => {
+      try {
+        const [bizRes, batchRes, usersRes, txRes, logsRes] = await Promise.all([
+          fetch('/api/v1/admin/businesses').then(r => r.ok ? r.json() : null),
+          fetch('/api/v1/admin/import/batches').then(r => r.ok ? r.json() : null),
+          fetch('/api/v1/admin/users').then(r => r.ok ? r.json() : null),
+          fetch('/api/v1/admin/transactions').then(r => r.ok ? r.json() : null),
+          fetch('/api/v1/admin/activity-logs').then(r => r.ok ? r.json() : null),
+        ]);
+
+        if (!isMounted) return;
+        if (bizRes && Array.isArray(bizRes.data)) setRecords(bizRes.data);
+        if (batchRes && Array.isArray(batchRes.data)) setBatches(batchRes.data);
+        if (usersRes && Array.isArray(usersRes.data)) setCustomerUsers(usersRes.data);
+        if (txRes && Array.isArray(txRes.data)) setTransactions(txRes.data);
+        if (logsRes && Array.isArray(logsRes.data)) setActivityLogs(logsRes.data);
+      } catch (err) {
+        console.error('Failed to fetch admin live data:', err);
+      }
+    };
+
+    fetchAdminData();
+    return () => { isMounted = false; };
+  }, [isAdminAuthenticated]);
+
   // Keyboard shortcut for Cmd+K / Ctrl+K
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -302,7 +332,7 @@ export default function AdminPortalPage() {
           validationStatus: newStatus === 'approved' || newStatus === 'published' ? 'Approved' : rec.validationStatus,
           updatedAt: new Date().toISOString(),
           approvedDate: newStatus === 'approved' || newStatus === 'published' ? new Date().toISOString().replace('T', ' ').slice(0, 16) : rec.approvedDate,
-          reviewer: newStatus === 'approved' || newStatus === 'published' ? 'Vikramaditya Sethi' : rec.reviewer,
+          reviewer: newStatus === 'approved' || newStatus === 'published' ? (adminEmail || 'Monarch Administrator') : rec.reviewer,
         };
       }
       return rec;
@@ -318,7 +348,7 @@ export default function AdminPortalPage() {
     const target = records.find(r => r.id === recordId);
     const newLog: ActivityLogEntry = {
       id: `act-${Date.now()}`,
-      user: 'Vikramaditya Sethi (Super Admin)',
+      user: adminEmail ? `${adminEmail} (Super Admin)` : 'Monarch Administrator (Super Admin)',
       action: newStatus === 'published' ? 'Published' : newStatus === 'approved' ? 'Approved' : 'Updated',
       entityType: 'Business',
       entityId: recordId,
@@ -342,7 +372,7 @@ export default function AdminPortalPage() {
           validationStatus: newStatus === 'approved' || newStatus === 'published' ? 'Approved' : rec.validationStatus,
           updatedAt: new Date().toISOString(),
           approvedDate: newStatus === 'approved' || newStatus === 'published' ? new Date().toISOString().replace('T', ' ').slice(0, 16) : rec.approvedDate,
-          reviewer: newStatus === 'approved' || newStatus === 'published' ? 'Vikramaditya Sethi' : rec.reviewer,
+          reviewer: newStatus === 'approved' || newStatus === 'published' ? (adminEmail || 'Monarch Administrator') : rec.reviewer,
         };
       }
       return rec;
@@ -350,7 +380,7 @@ export default function AdminPortalPage() {
 
     const newLog: ActivityLogEntry = {
       id: `act-${Date.now()}`,
-      user: 'Vikramaditya Sethi (Super Admin)',
+      user: adminEmail ? `${adminEmail} (Super Admin)` : 'Monarch Administrator (Super Admin)',
       action: newStatus === 'published' ? 'Published' : 'Updated',
       entityType: 'Business',
       entityId: 'BULK_BATCH',
@@ -369,7 +399,7 @@ export default function AdminPortalPage() {
     setRecords(prev => prev.filter(r => !ids.includes(r.id)));
     const newLog: ActivityLogEntry = {
       id: `act-${Date.now()}`,
-      user: 'Vikramaditya Sethi (Super Admin)',
+      user: adminEmail ? `${adminEmail} (Super Admin)` : 'Monarch Administrator (Super Admin)',
       action: 'Deleted',
       entityType: 'Business',
       entityId: 'BULK_DELETE',
@@ -406,7 +436,7 @@ export default function AdminPortalPage() {
     const target = records.find(r => r.id === id);
     const newLog: ActivityLogEntry = {
       id: `act-${Date.now()}`,
-      user: 'Vikramaditya Sethi (Super Admin)',
+      user: adminEmail ? `${adminEmail} (Super Admin)` : 'Monarch Administrator (Super Admin)',
       action: 'Rejected',
       entityType: 'Business',
       entityId: id,
@@ -544,7 +574,7 @@ export default function AdminPortalPage() {
 
     const newLog: ActivityLogEntry = {
       id: `act-${Date.now()}`,
-      user: 'Vikramaditya Sethi (Super Admin)',
+      user: adminEmail ? `${adminEmail} (Super Admin)` : 'Monarch Administrator (Super Admin)',
       action: 'Merged',
       entityType: 'Business',
       entityId: mergedRecord.id,
@@ -615,7 +645,7 @@ export default function AdminPortalPage() {
 
     const newLog: ActivityLogEntry = {
       id: `act-${Date.now()}`,
-      user: 'Vikramaditya Sethi (Super Admin)',
+      user: adminEmail ? `${adminEmail} (Super Admin)` : 'Monarch Administrator (Super Admin)',
       action: 'Created',
       entityType: 'User',
       entityId: created.id,
@@ -679,7 +709,7 @@ export default function AdminPortalPage() {
     setRoles(prev => prev.map(r => r.id === updatedRole.id ? updatedRole : r));
     const newLog: ActivityLogEntry = {
       id: `act-${Date.now()}`,
-      user: 'Vikramaditya Sethi (Super Admin)',
+      user: adminEmail ? `${adminEmail} (Super Admin)` : 'Monarch Administrator (Super Admin)',
       action: 'Updated',
       entityType: 'Settings',
       entityId: updatedRole.id,
@@ -723,7 +753,7 @@ export default function AdminPortalPage() {
         const newMsg = {
           id: `msg-${Date.now()}`,
           sender: isInternalNote ? ('Support Agent' as const) : ('Support Agent' as const),
-          senderName: 'Vikramaditya Sethi',
+          senderName: adminEmail || 'Support Agent',
           message: messageText,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           isInternalNote
@@ -1133,6 +1163,8 @@ export default function AdminPortalPage() {
                 businesses={records}
                 batches={batches}
                 logs={activityLogs}
+                customerUsers={customerUsers}
+                transactions={transactions}
                 onNavigate={setActiveTab}
                 onSelectBusiness={setSelectedRecordForDetail}
               />
@@ -1216,7 +1248,11 @@ export default function AdminPortalPage() {
 
             {/* Module 3 Views: Platform Administration */}
             {activeTab === 'reports' && (
-              <ReportsView records={records} />
+              <ReportsView
+                records={records}
+                transactions={transactions}
+                users={customerUsers}
+              />
             )}
 
             {activeTab === 'users' && (

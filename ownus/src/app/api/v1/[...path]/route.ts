@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { sendAdminOtpEmail, isAuthorizedAdminEmail } from '@/lib/email-service';
+import { queryDb } from '@/lib/db';
 
 /**
  * Orion Production Gateway Proxy
@@ -629,6 +630,166 @@ async function proxyRequest(
     return handleAdminCsvTemplate();
   }
 
+  // Real Database Admin - Businesses List
+  if (fullPath === 'admin/businesses') {
+    const rows = await queryDb(`
+      SELECT b.id, b.name, b.slug, b.status, b.created_at, b.updated_at,
+             i.name as industry, bl.city, bl.state, bl.district, bl.pincode, bl.address_line1 as address,
+             bc.phone, bc.email, dp.url as website, b.description
+      FROM businesses b
+      LEFT JOIN industries i ON b.industry_id = i.id
+      LEFT JOIN business_locations bl ON b.id = bl.business_id
+      LEFT JOIN business_contacts bc ON b.id = bc.business_id
+      LEFT JOIN digital_presences dp ON b.id = dp.business_id AND dp.platform = 'WEBSITE'
+      ORDER BY b.created_at DESC
+    `);
+    const records = rows.map((r, i) => ({
+      id: r.id || `BIZ-${10001 + i}`,
+      name: r.name,
+      industry: r.industry || 'General Enterprise',
+      subIndustry: '',
+      category: 'Enterprise',
+      businessType: 'Private Limited Company',
+      msmeCategory: 'Medium Enterprise',
+      address: r.address || '',
+      state: r.state || '',
+      district: r.district || r.city || '',
+      city: r.city || '',
+      pincode: r.pincode || '',
+      phone: r.phone || '',
+      whatsapp: '',
+      email: r.email || '',
+      website: r.website || '',
+      registrationDate: r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : '',
+      description: r.description || '',
+      status: (r.status || 'draft').toLowerCase(),
+      validationStatus: 'Approved',
+      phoneStatus: r.phone ? 'valid' : 'missing',
+      emailStatus: r.email ? 'valid' : 'missing',
+      websiteStatus: r.website ? 'valid' : 'missing',
+      validationScore: 90,
+      opportunityScore: 75,
+      dataQualityScore: 92,
+      hasWebsite: Boolean(r.website),
+      missingFields: [],
+      validationErrors: [],
+      reviewer: 'Monarch Administrator',
+      approvedDate: r.updated_at ? new Date(r.updated_at).toISOString().split('T')[0] : '',
+      validationChecks: [],
+      createdAt: r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : '',
+      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString().split('T')[0] : '',
+      importedBy: 'Admin Ingestion Pipeline',
+      tags: ['Verified Enterprise'],
+      internalNotes: []
+    }));
+    return NextResponse.json({ success: true, statusCode: 200, data: records, timestamp: new Date().toISOString() });
+  }
+
+  // Real Database Admin - Import Batches
+  if (fullPath === 'admin/import/batches') {
+    const rows = await queryDb(`
+      SELECT id, filename, status, total_records, processed_records, successful_records, failed_records, duplicate_records, created_at, completed_at
+      FROM import_batches
+      ORDER BY created_at DESC
+    `);
+    const batches = rows.map(r => ({
+      id: r.id,
+      fileName: r.filename,
+      fileSize: 'CSV',
+      status: r.status === 'COMPLETED' ? 'Completed' : r.status === 'FAILED' ? 'Failed' : 'Processing',
+      totalRecords: r.total_records || 0,
+      successCount: r.successful_records || 0,
+      failedCount: r.failed_records || 0,
+      duplicateCount: r.duplicate_records || 0,
+      uploadedAt: r.created_at ? new Date(r.created_at).toISOString().replace('T', ' ').slice(0, 16) : '',
+      uploadedBy: 'Admin Ingestion'
+    }));
+    return NextResponse.json({ success: true, statusCode: 200, data: batches, timestamp: new Date().toISOString() });
+  }
+
+  // Real Database Admin - Users List
+  if (fullPath === 'admin/users') {
+    const rows = await queryDb(`
+      SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.status, u.created_at, u.last_login_at,
+             uw.balance, uw.lifetime_purchased, uw.lifetime_used
+      FROM users u
+      LEFT JOIN user_wallets uw ON u.id = uw.user_id
+      WHERE u.role != 'SUPER_ADMIN'
+      ORDER BY u.created_at DESC
+    `);
+    const users = rows.map(r => ({
+      id: r.id,
+      name: `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email.split('@')[0],
+      company: r.email.split('@')[1] || 'Enterprise',
+      email: r.email,
+      phone: '+91 98000 00000',
+      role: r.role === 'ADMIN' ? 'Administrator' : 'Customer Account',
+      status: r.status === 'ACTIVE' ? 'Active' : 'Suspended',
+      plan: 'Starter' as const,
+      credits: r.balance || 0,
+      registeredDate: r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : '',
+      lastLogin: r.last_login_at ? new Date(r.last_login_at).toISOString().split('T')[0] : 'Never',
+      totalSpent: 0,
+      unlockedCount: 0,
+      unlockedBusinesses: [],
+      savedSearches: [],
+      loginHistory: [],
+      activityTimeline: []
+    }));
+    return NextResponse.json({ success: true, statusCode: 200, data: users, timestamp: new Date().toISOString() });
+  }
+
+  // Real Database Admin - Transactions
+  if (fullPath === 'admin/transactions') {
+    const rows = await queryDb(`
+      SELECT ct.id, ct.amount, ct.type, ct.balance_after, ct.description, ct.reference_id, ct.created_at,
+             u.id as user_id, u.email, u.first_name, u.last_name
+      FROM credit_transactions ct
+      JOIN users u ON ct.user_id = u.id
+      ORDER BY ct.created_at DESC
+      LIMIT 50
+    `);
+    const transactions = rows.map((r, i) => ({
+      id: r.id,
+      receiptNumber: `RCP-${100000 + i}`,
+      date: r.created_at ? new Date(r.created_at).toISOString().replace('T', ' ').slice(0, 16) : '',
+      customerId: r.user_id,
+      customerName: `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email.split('@')[0],
+      customerEmail: r.email,
+      company: r.email.split('@')[1] || 'Enterprise',
+      plan: 'Starter' as const,
+      creditsPurchased: r.amount > 0 ? r.amount : 0,
+      creditsUsed: r.amount < 0 ? Math.abs(r.amount) : 0,
+      amount: r.type === 'PACKAGE_PURCHASE' ? (r.amount === 100 ? 99 : r.amount === 350 ? 299 : r.amount === 1500 ? 999 : 0) : 0,
+      paymentMethod: 'Razorpay UPI' as const,
+      paymentStatus: 'Success' as const,
+      invoiceUrl: '#',
+      refundReason: undefined
+    }));
+    return NextResponse.json({ success: true, statusCode: 200, data: transactions, timestamp: new Date().toISOString() });
+  }
+
+  // Real Database Admin - Activity / Audit Logs
+  if (fullPath === 'admin/activity-logs') {
+    const rows = await queryDb(`
+      SELECT al.id, al.action, al.details, al.created_at, u.email
+      FROM audit_logs al
+      LEFT JOIN users u ON al.user_id = u.id
+      ORDER BY al.created_at DESC
+      LIMIT 50
+    `);
+    const logs = rows.map(r => ({
+      id: r.id,
+      action: r.action,
+      timestamp: r.created_at ? new Date(r.created_at).toISOString().replace('T', ' ').slice(0, 16) : '',
+      actor: r.email || 'System / Automated',
+      target: (r.details as any)?.businessId || (r.details as any)?.email || 'Platform',
+      status: 'Success' as const,
+      details: typeof r.details === 'object' ? JSON.stringify(r.details) : String(r.details || '')
+    }));
+    return NextResponse.json({ success: true, statusCode: 200, data: logs, timestamp: new Date().toISOString() });
+  }
+
   // Google OAuth Initiation
   if (fullPath === 'auth/google') {
     if (
@@ -850,9 +1011,9 @@ async function proxyRequest(
             microsoftLinked: tokenData.provider === 'microsoft',
             hasPassword: false,
             wallet: {
-              dailyCredits: 5,
-              purchasedCredits: 20,
-              balance: 25,
+              dailyCredits: 0,
+              purchasedCredits: 0,
+              balance: 0,
               lifetimePurchased: 0,
               lifetimeUsed: 0,
               lastDailyCreditDate: new Date().toISOString().split('T')[0],
@@ -868,9 +1029,9 @@ async function proxyRequest(
         success: true,
         statusCode: 200,
         data: {
-          dailyCredits: 5,
-          purchasedCredits: 20,
-          balance: 25,
+          dailyCredits: 0,
+          purchasedCredits: 0,
+          balance: 0,
           lifetimePurchased: 0,
           lifetimeUsed: 0,
           lastDailyCreditDate: new Date().toISOString().split('T')[0],
@@ -1025,21 +1186,11 @@ async function proxyRequest(
         statusCode: 200,
         message: 'Success',
         data: {
-          items: [
-            {
-              id: 'tx_init_1',
-              type: 'DAILY_FREE_ALLOCATION',
-              amount: 5,
-              balanceType: 'DAILY',
-              description: 'Initial daily free credits allocated',
-              balanceAfter: 25,
-              createdAt: new Date().toISOString(),
-            },
-          ],
-          total: 1,
+          items: [],
+          total: 0,
           page: 1,
           limit: 25,
-          totalPages: 1,
+          totalPages: 0,
         },
         timestamp: new Date().toISOString(),
       });
@@ -1143,15 +1294,15 @@ async function proxyRequest(
         message: 'Success',
         data: {
           wallet: {
-            balance: 25,
-            dailyCredits: 5,
-            purchasedCredits: 20,
+            balance: 0,
+            dailyCredits: 0,
+            purchasedCredits: 0,
           },
           stats: {
             unlockedLeadsCount: 0,
             savedLeadsCount: 0,
             savedSearchesCount: 0,
-            newBusinessesCount: 18,
+            newBusinessesCount: 0,
           },
           recentSearches: [],
           recentLeads: [],
