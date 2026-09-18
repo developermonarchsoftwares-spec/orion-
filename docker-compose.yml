@@ -8,9 +8,13 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: orion_db
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./apps/api/src/database/migrations/0000_bent_johnny_storm.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./apps/api/src/database/migrations/0001_blushing_loa.sql:/docker-entrypoint-initdb.d/02-init.sql:ro
+      - ./apps/api/src/database/migrations/0002_typical_clint_barton.sql:/docker-entrypoint-initdb.d/03-init.sql:ro
+      - ./apps/api/src/database/migrations/0003_seed_packages.sql:/docker-entrypoint-initdb.d/04-seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d orion_db"]
       interval: 5s
@@ -44,9 +48,14 @@ services:
       - "127.0.0.1:8108:8108"
     volumes:
       - typesense_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/bash -c 'exec 3<>/dev/tcp/localhost/8108'"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     container_name: orion-minio
     restart: always
     command: server /data --console-address ":9001"
@@ -75,9 +84,14 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4000
+      API_PREFIX: /api/v1
+      APP_NAME: Orion Backend API
+      APP_URL: http://localhost:4000
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/orion_db
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      SEARCH_PROVIDER: postgres
       TYPESENSE_NODES: typesense
       TYPESENSE_PORT: 8108
       TYPESENSE_PROTOCOL: http
@@ -87,6 +101,8 @@ services:
       STORAGE_BUCKET: orion-assets
       STORAGE_ACCESS_KEY: minioadmin
       STORAGE_SECRET_KEY: minioadmin
+      JWT_ACCESS_SECRET: 2xrh5c9e7eh4JkswgApDMaIAUE3m964SBT7no0K+KJKcMNFhWkKisWRWjx3A3+ut6K7khy2x4OSsyuFpX9leBA==
+      JWT_REFRESH_SECRET: in5jXCmR/2+0ThF8DBF0F5tM+1q5nfrfx8sYVmn5NvHfnvVUri1P+ZD4ZGQ05MmUWPZTUJXNsGwug6j9Po4cDQ==
     depends_on:
       postgres:
         condition: service_healthy
@@ -95,6 +111,31 @@ services:
       typesense:
         condition: service_healthy
       minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:4000/api/v1/health/liveness', (r) => process.exit(r.statusCode === 200 ? 0 : 1))\""]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  web:
+    build:
+      context: .
+      dockerfile: ownus/Dockerfile
+    container_name: orion-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      BACKEND_API_URL: http://api:4000/api/v1
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      JWT_ACCESS_SECRET: 2xrh5c9e7eh4JkswgApDMaIAUE3m964SBT7no0K+KJKcMNFhWkKisWRWjx3A3+ut6K7khy2x4OSsyuFpX9leBA==
+      JWT_REFRESH_SECRET: in5jXCmR/2+0ThF8DBF0F5tM+1q5nfrfx8sYVmn5NvHfnvVUri1P+ZD4ZGQ05MmUWPZTUJXNsGwug6j9Po4cDQ==
+    depends_on:
+      api:
         condition: service_healthy
 
 volumes:

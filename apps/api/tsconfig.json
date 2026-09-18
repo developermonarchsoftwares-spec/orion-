@@ -21,7 +21,7 @@
     "types": ["node", "jest"],
     "paths": {
       "@/*": ["src/*"],
-      "@orion/shared": ["../../packages/shared/src/index.ts"]
+      "@orion/shared": ["../../packages/shared/dist/index"]
     }
   },
   "include": ["src/**/*", "test/**/*"]

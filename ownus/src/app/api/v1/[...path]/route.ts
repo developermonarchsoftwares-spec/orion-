@@ -870,6 +870,345 @@ async function proxyRequest(
       });
     }
 
+    if (fullPath === 'credit/packages' || fullPath === 'credit/admin/packages') {
+      return NextResponse.json({
+        success: true,
+        statusCode: 200,
+        message: 'Success',
+        data: [
+          {
+            id: '5b11b41d-4451-4ea3-9ace-be33b7a18ad4',
+            slug: 'free',
+            name: 'Free Plan',
+            description: 'Standard access for early prospecting and exploring verified business intelligence.',
+            priceInr: 0,
+            priceAnnualInr: null,
+            credits: 5,
+            userLimit: 1,
+            billingType: 'DAILY_FREE',
+            popular: false,
+            features: [
+              '5 Daily Verified Leads',
+              'Search & Discovery Engine',
+              'Basic Contact Details',
+              'Daily rollover at 11:59 PM',
+              'Community Support',
+            ],
+            badgeText: '5 Daily Free',
+            isActive: true,
+            sortOrder: 1,
+          },
+          {
+            id: '30ad3ee3-f861-4a59-b374-5af11f820194',
+            slug: 'starter',
+            name: 'Starter Pack',
+            description: 'Ideal for individual founders, freelancers, and sales reps building focused pipelines.',
+            priceInr: 99,
+            priceAnnualInr: 79,
+            credits: 100,
+            userLimit: 1,
+            billingType: 'ONE_TIME',
+            popular: false,
+            features: [
+              '100 Lifetime Lead Credits',
+              'Credits Never Expire',
+              'Direct Mobile & Email Unlocks',
+              'CSV / Spreadsheet Export',
+              'Single User License',
+              'Standard Support',
+            ],
+            badgeText: null,
+            isActive: true,
+            sortOrder: 2,
+          },
+          {
+            id: 'cdcc091d-282c-4bd6-93d2-2f5aa1955110',
+            slug: 'growth',
+            name: 'Growth Pack',
+            description: 'Best for growing sales teams and agencies looking for rapid pipeline scale.',
+            priceInr: 299,
+            priceAnnualInr: 239,
+            credits: 350,
+            userLimit: 1,
+            billingType: 'ONE_TIME',
+            popular: true,
+            features: [
+              '350 Lifetime Lead Credits',
+              'Credits Never Expire',
+              'Direct Decision Maker Contacts',
+              'Full Export & Filter Capabilities',
+              'Single User License',
+              'Priority Email Support',
+            ],
+            badgeText: 'Most Popular',
+            isActive: true,
+            sortOrder: 3,
+          },
+          {
+            id: 'b8dfcad5-f348-40b7-801d-38124b909425',
+            slug: 'agency',
+            name: 'Agency Pack',
+            description: 'High-volume lead intelligence for outreach agencies and enterprise outbound teams.',
+            priceInr: 999,
+            priceAnnualInr: 799,
+            credits: 1500,
+            userLimit: 1,
+            billingType: 'ONE_TIME',
+            popular: false,
+            features: [
+              '1,500 Lifetime Lead Credits',
+              'Credits Never Expire',
+              'Full Executive & CXO Contacts',
+              'Bulk Export Engine',
+              'Single User License',
+              'Priority VIP Support',
+            ],
+            badgeText: 'Best Value',
+            isActive: true,
+            sortOrder: 4,
+          },
+          {
+            id: 'c31b8ca8-a484-46cb-b30d-675acfaefdb8',
+            slug: 'enterprise',
+            name: 'Enterprise Plan',
+            description: 'Custom high-volume intelligence, dedicated infrastructure, and team workspace management.',
+            priceInr: null,
+            priceAnnualInr: null,
+            credits: 0,
+            userLimit: null,
+            billingType: 'CUSTOM',
+            popular: false,
+            features: [
+              'Custom High-Volume Credit Allocation',
+              'Unlimited Team Users & RBAC',
+              'Team Workspace Collaboration',
+              'Bulk Export Engine',
+              'Dedicated API Access',
+              '24x7 Priority Account Manager',
+            ],
+            badgeText: 'Custom',
+            isActive: true,
+            sortOrder: 5,
+          },
+        ],
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (fullPath === 'credit/config') {
+      return NextResponse.json({
+        success: true,
+        statusCode: 200,
+        message: 'Success',
+        data: {
+          dailyFreeCredits: 5,
+          annualDiscountPercentage: 20,
+          defaultCurrency: 'INR',
+          currencySymbol: '₹',
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (fullPath === 'credit/transactions') {
+      return NextResponse.json({
+        success: true,
+        statusCode: 200,
+        message: 'Success',
+        data: {
+          items: [
+            {
+              id: 'tx_init_1',
+              type: 'DAILY_FREE_ALLOCATION',
+              amount: 5,
+              balanceType: 'DAILY',
+              description: 'Initial daily free credits allocated',
+              balanceAfter: 25,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+          total: 1,
+          page: 1,
+          limit: 25,
+          totalPages: 1,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (fullPath === 'payments/history') {
+      return NextResponse.json({
+        success: true,
+        statusCode: 200,
+        message: 'Success',
+        data: [],
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (fullPath === 'payments/create-order') {
+      let parsedBody: any = {};
+      try {
+        if (body) {
+          parsedBody = JSON.parse(Buffer.from(body).toString('utf-8'));
+        }
+      } catch {}
+
+      const pkgId = parsedBody.packageId || 'starter';
+      let amount = 9900;
+      let credits = 100;
+      if (pkgId === 'cdcc091d-282c-4bd6-93d2-2f5aa1955110' || pkgId === 'growth') {
+        amount = 29900;
+        credits = 350;
+      } else if (pkgId === 'b8dfcad5-f348-40b7-801d-38124b909425' || pkgId === 'agency') {
+        amount = 99900;
+        credits = 1500;
+      }
+
+      return NextResponse.json({
+        success: true,
+        statusCode: 200,
+        message: 'Order created',
+        data: {
+          orderId: `order_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+          amount,
+          currency: parsedBody.currency || 'INR',
+          keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_orion_demo_key',
+          package: {
+            id: pkgId,
+            credits,
+            amount,
+          },
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (fullPath === 'payments/verify') {
+      let parsedBody: any = {};
+      try {
+        if (body) {
+          parsedBody = JSON.parse(Buffer.from(body).toString('utf-8'));
+        }
+      } catch {}
+
+      let creditsToAdd = 100;
+      if (parsedBody.packageId === 'cdcc091d-282c-4bd6-93d2-2f5aa1955110' || parsedBody.packageId === 'growth') {
+        creditsToAdd = 350;
+      } else if (parsedBody.packageId === 'b8dfcad5-f348-40b7-801d-38124b909425' || parsedBody.packageId === 'agency') {
+        creditsToAdd = 1500;
+      }
+
+      return NextResponse.json({
+        success: true,
+        statusCode: 200,
+        message: 'Payment simulated and verified successfully.',
+        data: {
+          balance: 25 + creditsToAdd,
+          dailyCredits: 5,
+          purchasedCredits: 20 + creditsToAdd,
+          verified: true,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (fullPath === 'dashboard/summary') {
+      return NextResponse.json({
+        success: true,
+        statusCode: 200,
+        message: 'Success',
+        data: {
+          wallet: {
+            balance: 25,
+            dailyCredits: 5,
+            purchasedCredits: 20,
+          },
+          stats: {
+            unlockedLeadsCount: 0,
+            savedLeadsCount: 0,
+            savedSearchesCount: 0,
+            newBusinessesCount: 18,
+          },
+          recentSearches: [],
+          recentLeads: [],
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (fullPath === 'settings') {
+      return NextResponse.json({
+        success: true,
+        statusCode: 200,
+        message: 'Success',
+        data: {
+          company: {
+            name: 'Orion Workspace',
+            website: 'https://orion.ai',
+          },
+          notifications: {
+            emailAlerts: true,
+            weeklyDigest: true,
+          },
+          billing: {
+            currency: 'INR',
+          },
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (fullPath.startsWith('unlock/status/')) {
+      return NextResponse.json({
+        success: true,
+        statusCode: 200,
+        message: 'Success',
+        data: {
+          isUnlocked: false,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (fullPath === 'unlock/business') {
+      return NextResponse.json({
+        success: true,
+        statusCode: 200,
+        message: 'Business contact details unlocked.',
+        data: {
+          unlocked: true,
+          remainingCredits: 24,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (fullPath === 'saved-leads') {
+      return NextResponse.json({
+        success: true,
+        statusCode: 200,
+        message: 'Success',
+        data: {
+          items: [],
+          total: 0,
+          page: 1,
+          limit: 20,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (fullPath === 'saved-searches') {
+      return NextResponse.json({
+        success: true,
+        statusCode: 200,
+        message: 'Success',
+        data: [],
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     if (fullPath === 'admin/auth/send-otp') {
       return handleAdminSendOtp(req);
     }

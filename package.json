@@ -14,7 +14,7 @@
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:qa": "npm run test:e2e:all --prefix apps/api && npm run test --prefix ownus",
-    "start:api": "npm --prefix apps/api run start:dev",
+    "start:api": "npm --prefix apps/api run start:prod",
     "start:web": "npm --prefix ownus run dev"
   },
   "devDependencies": {
