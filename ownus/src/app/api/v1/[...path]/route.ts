@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { sendAdminOtpEmail, isAuthorizedAdminEmail } from '@/lib/email-service';
 
 /**
  * Orion Production Gateway Proxy
@@ -266,15 +267,6 @@ function checkAdminRateLimit(key: string, limit: number = 10, windowMs: number =
   return true;
 }
 
-function isAuthorizedAdminEmail(email: string): boolean {
-  const clean = email.toLowerCase().trim();
-  return (
-    clean.endsWith('@monarchsoftwares.com') ||
-    clean === 'admin@orion.ai' ||
-    clean.endsWith('@orion.ai')
-  );
-}
-
 async function handleAdminSendOtp(req: NextRequest): Promise<NextResponse> {
   let body: any = {};
   try {
@@ -299,7 +291,7 @@ async function handleAdminSendOtp(req: NextRequest): Promise<NextResponse> {
       {
         success: false,
         statusCode: 403,
-        message: 'Access Denied: This email address is not authorized for administrative access.',
+        message: 'Access Denied: Only @monarchsoftwares.com email addresses are authorized for administrative access.',
       },
       { status: 403 },
     );
@@ -330,13 +322,30 @@ async function handleAdminSendOtp(req: NextRequest): Promise<NextResponse> {
   const challenge = generateOtpChallenge(email, otp, expiresAt);
   const cookieVal = `${expiresAt}.${challenge}`;
 
+  // Dispatch OTP email strictly via Resend HTTP API
+  const emailResult = await sendAdminOtpEmail({
+    email,
+    otp,
+    expiresInMinutes: 5,
+  });
+
+  if (!emailResult.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        statusCode: 503,
+        message: emailResult.error || 'Failed to dispatch verification email. Please ensure RESEND_API_KEY is configured.',
+      },
+      { status: 503 },
+    );
+  }
+
   const res = NextResponse.json({
     success: true,
     statusCode: 200,
-    message: `Verification code generated for ${email}`,
+    message: `A 6-digit verification passcode has been dispatched to ${email}.`,
     data: {
       expiresIn: ttlSeconds,
-      previewOtp: otp,
     },
     timestamp: new Date().toISOString(),
   });
@@ -376,7 +385,7 @@ async function handleAdminVerifyOtp(req: NextRequest): Promise<NextResponse> {
 
   if (!isAuthorizedAdminEmail(email)) {
     return NextResponse.json(
-      { success: false, statusCode: 403, message: 'Unauthorized administrator email domain.' },
+      { success: false, statusCode: 403, message: 'Access Denied: Only @monarchsoftwares.com email addresses are authorized for administrative access.' },
       { status: 403 },
     );
   }

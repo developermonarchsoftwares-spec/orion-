@@ -102,7 +102,6 @@ export default function AdminPortalPage() {
   const [authStep, setAuthStep] = useState<'email' | 'otp'>('email');
   const [inputEmail, setInputEmail] = useState<string>('');
   const [otpCode, setOtpCode] = useState<string>('');
-  const [previewOtp, setPreviewOtp] = useState<string>('123456');
   const [authLoading, setAuthLoading] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [otpCountdown, setOtpCountdown] = useState<number>(300);
@@ -153,13 +152,13 @@ export default function AdminPortalPage() {
   useEffect(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('orion_admin_token') : null;
     const storedEmail = typeof window !== 'undefined' ? localStorage.getItem('orion_admin_email') : null;
-    const isAuthEmail = (em: string) =>
-      em.endsWith('@monarchsoftwares.com') ||
-      em === 'admin@orion.ai' ||
-      em.endsWith('@orion.ai');
+    const isAuthEmail = (em: string) => {
+      const parts = em.trim().toLowerCase().split('@');
+      return parts.length === 2 && Boolean(parts[0]) && parts[1] === 'monarchsoftwares.com';
+    };
 
-    if (token && storedEmail && isAuthEmail(storedEmail.toLowerCase())) {
-      setAdminEmail(storedEmail);
+    if (token && storedEmail && isAuthEmail(storedEmail)) {
+      setAdminEmail(storedEmail.trim().toLowerCase());
       setIsAdminAuthenticated(true);
     }
     setIsCheckingAuth(false);
@@ -185,13 +184,11 @@ export default function AdminPortalPage() {
       return;
     }
 
-    const isAuthorized =
-      cleanEmail.endsWith('@monarchsoftwares.com') ||
-      cleanEmail === 'admin@orion.ai' ||
-      cleanEmail.endsWith('@orion.ai');
+    const parts = cleanEmail.split('@');
+    const isAuthorized = parts.length === 2 && Boolean(parts[0]) && parts[1] === 'monarchsoftwares.com';
 
     if (!isAuthorized) {
-      setAuthError('Access Denied: This email address is not authorized for administrative access.');
+      setAuthError('Access Denied: Only @monarchsoftwares.com email addresses are authorized for administrative access.');
       return;
     }
 
@@ -208,10 +205,8 @@ export default function AdminPortalPage() {
       }
       setAuthStep('otp');
       setOtpCountdown(300);
-      const code = data.data?.previewOtp || '123456';
-      setPreviewOtp(code);
-      setOtpCode(code);
-      showToast(`Verification code: ${code}`);
+      setOtpCode('');
+      showToast(data.message || `Verification code sent to ${cleanEmail}. Check your inbox.`);
     } catch (err: any) {
       setAuthError(err.message || 'Unable to send verification code. Please try again.');
     } finally {
@@ -1011,26 +1006,13 @@ export default function AdminPortalPage() {
             ) : (
               <form onSubmit={handleVerifyOtp} className="space-y-4">
                 <div className="space-y-2 text-center">
-                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-zinc-800 text-zinc-200 mx-auto">
-                    <KeyRound className="w-5 h-5" />
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-200 mx-auto">
+                    <Mail className="w-5 h-5 text-zinc-300" />
                   </div>
-                  <h2 className="text-sm font-semibold text-zinc-200">Admin Security Verification</h2>
-                  <p className="text-xs text-zinc-400">
-                    Use your generated 6-digit passcode to authenticate.
+                  <h2 className="text-base font-semibold text-zinc-100">Check Your Email</h2>
+                  <p className="text-xs text-zinc-400 max-w-[280px] mx-auto leading-relaxed">
+                    We sent a 6-digit verification code to <span className="font-semibold text-white">{inputEmail}</span>. Enter it below to access the console.
                   </p>
-                </div>
-
-                {/* Instant Verification Passcode Display */}
-                <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-xl text-center space-y-1.5">
-                  <div className="text-[11px] font-medium text-zinc-400">
-                    Your One-Time Passcode (OTP):
-                  </div>
-                  <div className="text-2xl font-mono font-black tracking-widest text-white select-all">
-                    {previewOtp || '123456'}
-                  </div>
-                  <div className="text-[11px] text-zinc-400 flex items-center justify-center gap-1.5">
-                    <span>(Auto-filled below &bull; Master code: <strong className="font-mono text-zinc-200">123456</strong>)</span>
-                  </div>
                 </div>
 
                 <div className="space-y-1.5 pt-2">
@@ -1077,23 +1059,10 @@ export default function AdminPortalPage() {
                   ) : (
                     <>
                       <ShieldCheck className="w-4 h-4" />
-                      <span>Verify & Launch Admin Console</span>
+                      <span>Verify &amp; Launch Admin Console</span>
                     </>
                   )}
                 </button>
-
-                <div className="pt-1 text-center">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAuthStep('email');
-                      setAuthError(null);
-                    }}
-                    className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
-                  >
-                    &larr; Use a different email address
-                  </button>
-                </div>
 
                 <div className="pt-2 text-center">
                   <button
@@ -1103,10 +1072,10 @@ export default function AdminPortalPage() {
                       setOtpCode('');
                       setAuthError(null);
                     }}
-                    className="text-xs text-zinc-500 hover:text-zinc-300 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                    className="text-xs text-zinc-400 hover:text-zinc-200 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>Change email address</span>
+                    <span>Use a different email address</span>
                   </button>
                 </div>
               </form>

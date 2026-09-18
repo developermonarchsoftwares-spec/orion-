@@ -7,7 +7,7 @@ describe('Sprint 16: Admin Authentication & Security E2E Tests', () => {
   let testApp: TestAppHelper;
   let app: INestApplication;
 
-  const validAdminEmail = 'qa.admin@orion.ai';
+  const validAdminEmail = 'qa.admin@monarchsoftwares.com';
   const unauthorizedEmail = 'hacker@unauthorized-domain.com';
 
   beforeAll(async () => {

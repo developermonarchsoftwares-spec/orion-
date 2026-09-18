@@ -48,11 +48,10 @@ export class AdminAuthController {
       throw new BadRequestException('Please provide your administrator email.');
     }
 
-    // Authorize corporate emails or superadmins
+    // Authorize any email address belonging to @monarchsoftwares.com domain
+    const emailParts = email.split('@');
     const isAuthorized =
-      email.endsWith('@monarchsoftwares.com') ||
-      email === 'admin@orion.ai' ||
-      email.endsWith('@orion.ai');
+      emailParts.length === 2 && Boolean(emailParts[0]) && emailParts[1] === 'monarchsoftwares.com';
 
     if (!isAuthorized) {
       await this.auditLogService?.record({
@@ -63,7 +62,7 @@ export class AdminAuthController {
         userAgent: req.headers['user-agent'],
       });
       throw new ForbiddenException(
-        'Access Denied: This email address is not authorized for administrative access.',
+        'Access Denied: Only @monarchsoftwares.com email addresses are authorized for administrative access.',
       );
     }
 
@@ -104,8 +103,8 @@ export class AdminAuthController {
       expiresIn: ttlSeconds,
     };
 
-    // In production, previewOtp is strictly NEVER returned in the API response
-    if (!isProd) {
+    // previewOtp is strictly ONLY exposed during automated test execution (NODE_ENV=test)
+    if (process.env.NODE_ENV === 'test') {
       responseData.previewOtp = otp;
     }
 
@@ -129,13 +128,14 @@ export class AdminAuthController {
       throw new BadRequestException('Email and verification code are required.');
     }
 
+    const emailParts = email.split('@');
     const isAuthorized =
-      email.endsWith('@monarchsoftwares.com') ||
-      email === 'admin@orion.ai' ||
-      email.endsWith('@orion.ai');
+      emailParts.length === 2 && Boolean(emailParts[0]) && emailParts[1] === 'monarchsoftwares.com';
 
     if (!isAuthorized) {
-      throw new ForbiddenException('Unauthorized administrator email domain.');
+      throw new ForbiddenException(
+        'Access Denied: Only @monarchsoftwares.com email addresses are authorized for administrative access.',
+      );
     }
 
     // Retrieve expected OTP and verify attempts
