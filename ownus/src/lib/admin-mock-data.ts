@@ -52,7 +52,73 @@ export const INITIAL_DATA_SOURCES: DataSourceRecord[] = [];
 
 export const INITIAL_ENRICHMENT_JOBS: EnrichmentJob[] = [];
 
-export const INITIAL_AI_PIPELINES: AiPipelineDefinition[] = [];
+export const INITIAL_AI_PIPELINES: AiPipelineDefinition[] = [
+  {
+    id: 'pipe-classify',
+    name: 'Classification',
+    displayName: 'Deep Sector Classification Pipeline',
+    description: 'Multi-label Transformer predicting primary industry, sub-sector, and MSME category from business description and GST metadata.',
+    model: 'RoBERTa-Enterprise-v3.4',
+    version: 'v3.4.1',
+    accuracy: 94.6,
+    status: 'Active',
+    processedCount: 1145000,
+    avgLatencyMs: 42,
+    queueDepth: 140,
+  },
+  {
+    id: 'pipe-dedup',
+    name: 'Deduplication',
+    displayName: 'Neural Entity Resolution & Deduplication',
+    description: 'Dense vector embedding similarity engine comparing phonetics, pincodes, corporate names, and directors across 10M+ records.',
+    model: 'Sentence-Transformer-AllMiniLM-L6-v2',
+    version: 'v2.1.0',
+    accuracy: 97.2,
+    status: 'Active',
+    processedCount: 1248000,
+    avgLatencyMs: 18,
+    queueDepth: 65,
+  },
+  {
+    id: 'pipe-scoring',
+    name: 'Scoring',
+    displayName: 'Opportunity & Commercial Scoring Engine',
+    description: 'Gradient-boosted decision trees calculating B2B lead viability, creditworthiness, digital maturity, and contactability index.',
+    model: 'XGBoost-OpportunityScore-v2.8',
+    version: 'v2.8.0',
+    accuracy: 91.4,
+    status: 'Active',
+    processedCount: 980000,
+    avgLatencyMs: 8,
+    queueDepth: 12,
+  },
+  {
+    id: 'pipe-cat',
+    name: 'Business Categorization',
+    displayName: 'Hierarchical Taxonomy Categorization',
+    description: 'Automatic mapping of incoming trade classifications into Orion unified 3-level taxonomy hierarchy.',
+    model: 'Hierarchical-Taxonomy-v1.8',
+    version: 'v1.8.4',
+    accuracy: 95.8,
+    status: 'Active',
+    processedCount: 1205000,
+    avgLatencyMs: 14,
+    queueDepth: 88,
+  },
+  {
+    id: 'pipe-recom',
+    name: 'Recommendation Engine',
+    displayName: 'Future Lead Recommendation Graph',
+    description: 'Graph neural network predicting prospective customer lookalikes and B2B vendor matching.',
+    model: 'GraphSage-Lookalike-v0.9-Preview',
+    version: 'v0.9.0-BETA',
+    accuracy: 88.9,
+    status: 'Training',
+    processedCount: 450000,
+    avgLatencyMs: 110,
+    queueDepth: 0,
+  },
+];
 
 export const INITIAL_AUTOMATION_RULES: AutomationRule[] = [];
 

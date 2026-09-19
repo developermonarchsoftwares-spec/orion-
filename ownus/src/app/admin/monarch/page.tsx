@@ -1331,6 +1331,8 @@ export default function AdminPortalPage() {
             {activeTab === 'ai_processing' && (
               <AiProcessingView
                 pipelines={aiPipelines}
+                onRunBenchmark={(pipe) => showToast(`Inference benchmark evaluated for ${pipe.displayName} (${pipe.avgLatencyMs}ms latency).`)}
+                onResetPipelines={() => setAiPipelines(INITIAL_AI_PIPELINES)}
               />
             )}
 
