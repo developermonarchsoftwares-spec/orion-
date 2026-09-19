@@ -207,25 +207,29 @@
   color: #71717A;
 }
 
-/* Hero mockup isolation — always render in light mode */
-.hero-mockup,
-.hero-mockup * {
-  color-scheme: light !important;
+/* Hero mockup dark mode styling — ensures seamless dark theme coherence */
+.dark .hero-mockup {
+  background-color: #09090B !important;
+  border-color: #27272A !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7) !important;
 }
-.dark .hero-mockup .bg-white { background-color: #FFFFFF !important; }
-.dark .hero-mockup .bg-zinc-50 { background-color: #FAFAFA !important; }
-.dark .hero-mockup .bg-zinc-100 { background-color: #F4F4F5 !important; }
-.dark .hero-mockup .bg-zinc-200 { background-color: #E4E4E7 !important; }
+.dark .hero-mockup .bg-white { background-color: #18181B !important; }
+.dark .hero-mockup .bg-zinc-50 { background-color: #121215 !important; }
+.dark .hero-mockup [class*="bg-zinc-50/"] { background-color: rgba(18, 18, 21, 0.6) !important; }
+.dark .hero-mockup .bg-zinc-100 { background-color: #27272A !important; }
+.dark .hero-mockup .bg-zinc-200 { background-color: #3F3F46 !important; }
 .dark .hero-mockup .text-black,
-.dark .hero-mockup .text-zinc-900,
-.dark .hero-mockup .text-zinc-800 { color: #18181B !important; }
-.dark .hero-mockup .text-zinc-700 { color: #3F3F46 !important; }
-.dark .hero-mockup .text-zinc-600 { color: #52525B !important; }
-.dark .hero-mockup .text-zinc-500 { color: #71717A !important; }
-.dark .hero-mockup .text-zinc-400 { color: #A1A1AA !important; }
-.dark .hero-mockup .border-zinc-100 { border-color: #F4F4F5 !important; }
-.dark .hero-mockup .border-zinc-200 { border-color: #E4E4E7 !important; }
-.dark .hero-mockup input { background-color: #FFFFFF !important; color: #18181B !important; border-color: #E4E4E7 !important; }
+.dark .hero-mockup .text-zinc-900 { color: #F4F4F5 !important; }
+.dark .hero-mockup .text-zinc-800,
+.dark .hero-mockup .text-zinc-700 { color: #E4E4E7 !important; }
+.dark .hero-mockup .text-zinc-600 { color: #D4D4D8 !important; }
+.dark .hero-mockup .text-zinc-500 { color: #A1A1AA !important; }
+.dark .hero-mockup .text-zinc-400 { color: #71717A !important; }
+.dark .hero-mockup .border-zinc-100,
+.dark .hero-mockup .border-zinc-200,
+.dark .hero-mockup .border-zinc-300 { border-color: #27272A !important; }
+.dark .hero-mockup input { background-color: #18181B !important; color: #F4F4F5 !important; border-color: #27272A !important; }
+
 
 @layer utilities {
   .text-balance {
