@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
 
 export default function CreditsPage() {
-  const { wallet, setWalletBalance } = useAuth();
+  const { wallet, setWalletBalance, refreshProfile } = useAuth();
   const [activeTab, setActiveTab] = useState("transactions");
   const [historyTab, setHistoryTab] = useState("payments");
   const [isAnnual, setIsAnnual] = useState(false);
@@ -102,6 +102,9 @@ export default function CreditsPage() {
 
       const creditsAdded = verifyRes.creditsAdded ?? pkg.credits;
       toast.success(verifyRes.message || `Successfully credited ${creditsAdded} credits to your wallet!`);
+
+      // Immediately refresh auth context from database
+      await refreshProfile();
 
       // Refresh transactions & payments
       const [newTxs, newPays] = await Promise.all([

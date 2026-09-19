@@ -389,7 +389,7 @@ export default function DiscoverPage() {
       for (const id of idsToUnlock) {
         try {
           const res = await apiClient.unlock.unlockBusiness(id);
-          if (res?.balance !== undefined) setWalletBalance(res.balance);
+          if (res?.balance !== undefined) setWalletBalance(res.balance, res.dailyCredits, res.purchasedCredits);
           successCount++;
         } catch (err: any) {
           console.warn(`Unlock error for ${id}:`, err);
@@ -412,7 +412,7 @@ export default function DiscoverPage() {
           setPreviewBusiness({ ...previewBusiness, isUnlocked: true });
         }
         if (res?.balance !== undefined) {
-          setWalletBalance(res.balance);
+          setWalletBalance(res.balance, res.dailyCredits, res.purchasedCredits);
         }
         toast.success(res.message || 'Business unlocked successfully! Full contacts are now accessible.');
       } catch (err: any) {

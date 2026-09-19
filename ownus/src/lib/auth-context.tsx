@@ -48,12 +48,23 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [wallet, setWallet] = useState<Wallet | null>({
-    dailyCredits: 5,
-    purchasedCredits: 0,
-    balance: 5,
-    lifetimePurchased: 0,
-    lifetimeUsed: 0,
+  const [wallet, setWallet] = useState<Wallet | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('orion_wallet');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (typeof parsed?.balance === 'number') return parsed;
+        }
+      } catch {}
+    }
+    return {
+      dailyCredits: 5,
+      purchasedCredits: 0,
+      balance: 5,
+      lifetimePurchased: 0,
+      lifetimeUsed: 0,
+    };
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -82,28 +93,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           microsoftLinked: profile.microsoftLinked,
           hasPassword: profile.hasPassword,
         });
-        if (profile.wallet) {
-          setWallet({
+
+        let updatedWallet: Wallet | null = null;
+
+        if (profile.wallet && typeof profile.wallet.balance === 'number') {
+          updatedWallet = {
             dailyCredits: profile.wallet.dailyCredits ?? 5,
             purchasedCredits: profile.wallet.purchasedCredits ?? 0,
-            balance: profile.wallet.balance ?? 5,
+            balance: profile.wallet.balance,
             lifetimePurchased: profile.wallet.lifetimePurchased ?? 0,
             lifetimeUsed: profile.wallet.lifetimeUsed ?? 0,
             lastDailyCreditDate: profile.wallet.lastDailyCreditDate,
-          });
-        } else if (typeof profile.credits === 'number') {
-          setWallet((w) => ({
-            dailyCredits: w?.dailyCredits ?? 5,
-            purchasedCredits: Math.max(0, profile.credits - (w?.dailyCredits ?? 5)),
-            balance: profile.credits,
-            lifetimePurchased: w?.lifetimePurchased || 0,
-            lifetimeUsed: w?.lifetimeUsed || 0,
-          }));
+          };
+        } else {
+          // Secondary fallback to /credit/wallet directly
+          try {
+            const walletData = await apiClient.credit.getWallet();
+            if (walletData && typeof walletData.balance === 'number') {
+              updatedWallet = {
+                dailyCredits: walletData.dailyCredits ?? 5,
+                purchasedCredits: walletData.purchasedCredits ?? 0,
+                balance: walletData.balance,
+                lifetimePurchased: walletData.lifetimePurchased ?? 0,
+                lifetimeUsed: walletData.lifetimeUsed ?? 0,
+                lastDailyCreditDate: walletData.lastDailyCreditDate,
+              };
+            }
+          } catch {}
+        }
+
+        if (updatedWallet) {
+          setWallet(updatedWallet);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('orion_wallet', JSON.stringify(updatedWallet));
+          }
         }
       }
     } catch {
       // Token might be invalid
       apiClient.clearTokens();
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('orion_wallet');
+      }
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -155,6 +186,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Ignore
     } finally {
       apiClient.clearTokens();
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('orion_wallet');
+      }
       setUser(null);
       setWallet(null);
     }
@@ -162,21 +196,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const setWalletBalance = useCallback((newBalance: number, dailyCredits?: number, purchasedCredits?: number) => {
     setWallet((prev) => {
-      if (!prev) {
-        return {
-          dailyCredits: dailyCredits ?? 5,
-          purchasedCredits: purchasedCredits ?? Math.max(0, newBalance - 5),
-          balance: newBalance,
-          lifetimePurchased: 0,
-          lifetimeUsed: 0,
-        };
+      let finalDaily = dailyCredits;
+      let finalPurchased = purchasedCredits;
+
+      if (finalDaily === undefined || finalPurchased === undefined) {
+        const prevDaily = prev?.dailyCredits ?? 5;
+        const prevPurchased = prev?.purchasedCredits ?? 0;
+        const prevBalance = prev?.balance ?? (prevDaily + prevPurchased);
+
+        if (newBalance <= prevBalance) {
+          // Deduction hierarchy: daily credits first, then purchased credits
+          const diff = prevBalance - newBalance;
+          finalDaily = Math.max(0, prevDaily - diff);
+          const remainingDiff = diff - (prevDaily - finalDaily);
+          finalPurchased = Math.max(0, prevPurchased - remainingDiff);
+        } else {
+          // Addition: add to purchased credits
+          const diff = newBalance - prevBalance;
+          finalDaily = prevDaily;
+          finalPurchased = prevPurchased + diff;
+        }
       }
-      return {
-        ...prev,
+
+      const updated: Wallet = {
+        dailyCredits: finalDaily,
+        purchasedCredits: finalPurchased,
         balance: newBalance,
-        dailyCredits: dailyCredits !== undefined ? dailyCredits : prev.dailyCredits,
-        purchasedCredits: purchasedCredits !== undefined ? purchasedCredits : prev.purchasedCredits,
+        lifetimePurchased: prev?.lifetimePurchased ?? 0,
+        lifetimeUsed: prev?.lifetimeUsed ?? 0,
+        lastDailyCreditDate: prev?.lastDailyCreditDate,
       };
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('orion_wallet', JSON.stringify(updated));
+      }
+
+      return updated;
     });
   }, []);
 

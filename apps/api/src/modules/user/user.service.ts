@@ -1,7 +1,8 @@
-import { Injectable, Logger, HttpStatus, Inject } from '@nestjs/common';
+import { Injectable, Logger, HttpStatus, Inject, forwardRef } from '@nestjs/common';
 import { UserRepository } from './user.repository';
 import { UpdateProfileDto, ChangePasswordDto, UpdateUserSettingsDto } from './dto/user.dto';
 import { PasswordService } from '../../auth/services/password.service';
+import { CreditService } from '../credit/credit.service';
 import { BusinessException } from '../../common/errors/business.exception';
 import { DRIZZLE_DATABASE } from '../../database/database.constants';
 import { DrizzleDb } from '../../database/database.provider';
@@ -15,6 +16,8 @@ export class UserService {
   constructor(
     private readonly userRepo: UserRepository,
     private readonly passwordService: PasswordService,
+    @Inject(forwardRef(() => CreditService))
+    private readonly creditService: CreditService,
     @Inject(DRIZZLE_DATABASE)
     private readonly db: DrizzleDb,
   ) {}
@@ -28,14 +31,18 @@ export class UserService {
       throw new BusinessException('User not found', 'USER_NOT_FOUND', HttpStatus.NOT_FOUND);
     }
 
-    // Get wallet balance
-    const walletRows = await this.db
-      .select()
-      .from(schema.userWallets)
-      .where(eq(schema.userWallets.userId, userId))
-      .limit(1);
-
-    const wallet = walletRows[0] || { balance: 0, lifetimePurchased: 0, lifetimeUsed: 0 };
+    // Ensure wallet exists, sync daily rollover, and get accurate balance from database
+    let wallet: any;
+    try {
+      wallet = await this.creditService.getWallet(userId);
+    } catch {
+      const walletRows = await this.db
+        .select()
+        .from(schema.userWallets)
+        .where(eq(schema.userWallets.userId, userId))
+        .limit(1);
+      wallet = walletRows[0] || { balance: 5, dailyCredits: 5, purchasedCredits: 0, lifetimePurchased: 0, lifetimeUsed: 0 };
+    }
 
     const { passwordHash, twoFactorSecret, ...sanitized } = user;
     return {
@@ -45,12 +52,12 @@ export class UserService {
       hasPassword: passwordHash !== null && passwordHash !== '',
       credits: wallet.balance,
       wallet: {
-        dailyCredits: (wallet as any).dailyCredits ?? 5,
-        purchasedCredits: (wallet as any).purchasedCredits ?? 0,
+        dailyCredits: wallet.dailyCredits ?? 5,
+        purchasedCredits: wallet.purchasedCredits ?? 0,
         balance: wallet.balance,
-        lifetimePurchased: wallet.lifetimePurchased,
-        lifetimeUsed: wallet.lifetimeUsed,
-        lastDailyCreditDate: (wallet as any).lastDailyCreditDate,
+        lifetimePurchased: wallet.lifetimePurchased ?? 0,
+        lifetimeUsed: wallet.lifetimeUsed ?? 0,
+        lastDailyCreditDate: wallet.lastDailyCreditDate,
       },
     };
   }

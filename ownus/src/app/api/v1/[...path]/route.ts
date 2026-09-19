@@ -830,6 +830,130 @@ function getBackendUrl(): string {
   return 'http://127.0.0.1:4000/api/v1';
 }
 
+async function getOrSyncUserWallet(userIdentifier?: string) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  try {
+    let userRow: any = null;
+    const identifier = (userIdentifier || '').trim();
+
+    if (identifier) {
+      if (identifier.includes('@')) {
+        const rows = await queryDb(`SELECT id, email, first_name, last_name, role, status FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`, [identifier]);
+        userRow = rows[0];
+      } else {
+        const rows = await queryDb(`SELECT id, email, first_name, last_name, role, status FROM users WHERE id = $1 LIMIT 1`, [identifier]);
+        userRow = rows[0];
+      }
+    }
+
+    // If user not found yet, but we have an email identifier
+    if (!userRow && identifier && identifier.includes('@')) {
+      const insertUser = await queryDb(
+        `INSERT INTO users (email, first_name, last_name, role, status)
+         VALUES (LOWER($1), $2, '', 'USER', 'ACTIVE')
+         ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
+         RETURNING id, email, first_name, last_name, role, status`,
+        [identifier, identifier.split('@')[0]]
+      );
+      userRow = insertUser[0];
+    }
+
+    // If still not found, fallback to the latest logged-in or primary user in the DB
+    if (!userRow) {
+      const fallbackUsers = await queryDb(`SELECT id, email, first_name, last_name, role, status FROM users ORDER BY created_at DESC LIMIT 1`);
+      userRow = fallbackUsers[0];
+    }
+
+    if (!userRow) {
+      return {
+        dailyCredits: 5,
+        purchasedCredits: 0,
+        balance: 5,
+        lifetimePurchased: 0,
+        lifetimeUsed: 0,
+        lastDailyCreditDate: todayStr,
+        userId: null,
+        walletId: null,
+      };
+    }
+
+    const userId = userRow.id;
+
+    // Fetch user wallet
+    const walletRows = await queryDb(`SELECT * FROM user_wallets WHERE user_id = $1 LIMIT 1`, [userId]);
+    let wallet = walletRows[0];
+
+    if (!wallet) {
+      const created = await queryDb(
+        `INSERT INTO user_wallets (user_id, daily_credits, purchased_credits, balance, last_daily_credit_date, lifetime_purchased, lifetime_used)
+         VALUES ($1, 5, 0, 5, $2, 0, 0)
+         RETURNING *`,
+        [userId, todayStr]
+      );
+      wallet = created[0];
+
+      if (wallet) {
+        await queryDb(
+          `INSERT INTO credit_transactions (wallet_id, user_id, amount, balance_after, balance_type, daily_balance_after, purchased_balance_after, type, description)
+           VALUES ($1, $2, 5, 5, 'DAILY', 5, 0, 'DAILY_ALLOCATION', 'Welcome daily free credits')`,
+          [wallet.id, userId]
+        );
+      }
+    } else {
+      // Check daily rollover if last_daily_credit_date !== todayStr
+      if (wallet.last_daily_credit_date !== todayStr) {
+        const newDaily = 5;
+        const newPurchased = wallet.purchased_credits || 0;
+        const newBalance = newDaily + newPurchased;
+
+        const updated = await queryDb(
+          `UPDATE user_wallets
+           SET daily_credits = $1, balance = $2, last_daily_credit_date = $3, updated_at = NOW()
+           WHERE id = $4
+           RETURNING *`,
+          [newDaily, newBalance, todayStr, wallet.id]
+        );
+        if (updated[0]) {
+          wallet = updated[0];
+          await queryDb(
+            `INSERT INTO credit_transactions (wallet_id, user_id, amount, balance_after, balance_type, daily_balance_after, purchased_balance_after, type, description)
+             VALUES ($1, $2, $3, $4, 'DAILY', $5, $6, 'DAILY_ALLOCATION', 'Daily allocation of free credits')`,
+            [wallet.id, userId, newDaily, newBalance, newDaily, newPurchased]
+          );
+        }
+      }
+    }
+
+    const daily = wallet.daily_credits ?? 5;
+    const purchased = wallet.purchased_credits ?? 0;
+    const balance = wallet.balance ?? (daily + purchased);
+
+    return {
+      dailyCredits: daily,
+      purchasedCredits: purchased,
+      balance: balance,
+      lifetimePurchased: wallet.lifetime_purchased ?? 0,
+      lifetimeUsed: wallet.lifetime_used ?? 0,
+      lastDailyCreditDate: wallet.last_daily_credit_date || todayStr,
+      userId: userId,
+      walletId: wallet.id,
+      user: userRow,
+    };
+  } catch (err) {
+    console.error('[Gateway] Failed to getOrSyncUserWallet:', err);
+    return {
+      dailyCredits: 5,
+      purchasedCredits: 0,
+      balance: 5,
+      lifetimePurchased: 0,
+      lifetimeUsed: 0,
+      lastDailyCreditDate: todayStr,
+      userId: null,
+      walletId: null,
+    };
+  }
+}
+
 async function proxyRequest(
   req: NextRequest,
   context: { params: Promise<{ path: string[] }> },
@@ -1309,11 +1433,12 @@ async function proxyRequest(
       const rawToken = authHeader.replace(/^Bearer\s+/i, '');
       const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
       if (tokenData && tokenData.email) {
+        const wallet = await getOrSyncUserWallet(tokenData.sub || tokenData.email);
         return NextResponse.json({
           success: true,
           statusCode: 200,
           data: {
-            id: tokenData.sub || 'usr_default',
+            id: tokenData.sub || wallet.userId || 'usr_default',
             email: tokenData.email,
             firstName: tokenData.firstName || tokenData.name?.split(' ')[0] || 'User',
             lastName: tokenData.lastName || '',
@@ -1329,12 +1454,12 @@ async function proxyRequest(
             microsoftLinked: tokenData.provider === 'microsoft',
             hasPassword: false,
             wallet: {
-              dailyCredits: 0,
-              purchasedCredits: 0,
-              balance: 0,
-              lifetimePurchased: 0,
-              lifetimeUsed: 0,
-              lastDailyCreditDate: new Date().toISOString().split('T')[0],
+              dailyCredits: wallet.dailyCredits,
+              purchasedCredits: wallet.purchasedCredits,
+              balance: wallet.balance,
+              lifetimePurchased: wallet.lifetimePurchased,
+              lifetimeUsed: wallet.lifetimeUsed,
+              lastDailyCreditDate: wallet.lastDailyCreditDate,
             },
           },
           timestamp: new Date().toISOString(),
@@ -1343,16 +1468,21 @@ async function proxyRequest(
     }
 
     if (fullPath === 'credit/wallet') {
+      const authHeader = req.headers.get('authorization') || '';
+      const rawToken = authHeader.replace(/^Bearer\s+/i, '');
+      const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
+      const userIdentifier = tokenData?.sub || tokenData?.email || 'kathirrajput@gmail.com';
+      const wallet = await getOrSyncUserWallet(userIdentifier);
       return NextResponse.json({
         success: true,
         statusCode: 200,
         data: {
-          dailyCredits: 0,
-          purchasedCredits: 0,
-          balance: 0,
-          lifetimePurchased: 0,
-          lifetimeUsed: 0,
-          lastDailyCreditDate: new Date().toISOString().split('T')[0],
+          dailyCredits: wallet.dailyCredits,
+          purchasedCredits: wallet.purchasedCredits,
+          balance: wallet.balance,
+          lifetimePurchased: wallet.lifetimePurchased,
+          lifetimeUsed: wallet.lifetimeUsed,
+          lastDailyCreditDate: wallet.lastDailyCreditDate,
         },
         timestamp: new Date().toISOString(),
       });
@@ -1499,16 +1629,47 @@ async function proxyRequest(
     }
 
     if (fullPath === 'credit/transactions') {
+      const authHeader = req.headers.get('authorization') || '';
+      const rawToken = authHeader.replace(/^Bearer\s+/i, '');
+      const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
+      const userIdentifier = tokenData?.sub || tokenData?.email || 'kathirrajput@gmail.com';
+      const wallet = await getOrSyncUserWallet(userIdentifier);
+
+      let txRows: any[] = [];
+      if (wallet.userId) {
+        txRows = await queryDb(
+          `SELECT id, amount, balance_after, balance_type, daily_balance_after, purchased_balance_after, type, description, reference_id, created_at
+           FROM credit_transactions
+           WHERE user_id = $1
+           ORDER BY created_at DESC
+           LIMIT 50`,
+          [wallet.userId]
+        );
+      }
+
+      const items = txRows.map((r) => ({
+        id: r.id,
+        amount: r.amount,
+        balanceAfter: r.balance_after,
+        balanceType: r.balance_type,
+        dailyBalanceAfter: r.daily_balance_after,
+        purchasedBalanceAfter: r.purchased_balance_after,
+        type: r.type,
+        description: r.description,
+        referenceId: r.reference_id,
+        createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+      }));
+
       return NextResponse.json({
         success: true,
         statusCode: 200,
         message: 'Success',
         data: {
-          items: [],
-          total: 0,
+          items,
+          total: items.length,
           page: 1,
-          limit: 25,
-          totalPages: 0,
+          limit: 50,
+          totalPages: 1,
         },
         timestamp: new Date().toISOString(),
       });
@@ -1579,16 +1740,43 @@ async function proxyRequest(
         creditsToAdd = 1500;
       } else if (pkgIdVerify === '30ad3ee3-f861-4a59-b374-5af11f820194' || pkgIdVerify === 'starter') {
         creditsToAdd = 100;
+      } else if (typeof parsedBody.credits === 'number' && parsedBody.credits > 0) {
+        creditsToAdd = parsedBody.credits;
       }
 
-      // Accumulate on top of the current wallet sent by the client, not fixed baseline.
-      // The client passes currentDailyCredits and currentPurchasedCredits so we can add
-      // correctly without knowing the server-side wallet state.
-      const currentDaily = typeof parsedBody.currentDailyCredits === 'number' ? parsedBody.currentDailyCredits : 5;
-      const currentPurchased = typeof parsedBody.currentPurchasedCredits === 'number' ? parsedBody.currentPurchasedCredits : 0;
+      const authHeader = req.headers.get('authorization') || '';
+      const rawToken = authHeader.replace(/^Bearer\s+/i, '');
+      const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
+      const userIdentifier = tokenData?.sub || tokenData?.email || parsedBody.userId || parsedBody.email || 'kathirrajput@gmail.com';
+      const wallet = await getOrSyncUserWallet(userIdentifier);
 
-      const newPurchased = currentPurchased + creditsToAdd;
-      const newBalance = currentDaily + newPurchased;
+      const newPurchased = (wallet.purchasedCredits || 0) + creditsToAdd;
+      const newBalance = (wallet.dailyCredits || 0) + newPurchased;
+      const newLifetime = (wallet.lifetimePurchased || 0) + creditsToAdd;
+
+      if (wallet.walletId && wallet.userId) {
+        await queryDb(
+          `UPDATE user_wallets
+           SET purchased_credits = $1, balance = $2, lifetime_purchased = $3, updated_at = NOW()
+           WHERE id = $4`,
+          [newPurchased, newBalance, newLifetime, wallet.walletId]
+        );
+
+        await queryDb(
+          `INSERT INTO credit_transactions (wallet_id, user_id, amount, balance_after, balance_type, daily_balance_after, purchased_balance_after, type, description, reference_id)
+           VALUES ($1, $2, $3, $4, 'PURCHASED', $5, $6, 'PACKAGE_PURCHASE', $7, $8)`,
+          [
+            wallet.walletId,
+            wallet.userId,
+            creditsToAdd,
+            newBalance,
+            wallet.dailyCredits,
+            newPurchased,
+            `Purchased ${creditsToAdd} credits (${pkgIdVerify})`,
+            parsedBody.razorpay_payment_id || `PAY-${Date.now()}`,
+          ]
+        );
+      }
 
       return NextResponse.json({
         success: true,
@@ -1596,7 +1784,7 @@ async function proxyRequest(
         message: `Payment verified. ${creditsToAdd} credits added to your wallet!`,
         data: {
           balance: newBalance,
-          dailyCredits: currentDaily,
+          dailyCredits: wallet.dailyCredits,
           purchasedCredits: newPurchased,
           creditsAdded: creditsToAdd,
           verified: true,
@@ -1606,18 +1794,33 @@ async function proxyRequest(
     }
 
     if (fullPath === 'dashboard/summary') {
+      const authHeader = req.headers.get('authorization') || '';
+      const rawToken = authHeader.replace(/^Bearer\s+/i, '');
+      const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
+      const userIdentifier = tokenData?.sub || tokenData?.email || 'kathirrajput@gmail.com';
+      const wallet = await getOrSyncUserWallet(userIdentifier);
+
+      let unlockedLeadsCount = 0;
+      if (wallet.userId) {
+        const unlockRows = await queryDb(
+          `SELECT count(*)::int as count FROM lead_unlocks WHERE user_id = $1`,
+          [wallet.userId]
+        );
+        unlockedLeadsCount = unlockRows[0]?.count || 0;
+      }
+
       return NextResponse.json({
         success: true,
         statusCode: 200,
         message: 'Success',
         data: {
           wallet: {
-            balance: 0,
-            dailyCredits: 0,
-            purchasedCredits: 0,
+            balance: wallet.balance,
+            dailyCredits: wallet.dailyCredits,
+            purchasedCredits: wallet.purchasedCredits,
           },
           stats: {
-            unlockedLeadsCount: 0,
+            unlockedLeadsCount,
             savedLeadsCount: 0,
             savedSearchesCount: 0,
             newBusinessesCount: 0,
@@ -1652,25 +1855,138 @@ async function proxyRequest(
     }
 
     if (fullPath.startsWith('unlock/status/')) {
+      const businessId = fullPath.replace('unlock/status/', '');
+      const authHeader = req.headers.get('authorization') || '';
+      const rawToken = authHeader.replace(/^Bearer\s+/i, '');
+      const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
+      const userIdentifier = tokenData?.sub || tokenData?.email || 'kathirrajput@gmail.com';
+      const wallet = await getOrSyncUserWallet(userIdentifier);
+
+      let isUnlocked = false;
+      if (wallet.userId && businessId) {
+        const rows = await queryDb(
+          `SELECT id FROM lead_unlocks WHERE user_id = $1 AND (business_id = $2 OR business_id::text = $2) LIMIT 1`,
+          [wallet.userId, businessId]
+        );
+        isUnlocked = rows.length > 0;
+      }
+
       return NextResponse.json({
         success: true,
         statusCode: 200,
         message: 'Success',
         data: {
-          isUnlocked: false,
+          isUnlocked,
         },
         timestamp: new Date().toISOString(),
       });
     }
 
     if (fullPath === 'unlock/business') {
+      let parsedBody: any = {};
+      try {
+        if (body) {
+          parsedBody = JSON.parse(Buffer.from(body).toString('utf-8'));
+        }
+      } catch {}
+
+      const authHeader = req.headers.get('authorization') || '';
+      const rawToken = authHeader.replace(/^Bearer\s+/i, '');
+      const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
+      const userIdentifier = tokenData?.sub || tokenData?.email || parsedBody.userId || 'kathirrajput@gmail.com';
+      const wallet = await getOrSyncUserWallet(userIdentifier);
+      const businessId = parsedBody.businessId || parsedBody.id;
+
+      if (wallet.userId && businessId) {
+        const existing = await queryDb(
+          `SELECT id FROM lead_unlocks WHERE user_id = $1 AND (business_id = $2 OR business_id::text = $2) LIMIT 1`,
+          [wallet.userId, businessId]
+        );
+        if (existing.length > 0) {
+          return NextResponse.json({
+            success: true,
+            statusCode: 200,
+            message: 'Business contact details unlocked.',
+            data: {
+              unlocked: true,
+              alreadyUnlocked: true,
+              remainingCredits: wallet.balance,
+              balance: wallet.balance,
+              dailyCredits: wallet.dailyCredits,
+              purchasedCredits: wallet.purchasedCredits,
+              creditsSpent: 0,
+            },
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+
+      if (wallet.balance < 1) {
+        return NextResponse.json(
+          {
+            success: false,
+            statusCode: 402,
+            message: 'Insufficient credits. Please purchase credits to continue.',
+            error: 'INSUFFICIENT_CREDITS',
+          },
+          { status: 402 }
+        );
+      }
+
+      const dailyDeduct = (wallet.dailyCredits > 0) ? 1 : 0;
+      const purchasedDeduct = dailyDeduct === 0 ? 1 : 0;
+      const newDaily = wallet.dailyCredits - dailyDeduct;
+      const newPurchased = wallet.purchasedCredits - purchasedDeduct;
+      const newBalance = newDaily + newPurchased;
+      const newUsed = wallet.lifetimeUsed + 1;
+
+      if (wallet.walletId && wallet.userId && businessId) {
+        await queryDb(
+          `UPDATE user_wallets
+           SET daily_credits = $1, purchased_credits = $2, balance = $3, lifetime_used = $4, updated_at = NOW()
+           WHERE id = $5`,
+          [newDaily, newPurchased, newBalance, newUsed, wallet.walletId]
+        );
+
+        try {
+          await queryDb(
+            `INSERT INTO lead_unlocks (user_id, business_id, credits_spent)
+             VALUES ($1, $2, 1)
+             ON CONFLICT (user_id, business_id) DO NOTHING`,
+            [wallet.userId, businessId]
+          );
+        } catch (insertErr) {
+          console.warn('[Unlock Gateway] Notice on lead_unlocks insert:', (insertErr as any)?.message);
+        }
+
+        await queryDb(
+          `INSERT INTO credit_transactions (wallet_id, user_id, amount, balance_after, balance_type, daily_balance_after, purchased_balance_after, type, description, reference_id)
+           VALUES ($1, $2, -1, $3, $4, $5, $6, 'UNLOCK_LEAD', $7, $8)`,
+          [
+            wallet.walletId,
+            wallet.userId,
+            newBalance,
+            dailyDeduct > 0 ? 'DAILY' : 'PURCHASED',
+            newDaily,
+            newPurchased,
+            'Unlocked business contact details',
+            businessId,
+          ]
+        );
+      }
+
       return NextResponse.json({
         success: true,
         statusCode: 200,
         message: 'Business contact details unlocked.',
         data: {
           unlocked: true,
-          remainingCredits: 24,
+          alreadyUnlocked: false,
+          remainingCredits: newBalance,
+          balance: newBalance,
+          dailyCredits: newDaily,
+          purchasedCredits: newPurchased,
+          creditsSpent: 1,
         },
         timestamp: new Date().toISOString(),
       });

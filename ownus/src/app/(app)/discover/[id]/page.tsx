@@ -82,7 +82,7 @@ export default function BusinessDetailPage() {
     try {
       const res = await apiClient.unlock.unlockBusiness(business.id);
       if (res?.balance !== undefined) {
-        setWalletBalance(res.balance);
+        setWalletBalance(res.balance, res.dailyCredits, res.purchasedCredits);
       }
       toast.success(res?.message || 'Business unlocked successfully! Full contacts are now available.');
       // Refresh profile to reveal full contacts
