@@ -1018,7 +1018,7 @@ export default function AdminPortalPage() {
                 <button
                   type="submit"
                   disabled={authLoading || !inputEmail.trim() || !inputEmail.includes('@')}
-                  className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-sm font-bold shadow-lg disabled:bg-zinc-800 disabled:text-zinc-400 disabled:border disabled:border-zinc-700 disabled:shadow-none disabled:cursor-not-allowed transition-all cursor-pointer"
+                  className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white dark:bg-white hover:bg-zinc-100 dark:hover:bg-zinc-100 text-zinc-950 dark:text-zinc-950 text-sm font-bold shadow-lg shadow-black/20 hover:shadow-xl hover:scale-[1.005] active:scale-[0.995] disabled:bg-zinc-800/80 disabled:dark:bg-zinc-800/80 disabled:text-zinc-500 disabled:dark:text-zinc-500 disabled:border disabled:border-zinc-700/60 disabled:shadow-none disabled:scale-100 disabled:cursor-not-allowed transition-all cursor-pointer"
                 >
                   {authLoading ? (
                     <>
@@ -1079,7 +1079,7 @@ export default function AdminPortalPage() {
                 <button
                   type="submit"
                   disabled={authLoading || otpCode.length < 6}
-                  className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-sm font-bold shadow-lg disabled:bg-zinc-800 disabled:text-zinc-400 disabled:border disabled:border-zinc-700 disabled:shadow-none disabled:cursor-not-allowed transition-all cursor-pointer"
+                  className="w-full inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white dark:bg-white hover:bg-zinc-100 dark:hover:bg-zinc-100 text-zinc-950 dark:text-zinc-950 text-sm font-bold shadow-lg shadow-black/20 hover:shadow-xl hover:scale-[1.005] active:scale-[0.995] disabled:bg-zinc-800/80 disabled:dark:bg-zinc-800/80 disabled:text-zinc-500 disabled:dark:text-zinc-500 disabled:border disabled:border-zinc-700/60 disabled:shadow-none disabled:scale-100 disabled:cursor-not-allowed transition-all cursor-pointer"
                 >
                   {authLoading ? (
                     <>
