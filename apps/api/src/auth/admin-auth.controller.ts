@@ -11,15 +11,19 @@ import {
   HttpException,
   Res,
   Optional,
+  Inject,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import * as crypto from 'crypto';
+import { eq, and, gt, lt, or } from 'drizzle-orm';
 import { Public, CurrentUser } from './decorators';
 import { UserRepository } from '../modules/user/user.repository';
 import { AuthTokenService } from './services/auth-token.service';
-import { RedisService } from '../modules/redis/redis.service';
+import { DRIZZLE_DATABASE } from '../database/database.constants';
+import { DrizzleDb } from '../database/database.provider';
+import { adminOtps } from '../database/schema';
 import { AuditLogService } from '../common/services/audit-log.service';
 import { IJwtPayload } from '@orion/shared';
 import { CsvSecurityUtil } from '../common/utils/csv-security.util';
@@ -27,13 +31,10 @@ import { CsvSecurityUtil } from '../common/utils/csv-security.util';
 @ApiTags('Admin Authentication')
 @Controller('admin')
 export class AdminAuthController {
-  // In-memory fallback if Redis is temporarily unreachable in dev/test
-  private readonly fallbackOtpStore = new Map<string, { otp: string; expiresAt: number; attempts: number }>();
-
   constructor(
     private readonly userRepository: UserRepository,
     private readonly authTokenService: AuthTokenService,
-    @Optional() private readonly redisService?: RedisService,
+    @Inject(DRIZZLE_DATABASE) private readonly db: DrizzleDb,
     @Optional() private readonly auditLogService?: AuditLogService,
   ) {}
 
@@ -72,23 +73,22 @@ export class AdminAuthController {
       : '123456';
     const ttlSeconds = 300; // 5 minutes
 
-    if (this.redisService) {
-      try {
-        await this.redisService.set(`admin:otp:${email}`, otp, ttlSeconds);
-        await this.redisService.set(`admin:otp:attempts:${email}`, 0, ttlSeconds);
-      } catch {
-        this.fallbackOtpStore.set(email, {
-          otp,
-          expiresAt: Date.now() + ttlSeconds * 1000,
-          attempts: 0,
-        });
-      }
-    } else {
-      this.fallbackOtpStore.set(email, {
+    // Clean expired OTPs and any existing OTP for this email, then insert new OTP into Neon DB
+    try {
+      await this.db
+        .delete(adminOtps)
+        .where(or(lt(adminOtps.expiresAt, new Date()), eq(adminOtps.email, email)));
+
+      await this.db.insert(adminOtps).values({
+        email,
         otp,
-        expiresAt: Date.now() + ttlSeconds * 1000,
         attempts: 0,
+        maxAttempts: 5,
+        expiresAt: new Date(Date.now() + ttlSeconds * 1000),
       });
+    } catch (err: any) {
+      // In case of transient db issue, log error
+      console.error('[AdminAuthController] Failed to store OTP in Neon DB:', err.message);
     }
 
     await this.auditLogService?.record({
@@ -138,57 +138,43 @@ export class AdminAuthController {
       );
     }
 
-    // Retrieve expected OTP and verify attempts
-    let expectedOtp: string | null = null;
-    let attempts = 0;
-
-    if (this.redisService) {
-      try {
-        expectedOtp = await this.redisService.get<string>(`admin:otp:${email}`);
-        const currentAttempts = await this.redisService.get<number>(`admin:otp:attempts:${email}`);
-        attempts = Number(currentAttempts) || 0;
-      } catch {
-        const cached = this.fallbackOtpStore.get(email);
-        if (cached && cached.expiresAt > Date.now()) {
-          expectedOtp = cached.otp;
-          attempts = cached.attempts;
-        }
-      }
-    } else {
-      const cached = this.fallbackOtpStore.get(email);
-      if (cached && cached.expiresAt > Date.now()) {
-        expectedOtp = cached.otp;
-        attempts = cached.attempts;
-      }
+    // Retrieve active OTP record from Neon DB
+    let otpRecord: typeof adminOtps.$inferSelect | undefined;
+    try {
+      const records = await this.db
+        .select()
+        .from(adminOtps)
+        .where(and(eq(adminOtps.email, email), gt(adminOtps.expiresAt, new Date())))
+        .limit(1);
+      otpRecord = records[0];
+    } catch (err: any) {
+      console.error('[AdminAuthController] Failed to read OTP from Neon DB:', err.message);
     }
 
     // Check brute-force attempt lockout
-    if (attempts >= 5) {
+    if (otpRecord && otpRecord.attempts >= otpRecord.maxAttempts) {
       throw new HttpException(
         'Too many failed attempts. This verification session is locked. Please request a new code.',
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
 
-    // In dev/test, allow deterministic '123456' fallback if Redis key expired or not set
+    // In dev/test, allow deterministic '123456' fallback if no record found
     const isProd = process.env.NODE_ENV === 'production';
     const isValidOtp =
-      expectedOtp !== null
-        ? String(expectedOtp).trim() === otp
+      otpRecord !== undefined
+        ? String(otpRecord.otp).trim() === otp
         : !isProd && otp === '123456';
 
     if (!isValidOtp) {
-      // Increment failed attempt counter
-      if (this.redisService) {
+      // Increment failed attempt counter in Neon DB
+      if (otpRecord) {
         try {
-          await this.redisService.incr(`admin:otp:attempts:${email}`);
-        } catch {
-          const cached = this.fallbackOtpStore.get(email);
-          if (cached) cached.attempts++;
-        }
-      } else {
-        const cached = this.fallbackOtpStore.get(email);
-        if (cached) cached.attempts++;
+          await this.db
+            .update(adminOtps)
+            .set({ attempts: otpRecord.attempts + 1 })
+            .where(eq(adminOtps.id, otpRecord.id));
+        } catch {}
       }
 
       await this.auditLogService?.record({
@@ -203,14 +189,10 @@ export class AdminAuthController {
     }
 
     // Invalidate OTP immediately to prevent replay attacks
-    if (this.redisService) {
+    if (otpRecord) {
       try {
-        await this.redisService.del([`admin:otp:${email}`, `admin:otp:attempts:${email}`]);
-      } catch {
-        this.fallbackOtpStore.delete(email);
-      }
-    } else {
-      this.fallbackOtpStore.delete(email);
+        await this.db.delete(adminOtps).where(eq(adminOtps.id, otpRecord.id));
+      } catch {}
     }
 
     // Find or create admin user

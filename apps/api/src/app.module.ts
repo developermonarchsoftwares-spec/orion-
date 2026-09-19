@@ -7,7 +7,6 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import {
   appConfig,
   databaseConfig,
-  redisConfig,
   typesenseConfig,
   jwtConfig,
   storageConfig,
@@ -18,7 +17,6 @@ import {
 // Core infrastructure modules
 import { CommonModule } from './common/common.module';
 import { DatabaseModule } from './database/database.module';
-import { RedisModule } from './modules/redis/redis.module';
 import { QueueModule } from './modules/queue/queue.module';
 import { TypesenseModule } from './modules/typesense/typesense.module';
 import { StorageModule } from './modules/storage/storage.module';
@@ -64,7 +62,6 @@ import { AppController } from './app.controller';
       load: [
         appConfig,
         databaseConfig,
-        redisConfig,
         typesenseConfig,
         jwtConfig,
         storageConfig,
@@ -90,7 +87,6 @@ import { AppController } from './app.controller';
     // Infrastructure Modules
     CommonModule,
     DatabaseModule,
-    RedisModule,
     QueueModule,
     TypesenseModule,
     StorageModule,

@@ -1,6 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { Queue, JobsOptions } from 'bullmq';
-import { RedisService } from '../redis/redis.service';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit, Inject } from '@nestjs/common';
+import { eq, and, sql } from 'drizzle-orm';
+import { Pool } from 'pg';
+import { DRIZZLE_DATABASE, PG_POOL } from '../../database/database.constants';
+import { DrizzleDb } from '../../database/database.provider';
+import { queueJobs, QueueJob } from '../../database/schema/queue_jobs';
 import { QUEUE_NAMES, QueueNameType } from './queue.constants';
 
 export interface IQueueStats {
@@ -13,93 +16,287 @@ export interface IQueueStats {
   paused: boolean;
 }
 
+export interface IJobPayload<T = unknown> {
+  id: string;
+  name: string;
+  data: T;
+}
+
+export type JobHandler<T = unknown, R = unknown> = (job: IJobPayload<T>) => Promise<R>;
+
 @Injectable()
 export class QueueService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(QueueService.name);
-  private readonly queues = new Map<string, Queue>();
+  private readonly handlers = new Map<string, JobHandler<any, any>>();
+  private readonly activeWorkers = new Set<string>();
+  private cleanupInterval: NodeJS.Timeout | null = null;
 
-  constructor(private readonly redisService: RedisService) {}
+  constructor(
+    @Inject(DRIZZLE_DATABASE) private readonly db: DrizzleDb,
+    @Inject(PG_POOL) private readonly pool: Pool,
+  ) {}
 
   onModuleInit() {
-    this.logger.log('Initializing BullMQ queues...');
-    const redisClient = this.redisService.getClient();
+    this.logger.log('Initializing Neon PostgreSQL Queue Engine...');
 
-    for (const queueName of Object.values(QUEUE_NAMES)) {
-      const queue = new Queue(queueName, {
-        connection: redisClient.duplicate(),
-        defaultJobOptions: {
-          attempts: 3,
-          backoff: {
-            type: 'exponential',
-            delay: 2000,
-          },
-          removeOnComplete: { count: 1000 },
-          removeOnFail: { count: 5000 },
-        },
-      });
-
-      this.queues.set(queueName, queue);
-      this.logger.log(`Registered BullMQ queue: ${queueName}`);
-    }
+    // Periodically clean up old completed/failed jobs (> 7 days) every 6 hours
+    this.cleanupInterval = setInterval(
+      () => {
+        this.pruneOldJobs().catch((err) => {
+          this.logger.warn(`Failed to prune old queue jobs: ${err.message}`);
+        });
+      },
+      6 * 60 * 60 * 1000,
+    );
   }
 
-  getQueue(queueName: QueueNameType | string): Queue {
-    const queue = this.queues.get(queueName);
-    if (!queue) {
-      throw new Error(`Queue ${queueName} is not registered`);
-    }
-    return queue;
+  /**
+   * Register a worker callback for a given queue
+   */
+  registerWorker<T = unknown, R = unknown>(queueName: string, handler: JobHandler<T, R>) {
+    this.handlers.set(queueName, handler);
+    this.logger.log(`Registered PostgreSQL queue worker for: ${queueName}`);
+
+    // Process any pending jobs waiting in this queue
+    setImmediate(() => this.processPendingJobs(queueName));
   }
 
+  /**
+   * Unregister a worker
+   */
+  unregisterWorker(queueName: string) {
+    this.handlers.delete(queueName);
+    this.logger.log(`Unregistered queue worker for: ${queueName}`);
+  }
+
+  /**
+   * Add a job to the PostgreSQL queue
+   */
   async addJob<T = unknown>(
     queueName: QueueNameType | string,
     jobName: string,
     data: T,
-    options?: JobsOptions,
-  ) {
-    const queue = this.getQueue(queueName);
-    return queue.add(jobName, data, options);
-  }
+    options?: { attempts?: number },
+  ): Promise<{ id: string; name: string; data: T }> {
+    const maxAttempts = options?.attempts || 3;
 
-  async getQueueStats(queueName: QueueNameType | string): Promise<IQueueStats> {
-    const queue = this.getQueue(queueName);
-    const counts = await queue.getJobCounts('waiting', 'active', 'completed', 'failed', 'delayed', 'paused');
-    const isPaused = await queue.isPaused();
+    const [inserted] = await this.db
+      .insert(queueJobs)
+      .values({
+        queueName,
+        jobName,
+        data: data as any,
+        status: 'WAITING',
+        attempts: 0,
+        maxAttempts,
+      })
+      .returning();
+
+    this.logger.debug(`Enqueued job ${inserted.id} [${jobName}] in queue ${queueName}`);
+
+    // Trigger async processing immediately
+    setImmediate(() => this.processPendingJobs(queueName));
 
     return {
-      queueName,
-      waiting: counts.waiting || 0,
-      active: counts.active || 0,
-      completed: counts.completed || 0,
-      failed: counts.failed || 0,
-      delayed: counts.delayed || 0,
-      paused: isPaused,
+      id: inserted.id,
+      name: jobName,
+      data,
     };
   }
 
+  /**
+   * Process waiting jobs for a specific queue
+   */
+  private async processPendingJobs(queueName: string) {
+    const handler = this.handlers.get(queueName);
+    if (!handler) return;
+
+    if (this.activeWorkers.has(queueName)) {
+      return; // Already actively looping
+    }
+
+    this.activeWorkers.add(queueName);
+
+    try {
+      while (this.handlers.has(queueName)) {
+        // Atomically claim the next waiting job using SELECT FOR UPDATE SKIP LOCKED
+        const client = await this.pool.connect();
+        let claimedJob: QueueJob | null = null;
+
+        try {
+          await client.query('BEGIN');
+          const res = await client.query(
+            `SELECT * FROM queue_jobs 
+             WHERE queue_name = $1 AND status = 'WAITING' 
+             ORDER BY created_at ASC 
+             FOR UPDATE SKIP LOCKED 
+             LIMIT 1`,
+            [queueName],
+          );
+
+          if (res.rows.length > 0) {
+            const row = res.rows[0];
+            await client.query(
+              `UPDATE queue_jobs 
+               SET status = 'ACTIVE', locked_at = NOW(), updated_at = NOW() 
+               WHERE id = $1`,
+              [row.id],
+            );
+            await client.query('COMMIT');
+            claimedJob = row;
+          } else {
+            await client.query('COMMIT');
+          }
+        } catch (txErr) {
+          await client.query('ROLLBACK').catch(() => {});
+          throw txErr;
+        } finally {
+          client.release();
+        }
+
+        if (!claimedJob) {
+          // No more waiting jobs
+          break;
+        }
+
+        // Execute the handler
+        const currentJob = claimedJob;
+        const jobName = (currentJob as any).job_name || currentJob.jobName;
+        this.logger.debug(`Processing job ${currentJob.id} [${jobName}]`);
+
+        try {
+          const result = await handler({
+            id: currentJob.id,
+            name: jobName,
+            data: currentJob.data,
+          });
+
+          await this.db
+            .update(queueJobs)
+            .set({
+              status: 'COMPLETED',
+              result: (result as any) || null,
+              processedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(queueJobs.id, currentJob.id));
+
+          this.logger.debug(`Job ${currentJob.id} completed successfully`);
+        } catch (err: any) {
+          const attempts = (currentJob.attempts || 0) + 1;
+          const maxAttempts = (currentJob as any).max_attempts || currentJob.maxAttempts || 3;
+          const isFailed = attempts >= maxAttempts;
+
+          this.logger.error(
+            `Job ${currentJob.id} failed (attempt ${attempts}/${maxAttempts}): ${err.message}`,
+            err.stack,
+          );
+
+          await this.db
+            .update(queueJobs)
+            .set({
+              status: isFailed ? 'FAILED' : 'WAITING',
+              attempts,
+              error: err.message || 'Unknown error',
+              updatedAt: new Date(),
+            })
+            .where(eq(queueJobs.id, currentJob.id));
+        }
+      }
+    } catch (err: any) {
+      this.logger.error(`Error processing queue ${queueName}: ${err.message}`, err.stack);
+    } finally {
+      this.activeWorkers.delete(queueName);
+    }
+  }
+
+  /**
+   * Return stats for a specific queue
+   */
+  async getQueueStats(queueName: QueueNameType | string): Promise<IQueueStats> {
+    try {
+      const statsRes = await this.pool.query(
+        `SELECT 
+           COUNT(*) FILTER (WHERE status = 'WAITING')::int AS waiting,
+           COUNT(*) FILTER (WHERE status = 'ACTIVE')::int AS active,
+           COUNT(*) FILTER (WHERE status = 'COMPLETED')::int AS completed,
+           COUNT(*) FILTER (WHERE status = 'FAILED')::int AS failed
+         FROM queue_jobs 
+         WHERE queue_name = $1`,
+        [queueName],
+      );
+
+      const row = statsRes.rows[0] || {};
+
+      return {
+        queueName,
+        waiting: row.waiting || 0,
+        active: row.active || 0,
+        completed: row.completed || 0,
+        failed: row.failed || 0,
+        delayed: 0,
+        paused: false,
+      };
+    } catch (err: any) {
+      this.logger.error(`Failed to get queue stats for ${queueName}: ${err.message}`);
+      return {
+        queueName,
+        waiting: 0,
+        active: 0,
+        completed: 0,
+        failed: 0,
+        delayed: 0,
+        paused: false,
+      };
+    }
+  }
+
+  /**
+   * Return stats for all known queues
+   */
   async getAllQueueStats(): Promise<IQueueStats[]> {
     const stats: IQueueStats[] = [];
-    for (const queueName of this.queues.keys()) {
+    for (const queueName of Object.values(QUEUE_NAMES)) {
       stats.push(await this.getQueueStats(queueName));
     }
     return stats;
   }
 
+  /**
+   * Health ping for the queue engine
+   */
   async ping(): Promise<boolean> {
     try {
-      const redisPing = await this.redisService.ping();
-      return redisPing && this.queues.size > 0;
+      const res = await this.pool.query('SELECT 1');
+      return Boolean(res.rowCount && res.rowCount > 0);
     } catch (error) {
       this.logger.error('Queue health ping failed', error);
       return false;
     }
   }
 
-  async onModuleDestroy() {
-    this.logger.log('Closing all BullMQ queues...');
-    for (const [name, queue] of this.queues.entries()) {
-      await queue.close();
-      this.logger.log(`Closed queue: ${name}`);
+  /**
+   * Cleanup old completed and failed jobs
+   */
+  async pruneOldJobs(daysToKeep = 7) {
+    try {
+      await this.pool.query(
+        `DELETE FROM queue_jobs 
+         WHERE status IN ('COMPLETED', 'FAILED') 
+         AND created_at < NOW() - INTERVAL '${daysToKeep} days'`,
+      );
+    } catch (err: any) {
+      this.logger.warn(`Pruning queue jobs failed: ${err.message}`);
     }
+  }
+
+  async onModuleDestroy() {
+    this.logger.log('Closing Neon PostgreSQL Queue Engine...');
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+    this.handlers.clear();
+    this.activeWorkers.clear();
   }
 }

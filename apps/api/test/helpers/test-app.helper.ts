@@ -9,15 +9,12 @@ import { DrizzleDb } from '../../src/database/database.provider';
 import * as schema from '../../src/database/schema';
 import { inArray, eq } from 'drizzle-orm';
 import { Pool } from 'pg';
-import { REDIS_CLIENT } from '../../src/modules/redis/redis.constants';
-import Redis from 'ioredis';
 
 export class TestAppHelper {
   app: INestApplication;
   module: TestingModule;
   db: DrizzleDb;
   pool: Pool;
-  redis: Redis;
 
   async init(): Promise<INestApplication> {
     this.module = await Test.createTestingModule({
@@ -50,7 +47,6 @@ export class TestAppHelper {
 
     this.db = this.app.get<DrizzleDb>(DRIZZLE_DATABASE);
     this.pool = this.app.get<Pool>(PG_POOL);
-    this.redis = this.app.get<Redis>(REDIS_CLIENT);
 
     return this.app;
   }
@@ -59,6 +55,11 @@ export class TestAppHelper {
     if (!emails.length) return;
 
     try {
+      // Delete any admin OTPs for these emails
+      await this.db
+        .delete(schema.adminOtps)
+        .where(inArray(schema.adminOtps.email, emails));
+
       const usersFound = await this.db
         .select({ id: schema.users.id })
         .from(schema.users)
@@ -189,11 +190,6 @@ export class TestAppHelper {
   async close(): Promise<void> {
     if (this.app) {
       await this.app.close();
-    }
-    if (this.redis) {
-      try {
-        this.redis.disconnect();
-      } catch {}
     }
     if (this.pool) {
       try {

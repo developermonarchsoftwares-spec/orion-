@@ -84,17 +84,9 @@ Powers real-time, sub-50ms search, autocomplete, geo-distance radius, and multi-
 
 ---
 
-## 5. Cache & Queues (Redis & BullMQ)
+## 5. Background Queues & Storage (Neon PostgreSQL)
 
-Powers rate limiting, lead unlock idempotency, live session store, and background queue workers for asynchronous CSV/Excel batch ingestion.
-
-| Variable Name | Required | Example (Upstash) | Description |
-| :--- | :---: | :--- | :--- |
-| `REDIS_HOST` | **Yes** | `orion-cache.upstash.io` | Hostname of the Redis instance. |
-| `REDIS_PORT` | **Yes** | `6379` | Default Redis TCP port. |
-| `REDIS_PASSWORD` | **Yes** | `AXxxxxBA...` | Authentication password or token. |
-| `REDIS_TLS` | **Yes** | `true` | Must be `true` for cloud providers like Upstash or Redis Cloud. |
-| `REDIS_DB` | No | `0` | Redis logical database index. |
+All background jobs, queues, and admin OTPs are handled natively via **Neon PostgreSQL** transactional tables (`queue_jobs` and `admin_otps`). No Redis or Upstash instance is required.
 
 ---
 

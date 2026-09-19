@@ -123,7 +123,7 @@ const TAB_TITLES: Record<AdminTab, { title: string; subtitle: string }> = {
   },
   system_health: {
     title: 'Platform Infrastructure Health',
-    subtitle: 'Observability across ingestion, validation, database, AI GPU workers, and Redis caches'
+    subtitle: 'Observability across ingestion, validation, database, and AI GPU workers'
   }
 };
 

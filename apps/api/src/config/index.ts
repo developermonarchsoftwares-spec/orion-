@@ -18,15 +18,6 @@ export const databaseConfig = registerAs('database', () => ({
   idleTimeoutMs: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '30000', 10),
 }));
 
-export const redisConfig = registerAs('redis', () => ({
-  url: process.env.REDIS_URL || undefined,
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379', 10),
-  password: process.env.REDIS_PASSWORD || undefined,
-  db: parseInt(process.env.REDIS_DB || '0', 10),
-  tls: process.env.REDIS_TLS === 'true',
-}));
-
 export const typesenseConfig = registerAs('typesense', () => ({
   nodes: (process.env.TYPESENSE_NODES || 'localhost').split(',').map((node) => ({
     host: node.trim(),

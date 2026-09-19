@@ -21,21 +21,6 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: orion-redis
-    restart: always
-    command: redis-server --appendonly yes
-    ports:
-      - "127.0.0.1:6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   typesense:
     image: typesense/typesense:26.0
     container_name: orion-typesense
@@ -89,8 +74,6 @@ services:
       APP_URL: http://localhost:4000
       CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/orion_db
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
       SEARCH_PROVIDER: postgres
       TYPESENSE_NODES: typesense
       TYPESENSE_PORT: 8108
@@ -105,8 +88,6 @@ services:
       JWT_REFRESH_SECRET: in5jXCmR/2+0ThF8DBF0F5tM+1q5nfrfx8sYVmn5NvHfnvVUri1P+ZD4ZGQ05MmUWPZTUJXNsGwug6j9Po4cDQ==
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       typesense:
         condition: service_healthy
@@ -140,6 +121,5 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:
   typesense_data:
   minio_data:

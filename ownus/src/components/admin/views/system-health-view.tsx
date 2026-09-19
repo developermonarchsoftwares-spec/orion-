@@ -86,7 +86,7 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
                 </span>
               </div>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Real-time telemetry across Ingestion, Database Raft Consensus, GPU Triton Inference, and Redis Caches.
+                Real-time telemetry across Ingestion, Database Raft Consensus, and GPU Triton Inference.
               </p>
             </div>
           </div>

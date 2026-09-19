@@ -725,7 +725,7 @@ export function AdminDashboardView({
               </div>
               <div>
                 <h3 className="text-xs font-bold text-zinc-900 dark:text-white uppercase tracking-wider">Enterprise Services Telemetry</h3>
-                <span className="text-[10px] text-zinc-500 dark:text-zinc-400">Neon Postgres • Redis • Typesense</span>
+                <span className="text-[10px] text-zinc-500 dark:text-zinc-400">Neon Postgres • Typesense</span>
               </div>
             </div>
             <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
