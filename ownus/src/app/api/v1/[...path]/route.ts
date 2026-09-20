@@ -1076,54 +1076,63 @@ async function proxyRequest(
   if (fullPath === 'admin/businesses') {
     const rows = await queryDb(`
       SELECT b.id, b.name, b.slug, b.status, b.created_at, b.updated_at,
-             i.name as industry, bl.city, bl.state, bl.district, bl.pincode, bl.address_line1 as address,
+             b.business_type, b.msme_category, b.is_verified, b.incorporation_date,
+             i.name as industry, c.name as category,
+             bl.city, bl.state, bl.district, bl.pincode, bl.address_line1 as address,
              bc.phone, bc.email, dp.url as website, b.description
       FROM businesses b
       LEFT JOIN industries i ON b.industry_id = i.id
+      LEFT JOIN categories c ON b.category_id = c.id
       LEFT JOIN business_locations bl ON b.id = bl.business_id
       LEFT JOIN business_contacts bc ON b.id = bc.business_id
       LEFT JOIN digital_presences dp ON b.id = dp.business_id AND dp.platform = 'WEBSITE'
       ORDER BY b.created_at DESC
     `);
-    const records = rows.map((r, i) => ({
-      id: r.id || `BIZ-${10001 + i}`,
-      name: r.name,
-      industry: r.industry || 'General Enterprise',
-      subIndustry: '',
-      category: 'Enterprise',
-      businessType: 'Private Limited Company',
-      msmeCategory: 'Medium Enterprise',
-      address: r.address || '',
-      state: r.state || '',
-      district: r.district || r.city || '',
-      city: r.city || '',
-      pincode: r.pincode || '',
-      phone: r.phone || '',
-      whatsapp: '',
-      email: r.email || '',
-      website: r.website || '',
-      registrationDate: r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : '',
-      description: r.description || '',
-      status: (r.status || 'draft').toLowerCase(),
-      validationStatus: 'Approved',
-      phoneStatus: r.phone ? 'valid' : 'missing',
-      emailStatus: r.email ? 'valid' : 'missing',
-      websiteStatus: r.website ? 'valid' : 'missing',
-      validationScore: 90,
-      opportunityScore: 75,
-      dataQualityScore: 92,
-      hasWebsite: Boolean(r.website),
-      missingFields: [],
-      validationErrors: [],
-      reviewer: 'Monarch Administrator',
-      approvedDate: r.updated_at ? new Date(r.updated_at).toISOString().split('T')[0] : '',
-      validationChecks: [],
-      createdAt: r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : '',
-      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString().split('T')[0] : '',
-      importedBy: 'Admin Ingestion Pipeline',
-      tags: ['Verified Enterprise'],
-      internalNotes: []
-    }));
+    const records = rows.map((r, i) => {
+      const bType = r.business_type ? String(r.business_type).replace(/_/g, ' ') : 'Private Limited Company';
+      const msme = r.msme_category && r.msme_category !== 'NOT_APPLICABLE' 
+        ? `${String(r.msme_category).replace(/_/g, ' ')} Enterprise` 
+        : 'Medium Enterprise';
+      return {
+        id: r.id || `BIZ-${10001 + i}`,
+        name: r.name,
+        industry: r.industry || 'Manufacturing & Industrial',
+        subIndustry: r.category || '',
+        category: r.category || 'Enterprise',
+        businessType: bType,
+        msmeCategory: msme,
+        address: r.address || '',
+        state: r.state || '',
+        district: r.district || r.city || '',
+        city: r.city || '',
+        pincode: r.pincode || '',
+        phone: r.phone || '',
+        whatsapp: '',
+        email: r.email || '',
+        website: r.website || '',
+        registrationDate: r.incorporation_date ? new Date(r.incorporation_date).toISOString().split('T')[0] : r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : '',
+        description: r.description || '',
+        status: (r.status || 'draft').toLowerCase(),
+        validationStatus: r.is_verified ? 'Approved' : 'Validated',
+        phoneStatus: r.phone ? 'valid' : 'missing',
+        emailStatus: r.email ? 'valid' : 'missing',
+        websiteStatus: r.website ? 'valid' : 'missing',
+        validationScore: r.is_verified ? 95 : 85,
+        opportunityScore: 80,
+        dataQualityScore: 90,
+        hasWebsite: Boolean(r.website),
+        missingFields: [],
+        validationErrors: [],
+        reviewer: 'Monarch Administrator',
+        approvedDate: r.updated_at ? new Date(r.updated_at).toISOString().split('T')[0] : '',
+        validationChecks: [],
+        createdAt: r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : '',
+        updatedAt: r.updated_at ? new Date(r.updated_at).toISOString().split('T')[0] : '',
+        importedBy: 'Admin Ingestion Pipeline',
+        tags: [r.industry || 'Enterprise', r.category || 'Verified'].filter(Boolean),
+        internalNotes: []
+      };
+    });
     return NextResponse.json({ success: true, statusCode: 200, data: records, timestamp: new Date().toISOString() });
   }
 

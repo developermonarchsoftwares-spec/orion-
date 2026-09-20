@@ -22,9 +22,21 @@ import {
   Building2,
   ShieldCheck,
   Sparkles,
-  Download
+  Download,
+  SlidersHorizontal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  DiscoverFilterState,
+  initialFilterState
+} from '@/components/discover/discover-filters';
+import { QuickFilterChips } from '@/components/discover/quick-filter-chips';
+import {
+  filterAdminBusinessRecord,
+  getAdminActiveFiltersCount
+} from '@/lib/admin-filter-utils';
+import { AdminActiveFilters } from '@/components/admin/admin-active-filters';
+import { AdminFilterDrawer } from '@/components/admin/modals/admin-filter-drawer';
 
 interface PublishQueueViewProps {
   records: AdminBusinessRecord[];
@@ -50,6 +62,36 @@ export function PublishQueueView({
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 8;
 
+  // Full Customer Filter Parity State
+  const [filters, setFilters] = useState<DiscoverFilterState>(initialFilterState);
+  const [activeChips, setActiveChips] = useState<string[]>([]);
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState<boolean>(false);
+
+  // Active filters count
+  const activeFiltersCount = useMemo(() => {
+    return (
+      getAdminActiveFiltersCount(filters, activeChips) +
+      (selectedApprovalStatus !== 'all' ? 1 : 0) +
+      (selectedPublishStatus !== 'all' ? 1 : 0)
+    );
+  }, [filters, activeChips, selectedApprovalStatus, selectedPublishStatus]);
+
+  const handleToggleChip = (chipId: string) => {
+    setActiveChips((prev) =>
+      prev.includes(chipId) ? prev.filter((id) => id !== chipId) : [...prev, chipId]
+    );
+    setCurrentPage(1);
+  };
+
+  const handleResetFilters = () => {
+    setFilters(initialFilterState);
+    setActiveChips([]);
+    setSelectedApprovalStatus('all');
+    setSelectedPublishStatus('all');
+    setSearchQuery('');
+    setCurrentPage(1);
+  };
+
   // Compute Queue Metrics
   const metrics = useMemo(() => {
     const total = records.length;
@@ -65,26 +107,24 @@ export function PublishQueueView({
   const industries = useMemo(() => Array.from(new Set(records.map(r => r.industry))).sort(), [records]);
   const states = useMemo(() => Array.from(new Set(records.map(r => r.state))).sort(), [records]);
 
-  // Filter queue
+  // Filter queue with complete customer parity
   const filteredQueue = useMemo(() => {
-    return records.filter(r => {
-      const q = searchQuery.toLowerCase().trim();
-      const matchesSearch = !q || (
-        r.name.toLowerCase().includes(q) ||
-        r.city.toLowerCase().includes(q) ||
-        r.state.toLowerCase().includes(q) ||
-        r.industry.toLowerCase().includes(q) ||
-        r.id.toLowerCase().includes(q)
-      );
-
-      const matchesApproval = selectedApprovalStatus === 'all' || r.validationStatus === selectedApprovalStatus;
-      const matchesPublish = selectedPublishStatus === 'all' || r.status === selectedPublishStatus;
-      const matchesIndustry = selectedIndustry === 'all' || r.industry === selectedIndustry;
-      const matchesState = selectedState === 'all' || r.state === selectedState;
-
-      return matchesSearch && matchesApproval && matchesPublish && matchesIndustry && matchesState;
+    return records.filter((r) => {
+      if (!filterAdminBusinessRecord(r, filters, searchQuery, activeChips, selectedPublishStatus)) {
+        return false;
+      }
+      if (selectedApprovalStatus !== 'all' && r.validationStatus !== selectedApprovalStatus) {
+        return false;
+      }
+      if (selectedState !== 'all' && r.state !== selectedState) {
+        return false;
+      }
+      if (selectedIndustry !== 'all' && r.industry !== selectedIndustry) {
+        return false;
+      }
+      return true;
     });
-  }, [records, searchQuery, selectedApprovalStatus, selectedPublishStatus, selectedIndustry, selectedState]);
+  }, [records, searchQuery, selectedApprovalStatus, selectedPublishStatus, selectedIndustry, selectedState, filters, activeChips]);
 
   // Pagination
   const totalPages = Math.ceil(filteredQueue.length / pageSize) || 1;
@@ -249,67 +289,111 @@ export function PublishQueueView({
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
-        <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-          <input
-            type="text"
-            placeholder="Search queue by business name, city, ID..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg pl-9 pr-3 py-2 text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none"
-          />
+      <div className="bg-white dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs space-y-3">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 w-full md:w-auto flex-1 min-w-0">
+            {/* Toggle Filters Button */}
+            <button
+              onClick={() => setIsFilterDrawerOpen(true)}
+              className={cn(
+                'px-3 py-2 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer',
+                activeFiltersCount > 0
+                  ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-white dark:text-zinc-900 dark:border-white shadow-xs'
+                  : 'bg-zinc-50 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+              )}
+              title="Open Advanced Filters"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>Filters</span>
+              {activeFiltersCount > 0 && (
+                <span className="px-1.5 py-0.2 text-[10px] font-bold rounded-full ml-0.5 bg-white/20 text-white dark:bg-black/20 dark:text-zinc-900">
+                  {activeFiltersCount}
+                </span>
+              )}
+            </button>
+
+            <div className="relative flex-1 min-w-[200px] max-w-md">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <input
+                type="text"
+                placeholder="Search queue by business name, city, ID..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg pl-9 pr-3 py-2 text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto shrink-0">
+            <select
+              value={selectedPublishStatus}
+              onChange={(e) => {
+                setSelectedPublishStatus(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none cursor-pointer"
+            >
+              <option value="all">All Publish States</option>
+              <option value="approved">Ready to Publish (Approved)</option>
+              <option value="published">Published (Live in Discover)</option>
+              <option value="validated">Validated</option>
+              <option value="draft">Draft</option>
+              <option value="rejected">Rejected</option>
+              <option value="archived">Archived</option>
+            </select>
+
+            <select
+              value={selectedApprovalStatus}
+              onChange={(e) => {
+                setSelectedApprovalStatus(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none cursor-pointer"
+            >
+              <option value="all">All Approval States</option>
+              <option value="Approved">Approved</option>
+              <option value="Pending">Pending Review</option>
+              <option value="Rejected">Rejected</option>
+              <option value="Warning">Warning</option>
+            </select>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
-          <select
-            value={selectedPublishStatus}
-            onChange={(e) => {
-              setSelectedPublishStatus(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none"
-          >
-            <option value="all">All Publish States</option>
-            <option value="approved">Ready to Publish (Approved)</option>
-            <option value="published">Published (Live in Discover)</option>
-            <option value="validated">Validated</option>
-            <option value="draft">Draft</option>
-            <option value="rejected">Rejected</option>
-            <option value="archived">Archived</option>
-          </select>
-
-          <select
-            value={selectedApprovalStatus}
-            onChange={(e) => {
-              setSelectedApprovalStatus(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none"
-          >
-            <option value="all">All Approval States</option>
-            <option value="Approved">Approved</option>
-            <option value="Pending">Pending Review</option>
-            <option value="Rejected">Rejected</option>
-            <option value="Warning">Warning</option>
-          </select>
-
-          <select
-            value={selectedState}
-            onChange={(e) => {
-              setSelectedState(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none"
-          >
-            <option value="all">All States ({states.length})</option>
-            {states.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
+        {/* Quick Filter Chips */}
+        <div className="pt-1 border-t border-zinc-100 dark:border-zinc-900">
+          <QuickFilterChips activeChips={activeChips} onToggleChip={handleToggleChip} />
         </div>
+
+        {/* Active Filter Tags */}
+        <AdminActiveFilters
+          filters={filters}
+          onFiltersChange={(f) => {
+            setFilters(f);
+            setCurrentPage(1);
+          }}
+          activeChips={activeChips}
+          onToggleChip={handleToggleChip}
+          onClearAll={handleResetFilters}
+        />
       </div>
+
+      {/* Admin Filter Drawer for Publish Queue */}
+      <AdminFilterDrawer
+        isOpen={isFilterDrawerOpen}
+        onClose={() => setIsFilterDrawerOpen(false)}
+        filters={filters}
+        onChange={(f) => {
+          setFilters(f);
+          setCurrentPage(1);
+        }}
+        onReset={handleResetFilters}
+        activeFiltersCount={activeFiltersCount}
+        totalFilteredCount={filteredQueue.length}
+        title="Publish Queue Filter Constraints"
+      />
 
       {/* Bulk Action Bar */}
       {selectedIds.length > 0 && (

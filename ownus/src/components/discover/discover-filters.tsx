@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { industries, subIndustriesMap, businessCategories } from '@/lib/data/businesses';
 import { INDIAN_STATES_AND_UTS } from '@/lib/data/india-locations';
+import { cn } from '@/lib/utils';
 
 export interface DiscoverFilterState {
   // Location (India)
@@ -135,6 +136,7 @@ interface DiscoverFiltersProps {
   onSavePreset?: () => void;
   onToggleSidebar?: () => void;
   totalActiveFiltersCount: number;
+  className?: string;
 }
 
 const BUSINESS_TYPE_OPTIONS = [
@@ -166,6 +168,7 @@ export function DiscoverFilters({
   onSavePreset,
   onToggleSidebar,
   totalActiveFiltersCount,
+  className,
 }: DiscoverFiltersProps) {
   // Accordion open states
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -420,7 +423,7 @@ export function DiscoverFilters({
   };
 
   return (
-    <aside className="w-full h-full flex flex-col bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xs overflow-hidden">
+    <aside className={cn("w-full h-full flex flex-col bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xs overflow-hidden", className)}>
       {/* Sidebar Header */}
       <div className="p-3.5 sm:p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-900/50">
         <div className="flex items-center gap-2">
