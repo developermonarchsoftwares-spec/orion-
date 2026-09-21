@@ -181,27 +181,69 @@ async function handleGoogleCallback(req: NextRequest): Promise<NextResponse> {
 
     const profile = await profileRes.json();
     const email = String(profile.email || '').toLowerCase().trim();
+    if (!email) {
+      return NextResponse.redirect(
+        new URL(`/login?error=${encodeURIComponent('Google authentication failed: Email address not returned by Google.')}`, req.url),
+      );
+    }
+
     const firstName = profile.given_name || profile.name?.split(' ')[0] || 'User';
     const lastName = profile.family_name || profile.name?.split(' ').slice(1).join(' ') || '';
     const displayName = profile.name || email.split('@')[0];
-    const avatarUrl = profile.picture || undefined;
+    const avatarUrl = profile.picture || null;
+    const googleId = profile.sub || null;
+
+    let dbUser: any = null;
+    let isNewUser = false;
+
+    try {
+      const existingRows = await queryDb(`SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`, [email]);
+      if (existingRows.length > 0) {
+        const updateRows = await queryDb(
+          `UPDATE users
+           SET first_name = COALESCE(first_name, $1),
+               last_name = COALESCE(last_name, $2),
+               display_name = COALESCE(display_name, $3),
+               avatar_url = COALESCE($4, avatar_url),
+               google_id = COALESCE($5, google_id),
+               provider = CASE WHEN provider = 'EMAIL' OR provider IS NULL THEN 'google' ELSE provider END,
+               updated_at = NOW()
+           WHERE LOWER(email) = LOWER($6)
+           RETURNING *`,
+          [firstName, lastName, displayName, avatarUrl, googleId, email]
+        );
+        dbUser = updateRows[0] || existingRows[0];
+      } else {
+        isNewUser = true;
+        const insertRows = await queryDb(
+          `INSERT INTO users (email, first_name, last_name, display_name, avatar_url, google_id, provider, role, status)
+           VALUES ($1, $2, $3, $4, $5, $6, 'google', 'USER', 'ACTIVE')
+           RETURNING *`,
+          [email, firstName, lastName, displayName, avatarUrl, googleId]
+        );
+        dbUser = insertRows[0];
+      }
+    } catch (dbErr) {
+      console.error('[Google OAuth] Error upserting user in PostgreSQL:', dbErr);
+    }
+
+    const userId = dbUser?.id || email;
+    await getOrSyncUserWallet(email);
 
     const accessSecret = sanitizeEnvValue(process.env.JWT_ACCESS_SECRET) || 'orion-jwt-access-secret-production-fallback';
     const refreshSecret = sanitizeEnvValue(process.env.JWT_REFRESH_SECRET) || 'orion-jwt-refresh-secret-production-fallback';
 
-    const userId = `usr_${crypto.createHash('md5').update(email).digest('hex').substring(0, 12)}`;
-
     const userPayload = {
       sub: userId,
       email,
-      firstName,
-      lastName,
-      name: displayName,
-      displayName,
-      avatarUrl,
-      role: 'USER',
-      status: 'ACTIVE',
-      organizationId: null,
+      firstName: dbUser?.first_name || firstName,
+      lastName: dbUser?.last_name || lastName,
+      name: dbUser?.display_name || displayName,
+      displayName: dbUser?.display_name || displayName,
+      avatarUrl: dbUser?.avatar_url || avatarUrl,
+      role: dbUser?.role || 'USER',
+      status: dbUser?.status || 'ACTIVE',
+      organizationId: dbUser?.organization_name || null,
       provider: 'google',
     };
 
@@ -211,7 +253,7 @@ async function handleGoogleCallback(req: NextRequest): Promise<NextResponse> {
     const redirectUrl = new URL(
       `/auth/callback?accessToken=${encodeURIComponent(accessToken)}&refreshToken=${encodeURIComponent(
         refreshToken,
-      )}&provider=google&isNewUser=false`,
+      )}&provider=google&isNewUser=${isNewUser}`,
       req.url,
     );
 
@@ -1119,12 +1161,7 @@ async function getOrSyncUserWallet(userIdentifier?: string) {
       userRow = insertUser[0];
     }
 
-    // If still not found, fallback to the latest logged-in or primary user in the DB
-    if (!userRow) {
-      const fallbackUsers = await queryDb(`SELECT id, email, first_name, last_name, role, status FROM users ORDER BY created_at DESC LIMIT 1`);
-      userRow = fallbackUsers[0];
-    }
-
+    // If user not found by ID or email and no email identifier provided, do not pick a random user
     if (!userRow) {
       return {
         dailyCredits: 5,
@@ -1135,6 +1172,7 @@ async function getOrSyncUserWallet(userIdentifier?: string) {
         lastDailyCreditDate: todayStr,
         userId: null,
         walletId: null,
+        user: null,
       };
     }
 
@@ -1236,21 +1274,38 @@ async function getUserFromRequest(req: NextRequest) {
   const authHeader = req.headers.get('authorization') || '';
   const rawToken = authHeader.replace(/^Bearer\s+/i, '');
   const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
-  const userIdentifier = tokenData?.sub || tokenData?.email || 'kathirrajput@gmail.com';
+  const userIdentifier = tokenData?.email || tokenData?.sub || null;
+
+  if (!userIdentifier) {
+    return {
+      dbUser: null,
+      walletData: {
+        dailyCredits: 0,
+        purchasedCredits: 0,
+        balance: 0,
+        lifetimePurchased: 0,
+        lifetimeUsed: 0,
+        lastDailyCreditDate: null,
+        userId: null,
+        walletId: null,
+      },
+      tokenData: null,
+      userIdentifier: null,
+    };
+  }
 
   const walletData = await getOrSyncUserWallet(userIdentifier);
   let dbUser = walletData.user;
 
-  if (!dbUser && walletData.userId) {
-    const rows = await queryDb(`SELECT * FROM users WHERE id = $1 LIMIT 1`, [walletData.userId]);
+  if (!dbUser && tokenData?.email) {
+    const rows = await queryDb(`SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`, [tokenData.email]);
     dbUser = rows[0];
-  }
-
-  if (!dbUser && userIdentifier) {
-    const rows = userIdentifier.includes('@')
-      ? await queryDb(`SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`, [userIdentifier])
-      : await queryDb(`SELECT * FROM users WHERE id = $1 LIMIT 1`, [userIdentifier]);
-    dbUser = rows[0];
+  } else if (!dbUser && tokenData?.sub) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tokenData.sub);
+    if (isUuid) {
+      const rows = await queryDb(`SELECT * FROM users WHERE id = $1 LIMIT 1`, [tokenData.sub]);
+      dbUser = rows[0];
+    }
   }
 
   return { dbUser, walletData, tokenData, userIdentifier };
