@@ -27,10 +27,12 @@ import {
 import { CreditPackage, SubscriptionPlan } from '@/types/admin';
 import { INITIAL_CREDIT_PACKAGES, INITIAL_SUBSCRIPTION_PLANS } from '@/lib/admin-mock-data';
 
+import { AdminFilterManager } from '@/components/admin/views/admin-filter-manager';
+
 export const AdminSettingsView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
-    'taxonomy' | 'locations' | 'economy' | 'rules' | 'templates' | 'app_settings'
-  >('taxonomy');
+    'filter_manager' | 'taxonomy' | 'locations' | 'economy' | 'rules' | 'templates' | 'app_settings'
+  >('filter_manager');
   const [savedToast, setSavedToast] = useState(false);
 
   // 1. Taxonomies & Masters
@@ -186,6 +188,7 @@ export const AdminSettingsView: React.FC = () => {
       {/* Navigation Tabs */}
       <div className="flex border-b border-zinc-800 gap-2 overflow-x-auto text-xs">
         {[
+          { id: 'filter_manager', label: 'User Page Filter Manager', icon: SlidersHorizontal },
           { id: 'taxonomy', label: 'Master Taxonomies', icon: Tag },
           { id: 'locations', label: 'Location Masters', icon: MapPin },
           { id: 'economy', label: 'Credit Packages & Plans', icon: CreditCard },
@@ -199,7 +202,7 @@ export const AdminSettingsView: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`pb-3 px-3.5 font-medium border-b-2 transition flex items-center gap-1.5 whitespace-nowrap ${
+              className={`pb-3 px-3.5 font-medium border-b-2 transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 isActive
                   ? 'border-zinc-200 text-zinc-100 font-bold'
                   : 'border-transparent text-zinc-400 hover:text-zinc-200'
@@ -211,6 +214,9 @@ export const AdminSettingsView: React.FC = () => {
           );
         })}
       </div>
+
+      {/* Tab 0: User Page Filter Options Governance */}
+      {activeTab === 'filter_manager' && <AdminFilterManager />}
 
       {/* Tab 1: Taxonomies */}
       {activeTab === 'taxonomy' && (

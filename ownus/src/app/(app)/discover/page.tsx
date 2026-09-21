@@ -50,6 +50,8 @@ import { useAuth } from '@/lib/auth-context';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
 
+import { usePublishedBusinesses } from '@/lib/published-businesses-store';
+
 type SortOption = 
   | 'newest'
   | 'oldest'
@@ -60,9 +62,11 @@ type SortOption =
 
 export default function DiscoverPage() {
   const { user, wallet, setWalletBalance } = useAuth();
+  const { publishedBusinesses } = usePublishedBusinesses();
+
   // Main Data
-  const [data, setData] = useState<Business[]>([]);
-  const [totalRecords, setTotalRecords] = useState(0);
+  const [data, setData] = useState<Business[]>(publishedBusinesses);
+  const [totalRecords, setTotalRecords] = useState(publishedBusinesses.length);
   const [isLoading, setIsLoading] = useState(true);
   
   // Search & Filter State
@@ -92,6 +96,14 @@ export default function DiscoverPage() {
   const [isSaveSearchOpen, setIsSaveSearchOpen] = useState(false);
   const userCredits = wallet?.balance ?? 0;
 
+  // Real-time synchronization when Admin publishes or updates businesses
+  useEffect(() => {
+    if (publishedBusinesses && publishedBusinesses.length > 0) {
+      setData(publishedBusinesses);
+      setTotalRecords(publishedBusinesses.length);
+    }
+  }, [publishedBusinesses]);
+
   // Live Backend Search Fetching
   useEffect(() => {
     let isCancelled = false;
@@ -117,33 +129,42 @@ export default function DiscoverPage() {
           const mappedItems: Business[] = (res.items || []).map((hit: any) => ({
             id: hit.id,
             name: hit.name,
-            legalName: hit.legalName,
-            industry: hit.industryName || 'Commercial Services',
-            city: hit.location?.city || 'India',
-            district: hit.location?.district,
-            state: hit.location?.state || 'India',
-            zipCode: hit.location?.pincode,
-            businessAge: hit.foundingYear ? `${new Date().getFullYear() - hit.foundingYear} yrs` : 'Established',
-            registrationDate: hit.foundingYear ? `${hit.foundingYear}-04-01` : undefined,
-            entityType: hit.businessType || 'Private Limited',
+            legalName: hit.legalName || hit.name,
+            industry: hit.industry || hit.industryName || 'Commercial Services',
+            city: hit.city || hit.location?.city || 'India',
+            district: hit.district || hit.location?.district || '',
+            state: hit.state || hit.location?.state || 'India',
+            zipCode: hit.pincode || hit.zipCode || hit.location?.pincode,
+            businessAge: hit.businessAge || (hit.foundingYear ? `${new Date().getFullYear() - hit.foundingYear} yrs` : 'Established'),
+            registrationDate: hit.registrationDate || (hit.foundingYear ? `${hit.foundingYear}-04-01` : undefined),
+            entityType: hit.entityType || hit.businessType || 'Private Limited',
             msmeCategory: hit.msmeCategory,
-            opportunityScore: hit.orionScore ?? 75,
+            opportunityScore: hit.opportunityScore ?? hit.orionScore ?? 75,
             phone: hit.phone || (hit.contactAvailability?.hasPhone ? 'Contact Available (Unlock to view)' : null),
             email: hit.email || (hit.contactAvailability?.hasEmail ? 'Email Available (Unlock to view)' : null),
-            phoneStatus: hit.contactAvailability?.hasPhone ? 'available' : 'not_available',
-            emailStatus: hit.contactAvailability?.hasEmail ? 'available' : 'not_available',
+            phoneStatus: (hit.phone || hit.contactAvailability?.hasPhone) ? 'available' : 'not_available',
+            emailStatus: (hit.email || hit.contactAvailability?.hasEmail) ? 'available' : 'not_available',
             website: hit.website || (hit.contactAvailability?.hasWebsite ? 'https://' : null),
-            verified: hit.isVerified,
+            verified: hit.verified ?? hit.isVerified,
             isUnlocked: hit.isUnlocked,
             creditsRequired: 1,
             status: 'active',
           }));
 
-          setData(mappedItems);
-          setTotalRecords(res.total ?? mappedItems.length);
+          if (mappedItems.length > 0) {
+            setData(mappedItems);
+            setTotalRecords(res.total ?? mappedItems.length);
+          } else if (publishedBusinesses && publishedBusinesses.length > 0) {
+            setData(publishedBusinesses);
+            setTotalRecords(publishedBusinesses.length);
+          }
         }
       } catch (err) {
         console.warn('Live search error:', err);
+        if (publishedBusinesses && publishedBusinesses.length > 0) {
+          setData(publishedBusinesses);
+          setTotalRecords(publishedBusinesses.length);
+        }
       } finally {
         if (!isCancelled) setIsLoading(false);
       }
@@ -154,8 +175,9 @@ export default function DiscoverPage() {
       isCancelled = true;
       clearTimeout(timer);
     };
-  }, [searchQuery, filters, activeChips, sortOption, pageIndex, pageSize]);
+  }, [searchQuery, filters, activeChips, sortOption, pageIndex, pageSize, publishedBusinesses]);
 
+  // Active Filter Count calculation
   // Active Filter Count calculation
   const activeFiltersCount = useMemo(() => {
     let count = 0;
@@ -168,6 +190,11 @@ export default function DiscoverPage() {
     if (filters.businessCategories?.length > 0) count += filters.businessCategories.length;
     if (filters.businessTypes?.length > 0) count += filters.businessTypes.length;
     if (filters.msmeCategories?.length > 0) count += filters.msmeCategories.length;
+    if (filters.customAdminFilters) {
+      Object.values(filters.customAdminFilters).forEach((selected) => {
+        if (Array.isArray(selected)) count += selected.length;
+      });
+    }
     if (filters.agePreset !== 'all') count += 1;
     
     // Contact Availability
@@ -256,6 +283,24 @@ export default function DiscoverPage() {
       }
       if (filters.msmeCategories.length > 0 && item.msmeCategory && !filters.msmeCategories.includes(item.msmeCategory)) {
         return false;
+      }
+
+      // Custom dynamic admin filters
+      if (filters.customAdminFilters) {
+        for (const [catId, selectedValues] of Object.entries(filters.customAdminFilters)) {
+          if (Array.isArray(selectedValues) && selectedValues.length > 0) {
+            const match = selectedValues.some((sv) => {
+              const query = sv.toLowerCase();
+              return (
+                item.industry.toLowerCase().includes(query) ||
+                (item.entityType && item.entityType.toLowerCase().includes(query)) ||
+                (item.msmeCategory && item.msmeCategory.toLowerCase().includes(query)) ||
+                item.name.toLowerCase().includes(query)
+              );
+            });
+            if (!match) return false;
+          }
+        }
       }
 
       // 4. Contact Availability

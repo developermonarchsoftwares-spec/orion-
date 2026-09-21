@@ -44,26 +44,28 @@ export class AdminImportService {
 
   // Canonical header dictionary for flexible CSV column mapping
   private readonly headerDictionary: Record<string, string[]> = {
-    name: ['business_name', 'business name', 'company_name', 'company name', 'name', 'company'],
-    legalName: ['legal_name', 'legal name', 'registered_name', 'registered name'],
-    gstin: ['gstin', 'gst_number', 'gst number', 'gst', 'gstin_number'],
-    cin: ['cin', 'cin_number', 'cin number', 'corporate_id', 'corporate id'],
-    pan: ['pan', 'pan_number', 'pan number'],
-    address: ['address', 'address_line1', 'address line 1', 'street', 'registered_office', 'registered office'],
-    addressLine2: ['address_line2', 'address line 2'],
-    city: ['city', 'town'],
-    district: ['district'],
-    state: ['state', 'province'],
-    pincode: ['pincode', 'pin', 'postal_code', 'postal code', 'zip_code', 'zip code', 'zip'],
-    phone: ['phone', 'mobile', 'contact_number', 'contact number', 'telephone'],
-    email: ['email', 'e-mail', 'contact_email', 'email_address', 'email address'],
-    website: ['website', 'website_url', 'website url', 'url', 'web'],
-    contactPerson: ['contact_person', 'contact person', 'director_name', 'director name', 'promoter', 'owner'],
-    title: ['title', 'designation', 'contact_title', 'role'],
-    businessType: ['business_type', 'business type', 'entity_type', 'constitution'],
-    msmeCategory: ['msme_category', 'msme category', 'msme_classification', 'enterprise_type'],
-    description: ['description', 'about', 'overview'],
-    foundingYear: ['founding_year', 'founding year', 'year_of_incorporation', 'incorporation_year'],
+    name: ['business_name', 'business name', 'businessname', 'company_name', 'company name', 'companyname', 'name', 'company', 'entity', 'entity_name', 'entity name', 'trade_name', 'trade name', 'firm_name', 'firm name', 'organization', 'organization_name', 'organization name'],
+    legalName: ['legal_name', 'legal name', 'legalname', 'registered_name', 'registered name', 'registeredname', 'official_name', 'official name'],
+    gstin: ['gstin', 'gst_number', 'gst number', 'gstnumber', 'gst', 'gstin_number', 'gstin number', 'gst_no', 'gst no', 'gstno'],
+    cin: ['cin', 'cin_number', 'cin number', 'cinnumber', 'cin_no', 'cin no', 'corporate_id', 'corporate id', 'corporateid', 'mca_cin', 'mca cin'],
+    pan: ['pan', 'pan_number', 'pan number', 'pannumber', 'pan_no', 'pan no', 'permanent_account_number'],
+    address: ['address', 'address_line1', 'address line 1', 'addressline1', 'street', 'street_address', 'registered_office', 'registered office', 'premises', 'location'],
+    addressLine2: ['address_line2', 'address line 2', 'addressline2'],
+    city: ['city', 'city_name', 'city name', 'cityname', 'town', 'location_city', 'location city', 'hub'],
+    district: ['district', 'district_name', 'district name'],
+    state: ['state', 'state_name', 'state name', 'statename', 'state / ut', 'state/ut', 'province', 'region'],
+    pincode: ['pincode', 'pin_code', 'pin code', 'pin', 'postal_code', 'postal code', 'postalcode', 'zip_code', 'zip code', 'zip'],
+    phone: ['phone', 'phone_number', 'phone number', 'phonenumber', 'mobile', 'mobile_number', 'mobile number', 'mobilenumber', 'contact', 'contact_number', 'contact number', 'contactno', 'telephone', 'tel'],
+    email: ['email', 'e-mail', 'contact_email', 'contact email', 'email_address', 'email address', 'mail'],
+    website: ['website', 'website_url', 'website url', 'url', 'web', 'site', 'domain'],
+    contactPerson: ['contact_person', 'contact person', 'contactperson', 'director_name', 'director name', 'director', 'promoter', 'owner', 'contact_name', 'contact name'],
+    title: ['title', 'designation', 'contact_title', 'contact title', 'role'],
+    businessType: ['business_type', 'business type', 'businesstype', 'entity_type', 'entity type', 'constitution', 'company_type', 'company type'],
+    msmeCategory: ['msme_category', 'msme category', 'msmecategory', 'msme_classification', 'msme classification', 'enterprise_type', 'enterprise type', 'msme'],
+    description: ['description', 'about', 'overview', 'summary', 'details'],
+    foundingYear: ['founding_year', 'founding year', 'foundingyear', 'year_of_incorporation', 'incorporation_year', 'registration_date', 'registration date', 'established', 'year'],
+    industry: ['industry', 'sector', 'industry_name', 'industry name', 'primary_industry'],
+    category: ['category', 'sub_industry', 'sub industry', 'subindustry', 'sub_sector', 'segment', 'vertical'],
   };
 
   constructor(
@@ -167,39 +169,71 @@ export class AdminImportService {
   ): Record<string, unknown> {
     const mapped: Record<string, unknown> = {};
 
-    // 1. Invert custom mapping if supplied: { CSV_Header: Canonical_Key }
-    const customLookup: Record<string, string> = {};
-    if (customMapping) {
-      Object.entries(customMapping).forEach(([canonicalKey, csvHeader]) => {
-        if (csvHeader) {
-          customLookup[csvHeader.toLowerCase().trim()] = canonicalKey;
-        }
-      });
-    }
-
     for (const [key, value] of Object.entries(row)) {
       if (value === null || value === undefined || value === '') continue;
-      const cleanKey = key.toLowerCase().trim().replace(/[\s_-]+/g, ' ');
+      const valStr = String(value).trim();
+      const cleanKey = key.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
 
-      // Check custom mapping first
-      if (customLookup[cleanKey]) {
-        mapped[customLookup[cleanKey]] = value;
-        continue;
-      }
-
-      // Check automatic dictionary
       let matchedCanonical: string | null = null;
-      for (const [canonicalKey, variants] of Object.entries(this.headerDictionary)) {
-        if (variants.some((v) => v.toLowerCase().replace(/[\s_-]+/g, ' ') === cleanKey)) {
-          matchedCanonical = canonicalKey;
-          break;
+
+      if (customMapping && Object.keys(customMapping).length > 0) {
+        for (const [csvH, canon] of Object.entries(customMapping)) {
+          const csvClean = csvH.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+          const canonClean = (canon || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+
+          if (csvClean === cleanKey && canon) {
+            matchedCanonical = canon;
+            break;
+          }
+          if (canonClean === cleanKey && csvH) {
+            matchedCanonical = csvH;
+            break;
+          }
         }
       }
 
-      if (matchedCanonical) {
-        mapped[matchedCanonical] = value;
-      } else {
-        mapped[key] = value;
+      if (!matchedCanonical) {
+        for (const [canonicalKey, variants] of Object.entries(this.headerDictionary)) {
+          if (variants.some((v) => v.toLowerCase().trim().replace(/[^a-z0-9]/g, '') === cleanKey)) {
+            matchedCanonical = canonicalKey;
+            break;
+          }
+        }
+      }
+
+      const targetKey = matchedCanonical || key;
+      mapped[targetKey] = valStr;
+
+      // Set aliases for uniform property access
+      if (targetKey === 'business_name' || targetKey === 'name') {
+        mapped.business_name = valStr;
+        mapped.name = valStr;
+        mapped.businessName = valStr;
+      } else if (targetKey === 'legal_name' || targetKey === 'legalName') {
+        mapped.legal_name = valStr;
+        mapped.legalName = valStr;
+      } else if (targetKey === 'address_line1' || targetKey === 'address') {
+        mapped.address_line1 = valStr;
+        mapped.address = valStr;
+        mapped.addressLine1 = valStr;
+      } else if (targetKey === 'contact_person' || targetKey === 'contactPerson') {
+        mapped.contact_person = valStr;
+        mapped.contactPerson = valStr;
+      } else if (targetKey === 'contact_title' || targetKey === 'title') {
+        mapped.contact_title = valStr;
+        mapped.title = valStr;
+      } else if (targetKey === 'business_type' || targetKey === 'businessType') {
+        mapped.business_type = valStr;
+        mapped.businessType = valStr;
+      } else if (targetKey === 'msme_category' || targetKey === 'msmeCategory') {
+        mapped.msme_category = valStr;
+        mapped.msmeCategory = valStr;
+      } else if (targetKey === 'founding_year' || targetKey === 'foundingYear') {
+        mapped.founding_year = valStr;
+        mapped.foundingYear = valStr;
+      } else if (targetKey === 'category' || targetKey === 'subIndustry') {
+        mapped.category = valStr;
+        mapped.subIndustry = valStr;
       }
     }
 

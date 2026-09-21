@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { sendAdminOtpEmail, isAuthorizedAdminEmail } from '@/lib/email-service';
 import { queryDb } from '@/lib/db';
+import { DEFAULT_FILTER_CONFIG } from '@/lib/filter-options-store';
 
 /**
  * Orion Production Gateway Proxy
@@ -550,30 +551,67 @@ function handleAdminCsvTemplate(): NextResponse {
   });
 }
 
-function normalizeRowHeader(key: string, customMapping?: Record<string, string>): string {
-  const clean = key.toLowerCase().trim().replace(/[\s_-]+/g, '');
-  if (customMapping) {
-    for (const [canonical, csvH] of Object.entries(customMapping)) {
-      if (csvH && csvH.toLowerCase().trim().replace(/[\s_-]+/g, '') === clean) {
+const INDIAN_STATES_SET = new Set([
+  'andaman and nicobar islands', 'andhra pradesh', 'arunachal pradesh', 'assam', 'bihar',
+  'chandigarh', 'chhattisgarh', 'dadra and nagar haveli and daman and diu', 'delhi', 'goa',
+  'gujarat', 'haryana', 'himachal pradesh', 'jammu and kashmir', 'jharkhand', 'karnataka',
+  'kerala', 'ladakh', 'lakshadweep', 'madhya pradesh', 'maharashtra', 'manipur', 'meghalaya',
+  'mizoram', 'nagaland', 'odisha', 'puducherry', 'punjab', 'rajasthan', 'sikkim',
+  'tamil nadu', 'telangana', 'tripura', 'uttar pradesh', 'uttarakhand', 'west bengal'
+]);
+
+function normalizeRowHeader(key: string, customMapping?: Record<string, string>, sampleVal?: string): string {
+  const clean = key.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+  if (customMapping && Object.keys(customMapping).length > 0) {
+    for (const [csvHeader, canonical] of Object.entries(customMapping)) {
+      const cHeaderClean = csvHeader.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+      const cCanonClean = (canonical || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+      if (cHeaderClean === clean && canonical) {
         return canonical;
+      }
+      if (cCanonClean === clean && csvHeader) {
+        return csvHeader;
       }
     }
   }
-  if (clean.includes('businessname') || clean.includes('companyname') || clean === 'name' || clean.includes('entity')) return 'business_name';
-  if (clean.includes('legalname')) return 'legal_name';
-  if (clean.includes('gstin') || clean.includes('gst')) return 'gstin';
-  if (clean.includes('cin')) return 'cin';
-  if (clean.includes('pan')) return 'pan';
-  if (clean.includes('phone') || clean.includes('mobile') || clean.includes('contact')) return 'phone';
-  if (clean.includes('email') || clean.includes('mail')) return 'email';
-  if (clean.includes('website') || clean.includes('web') || clean.includes('url')) return 'website';
-  if (clean.includes('state')) return 'state';
-  if (clean.includes('city') || clean.includes('location')) return 'city';
-  if (clean.includes('district')) return 'district';
-  if (clean.includes('pincode') || clean.includes('pin') || clean.includes('postal')) return 'pincode';
-  if (clean.includes('industry')) return 'industry';
-  if (clean.includes('category')) return 'category';
-  if (clean.includes('description')) return 'description';
+
+  // 1. Precise Header Pattern Matching across arbitrary column arrangements
+  if (clean.includes('businessname') || clean.includes('companyname') || clean.includes('firmname') || clean.includes('entityname') || clean.includes('tradename') || clean.includes('orgname') || clean.includes('vendorname') || clean.includes('storename') || clean.includes('shopname') || clean.includes('brandname')) return 'business_name';
+  if (clean.includes('business') || clean.includes('company') || clean === 'name' || clean.includes('entity') || clean.includes('firm') || clean.includes('organization') || clean.includes('trade')) return 'business_name';
+  if (clean.includes('legalname') || clean.includes('registeredname') || clean.includes('officialname')) return 'legal_name';
+  if (clean.includes('gstin') || clean.includes('gstno') || clean.includes('gstnumber') || clean === 'gst') return 'gstin';
+  if (clean.includes('cin') || clean.includes('corporateid') || clean.includes('mcacin')) return 'cin';
+  if (clean.includes('pan') || clean.includes('panno') || clean.includes('pannumber')) return 'pan';
+  if (clean.includes('phone') || clean.includes('mobile') || clean.includes('contactno') || clean.includes('contactnumber') || clean.includes('telephone') || clean.includes('tel') || clean.includes('whatsapp') || clean.includes('cell')) return 'phone';
+  if (clean.includes('email') || clean.includes('mail') || clean.includes('emailid')) return 'email';
+  if (clean.includes('website') || clean.includes('web') || clean.includes('site') || clean.includes('url') || clean.includes('domain')) return 'website';
+  if (clean === 'state' || clean.includes('statename') || clean.includes('province') || clean.includes('region')) return 'state';
+  if (clean === 'city' || clean.includes('cityname') || clean.includes('town') || clean.includes('hub')) return 'city';
+  if (clean.includes('district') || clean.includes('dist')) return 'district';
+  if (clean.includes('pincode') || clean.includes('pin') || clean.includes('postal') || clean.includes('zip')) return 'pincode';
+  if (clean.includes('address') || clean.includes('street') || clean.includes('office') || clean.includes('premises') || clean.includes('location')) return 'address_line1';
+  if (clean.includes('contactperson') || clean.includes('contactname') || clean.includes('director') || clean.includes('promoter') || clean.includes('owner') || clean.includes('keycontact')) return 'contact_person';
+  if (clean.includes('contacttitle') || clean.includes('designation') || clean.includes('role') || clean === 'title' || clean.includes('position')) return 'contact_title';
+  if (clean.includes('businesstype') || clean.includes('entitytype') || clean.includes('constitution') || clean.includes('companytype')) return 'business_type';
+  if (clean.includes('msme') || clean.includes('enterprisetype')) return 'msme_category';
+  if (clean.includes('industry') || clean.includes('sector')) return 'industry';
+  if (clean.includes('category') || clean.includes('subindustry') || clean.includes('segment')) return 'category';
+  if (clean.includes('description') || clean.includes('about') || clean.includes('summary')) return 'description';
+  if (clean.includes('founding') || clean.includes('incorporation') || clean.includes('registrationdate') || clean.includes('established')) return 'founding_year';
+
+  // 2. Content-Type Fallback Heuristic Auto-Detection if Header is Unknown / Unrecognized
+  if (sampleVal) {
+    const valTrim = sampleVal.trim();
+    if (/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(valTrim)) return 'gstin';
+    if (/^[LU][0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}$/i.test(valTrim)) return 'cin';
+    if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i.test(valTrim)) return 'pan';
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valTrim)) return 'email';
+    if (/^(?:\+91[\-\s]?)?[6-9]\d{9}$/.test(valTrim.replace(/[\s\-\(\)]/g, ''))) return 'phone';
+    if (/^(https?:\/\/)?(www\.)?[a-zA-Z0-9\-]+\.[a-zA-Z]{2,}(\/.*)?$/.test(valTrim)) return 'website';
+    if (INDIAN_STATES_SET.has(valTrim.toLowerCase())) return 'state';
+    if (/^[1-9][0-9]{5}$/.test(valTrim)) return 'pincode';
+  }
+
   return key;
 }
 
@@ -594,6 +632,19 @@ async function handleAdminImportPreview(req: NextRequest): Promise<NextResponse>
     );
   }
 
+  const rawHeaders = Object.keys(rows[0] || {});
+  const detectedFieldMappings = rawHeaders.map((header) => {
+    const sampleValue = rows[0] && rows[0][header] !== undefined && rows[0][header] !== null ? String(rows[0][header]) : '';
+    const canonicalKey = normalizeRowHeader(header, customMapping, sampleValue);
+    const isCustom = Boolean(customMapping && (customMapping[header] || Object.values(customMapping).includes(header)));
+    return {
+      csvHeader: header,
+      canonicalKey,
+      sampleValue,
+      isAutoMapped: !isCustom && canonicalKey !== header,
+    };
+  });
+
   const previewRecords: any[] = [];
   const duplicates: any[] = [];
   const errors: any[] = [];
@@ -613,7 +664,79 @@ async function handleAdminImportPreview(req: NextRequest): Promise<NextResponse>
     const mapped: Record<string, any> = {};
     for (const [k, v] of Object.entries(raw)) {
       if (v !== undefined && v !== null && v !== '') {
-        mapped[normalizeRowHeader(k, customMapping)] = String(v).trim();
+        const valStr = String(v).trim();
+        const canonicalKey = normalizeRowHeader(k, customMapping, valStr);
+        mapped[canonicalKey] = valStr;
+
+        // Populate property aliases for seamless internal access
+        if (canonicalKey === 'business_name' || canonicalKey === 'name') {
+          mapped.business_name = valStr;
+          mapped.name = valStr;
+          mapped.company_name = valStr;
+        } else if (canonicalKey === 'legal_name' || canonicalKey === 'legalName') {
+          mapped.legal_name = valStr;
+          mapped.legalName = valStr;
+        } else if (canonicalKey === 'address_line1' || canonicalKey === 'address') {
+          mapped.address_line1 = valStr;
+          mapped.address = valStr;
+        } else if (canonicalKey === 'contact_person' || canonicalKey === 'contactPerson') {
+          mapped.contact_person = valStr;
+          mapped.contactPerson = valStr;
+        } else if (canonicalKey === 'contact_title' || canonicalKey === 'title') {
+          mapped.contact_title = valStr;
+          mapped.title = valStr;
+        } else if (canonicalKey === 'business_type' || canonicalKey === 'businessType') {
+          mapped.business_type = valStr;
+          mapped.businessType = valStr;
+        } else if (canonicalKey === 'msme_category' || canonicalKey === 'msmeCategory') {
+          mapped.msme_category = valStr;
+          mapped.msmeCategory = valStr;
+        } else if (canonicalKey === 'founding_year' || canonicalKey === 'foundingYear') {
+          mapped.founding_year = valStr;
+          mapped.foundingYear = valStr;
+        } else if (canonicalKey === 'category' || canonicalKey === 'subIndustry') {
+          mapped.category = valStr;
+          mapped.subIndustry = valStr;
+        }
+      }
+    }
+
+    // Intra-Row Fallback Auto-Detection for missing mandatory fields
+    if (!mapped.business_name && !mapped.name) {
+      for (const [k, v] of Object.entries(raw)) {
+        const valStr = String(v || '').trim();
+        if (valStr && !/^[0-9+@]/i.test(valStr) && valStr.length > 2 && !INDIAN_STATES_SET.has(valStr.toLowerCase())) {
+          mapped.business_name = valStr;
+          mapped.name = valStr;
+          break;
+        }
+      }
+    }
+    if (!mapped.state) {
+      for (const [k, v] of Object.entries(raw)) {
+        const valStr = String(v || '').trim();
+        if (valStr && INDIAN_STATES_SET.has(valStr.toLowerCase())) {
+          mapped.state = valStr;
+          break;
+        }
+      }
+    }
+    if (!mapped.phone) {
+      for (const [k, v] of Object.entries(raw)) {
+        const valStr = String(v || '').trim();
+        if (/^(?:\+91[\-\s]?)?[6-9]\d{9}$/.test(valStr.replace(/[\s\-\(\)]/g, ''))) {
+          mapped.phone = valStr;
+          break;
+        }
+      }
+    }
+    if (!mapped.email) {
+      for (const [k, v] of Object.entries(raw)) {
+        const valStr = String(v || '').trim();
+        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valStr)) {
+          mapped.email = valStr;
+          break;
+        }
       }
     }
 
@@ -751,7 +874,46 @@ async function handleAdminImportPreview(req: NextRequest): Promise<NextResponse>
       previewRecords,
       duplicates,
       errors,
+      detectedHeaders: rawHeaders,
+      fieldMappings: detectedFieldMappings,
     },
+    timestamp: new Date().toISOString(),
+  });
+}
+
+let serverFilterOptionsStore: any = null;
+
+async function handleGetFilterOptions(): Promise<NextResponse> {
+  const config = serverFilterOptionsStore || DEFAULT_FILTER_CONFIG;
+  return NextResponse.json({
+    success: true,
+    statusCode: 200,
+    message: 'Filter options governance configuration retrieved',
+    data: config,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+async function handleUpdateFilterOptions(req: NextRequest): Promise<NextResponse> {
+  let body: any = {};
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ success: false, statusCode: 400, message: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  if (body && Array.isArray(body.categories)) {
+    serverFilterOptionsStore = {
+      categories: body.categories,
+      lastUpdated: new Date().toISOString(),
+    };
+  }
+
+  return NextResponse.json({
+    success: true,
+    statusCode: 200,
+    message: 'Filter options governance configuration updated successfully',
+    data: serverFilterOptionsStore || DEFAULT_FILTER_CONFIG,
     timestamp: new Date().toISOString(),
   });
 }
@@ -1072,8 +1234,244 @@ async function proxyRequest(
     return handleAdminImportSubmit(req);
   }
 
+let serverPublishedBusinessesStore: any[] | null = null;
+
+function handleDiscoverSearch(req: NextRequest): NextResponse {
+  const q = req.nextUrl.searchParams.get('q')?.toLowerCase() || '';
+  const state = req.nextUrl.searchParams.get('state')?.toLowerCase() || '';
+  const city = req.nextUrl.searchParams.get('city')?.toLowerCase() || '';
+  const district = req.nextUrl.searchParams.get('district')?.toLowerCase() || '';
+  const pincode = req.nextUrl.searchParams.get('pincode') || '';
+
+  const page = parseInt(req.nextUrl.searchParams.get('page') || '1', 10);
+  const limit = parseInt(req.nextUrl.searchParams.get('limit') || '25', 10);
+
+  const defaultBusinesses = [
+    {
+      id: 'BIZ-10001',
+      name: 'Tata Consultancy Services',
+      industry: 'Information Technology',
+      subIndustry: 'IT Services & Consulting',
+      category: 'IT Services & Consulting',
+      city: 'Mumbai',
+      district: 'Mumbai',
+      state: 'Maharashtra',
+      address: '9th Floor Nirmal Building Nariman Point',
+      zipCode: '400021',
+      pincode: '400021',
+      phone: '+912267789999',
+      email: 'corporate.office@tcs.com',
+      website: 'https://www.tcs.com',
+      phoneStatus: 'available',
+      emailStatus: 'available',
+      hasWhatsApp: true,
+      verified: true,
+      completeProfile: true,
+      recentlyUpdated: true,
+      entityType: 'Public Limited',
+      businessType: 'Public Limited',
+      msmeCategory: 'Medium',
+      opportunityScore: 98,
+      businessAge: '56 yrs',
+      registrationDate: '1968-04-01',
+      description: 'Global leader in IT services, digital and business solutions.',
+      creditsRequired: 1,
+      status: 'active',
+      tags: ['Information Technology', 'IT Services & Consulting', 'Verified'],
+    },
+    {
+      id: 'BIZ-10002',
+      name: 'Infosys Limited',
+      industry: 'Information Technology',
+      subIndustry: 'Enterprise Software & AI',
+      category: 'Enterprise Software & AI',
+      city: 'Bangalore',
+      district: 'Bengaluru Urban',
+      state: 'Karnataka',
+      address: 'Plot No 44 Electronics City Hosur Road',
+      zipCode: '560100',
+      pincode: '560100',
+      phone: '+918028520261',
+      email: 'investors@infosys.com',
+      website: 'https://www.infosys.com',
+      phoneStatus: 'available',
+      emailStatus: 'available',
+      hasWhatsApp: true,
+      verified: true,
+      completeProfile: true,
+      recentlyUpdated: true,
+      entityType: 'Public Limited',
+      businessType: 'Public Limited',
+      msmeCategory: 'Medium',
+      opportunityScore: 96,
+      businessAge: '43 yrs',
+      registrationDate: '1981-07-02',
+      description: 'Next-generation digital services and consulting.',
+      creditsRequired: 1,
+      status: 'active',
+      tags: ['Information Technology', 'Enterprise Software & AI', 'Verified'],
+    },
+    {
+      id: 'BIZ-10003',
+      name: 'Wipro Limited',
+      industry: 'Information Technology',
+      subIndustry: 'Cloud & Business Transformation',
+      category: 'Cloud & Business Transformation',
+      city: 'Bangalore',
+      district: 'Bengaluru Urban',
+      state: 'Karnataka',
+      address: 'Doddakannelli Sarjapur Road',
+      zipCode: '560035',
+      pincode: '560035',
+      phone: '+918028440011',
+      email: 'info@wipro.com',
+      website: 'https://www.wipro.com',
+      phoneStatus: 'available',
+      emailStatus: 'available',
+      hasWhatsApp: true,
+      verified: true,
+      completeProfile: true,
+      recentlyUpdated: true,
+      entityType: 'Public Limited',
+      businessType: 'Public Limited',
+      msmeCategory: 'Medium',
+      opportunityScore: 94,
+      businessAge: '79 yrs',
+      registrationDate: '1945-12-29',
+      description: 'Leading global information technology, consulting and business process services company.',
+      creditsRequired: 1,
+      status: 'active',
+      tags: ['Information Technology', 'Cloud & Business Transformation', 'Verified'],
+    },
+    {
+      id: 'BIZ-10004',
+      name: 'HCL Technologies',
+      industry: 'Information Technology',
+      subIndustry: 'Digital Foundation & Engineering',
+      category: 'Digital Foundation & Engineering',
+      city: 'New Delhi',
+      district: 'South East Delhi',
+      state: 'Delhi',
+      address: '806 Siddharth 96 Nehru Place',
+      zipCode: '110019',
+      pincode: '110019',
+      phone: '+911204013000',
+      email: 'investors@hcl.com',
+      website: 'https://www.hcltech.com',
+      phoneStatus: 'available',
+      emailStatus: 'available',
+      hasWhatsApp: true,
+      verified: true,
+      completeProfile: true,
+      recentlyUpdated: true,
+      entityType: 'Public Limited',
+      businessType: 'Public Limited',
+      msmeCategory: 'Medium',
+      opportunityScore: 92,
+      businessAge: '33 yrs',
+      registrationDate: '1991-11-12',
+      description: 'Global technology company helping enterprises reimagine their businesses.',
+      creditsRequired: 1,
+      status: 'active',
+      tags: ['Information Technology', 'Digital Foundation & Engineering', 'Verified'],
+    },
+    {
+      id: 'BIZ-10005',
+      name: 'Tech Mahindra',
+      industry: 'Information Technology',
+      subIndustry: 'Telecommunications & Enterprise IT',
+      category: 'Telecommunications & Enterprise IT',
+      city: 'Mumbai',
+      district: 'Mumbai',
+      state: 'Maharashtra',
+      address: 'Gateway Building Apollo Bunder',
+      zipCode: '400001',
+      pincode: '400001',
+      phone: '+912066018100',
+      email: 'investor.relations@techmahindra.com',
+      website: 'https://www.techmahindra.com',
+      phoneStatus: 'available',
+      emailStatus: 'available',
+      hasWhatsApp: true,
+      verified: true,
+      completeProfile: true,
+      recentlyUpdated: true,
+      entityType: 'Public Limited',
+      businessType: 'Public Limited',
+      msmeCategory: 'Medium',
+      opportunityScore: 90,
+      businessAge: '38 yrs',
+      registrationDate: '1986-10-24',
+      description: 'Offering innovative and customer-centric digital experiences.',
+      creditsRequired: 1,
+      status: 'active',
+      tags: ['Information Technology', 'Telecommunications & Enterprise IT', 'Verified'],
+    },
+  ];
+
+  const pool = (serverPublishedBusinessesStore && serverPublishedBusinessesStore.length > 0)
+    ? serverPublishedBusinessesStore
+    : defaultBusinesses;
+
+  const matched = pool.filter((item: any) => {
+    if (q) {
+      const matchName = (item.name || '').toLowerCase().includes(q);
+      const matchInd = (item.industry || '').toLowerCase().includes(q);
+      const matchCity = (item.city || '').toLowerCase().includes(q);
+      const matchState = (item.state || '').toLowerCase().includes(q);
+      if (!matchName && !matchInd && !matchCity && !matchState) return false;
+    }
+    if (state && !(item.state || '').toLowerCase().includes(state)) return false;
+    if (city && !(item.city || '').toLowerCase().includes(city)) return false;
+    if (district && item.district && !(item.district || '').toLowerCase().includes(district)) return false;
+    if (pincode && item.pincode && !(item.pincode || '').includes(pincode)) return false;
+    return true;
+  });
+
+  const startIndex = (page - 1) * limit;
+  const paginated = matched.slice(startIndex, startIndex + limit);
+
+  return NextResponse.json({
+    success: true,
+    statusCode: 200,
+    message: 'Published businesses search executed successfully',
+    data: {
+      items: paginated,
+      total: matched.length,
+      page,
+      limit,
+      totalPages: Math.ceil(matched.length / limit) || 1,
+    },
+    timestamp: new Date().toISOString(),
+  });
+}
+
+  // Discover Search API Handler
+  if (fullPath === 'discover/search' || fullPath === 'discover/businesses') {
+    return handleDiscoverSearch(req);
+  }
+
+  // Admin & Discover Dynamic Filter Options Governance
+  if (fullPath === 'admin/filter-options' || fullPath === 'discover/filter-options') {
+    if (req.method === 'POST') {
+      return handleUpdateFilterOptions(req);
+    }
+    return handleGetFilterOptions();
+  }
+
   // Real Database Admin - Businesses List
   if (fullPath === 'admin/businesses') {
+    if (req.method === 'POST') {
+      try {
+        const body = await req.json();
+        if (Array.isArray(body)) {
+          serverPublishedBusinessesStore = body;
+        } else if (body && Array.isArray(body.businesses)) {
+          serverPublishedBusinessesStore = body.businesses;
+        }
+      } catch (err) {}
+      return NextResponse.json({ success: true, statusCode: 200, message: 'Published businesses updated successfully', timestamp: new Date().toISOString() });
+    }
     const rows = await queryDb(`
       SELECT b.id, b.name, b.slug, b.status, b.created_at, b.updated_at,
              b.business_type, b.msme_category, b.is_verified, b.incorporation_date,

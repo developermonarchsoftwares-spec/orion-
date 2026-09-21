@@ -245,37 +245,65 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
     initMappingsFromRows(REAL_SAMPLE_BUSINESSES);
   };
 
+  const INDIAN_STATES_SET = new Set([
+    'andaman and nicobar islands', 'andhra pradesh', 'arunachal pradesh', 'assam', 'bihar',
+    'chandigarh', 'chhattisgarh', 'dadra and nagar haveli and daman and diu', 'delhi', 'goa',
+    'gujarat', 'haryana', 'himachal pradesh', 'jammu and kashmir', 'jharkhand', 'karnataka',
+    'kerala', 'ladakh', 'lakshadweep', 'madhya pradesh', 'maharashtra', 'manipur', 'meghalaya',
+    'mizoram', 'nagaland', 'odisha', 'puducherry', 'punjab', 'rajasthan', 'sikkim',
+    'tamil nadu', 'telangana', 'tripura', 'uttar pradesh', 'uttarakhand', 'west bengal'
+  ]);
+
+  const getCanonicalKeyForHeader = (h: string, sampleVal?: string): string => {
+    const clean = h.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+
+    // 1. Precise Header Matching across arbitrary column arrangements & names
+    if (clean.includes('businessname') || clean.includes('companyname') || clean.includes('firmname') || clean.includes('entityname') || clean.includes('tradename') || clean.includes('orgname') || clean.includes('vendorname') || clean.includes('storename') || clean.includes('shopname') || clean.includes('brandname')) return 'business_name';
+    if (clean.includes('business') || clean.includes('company') || clean === 'name' || clean.includes('entity') || clean.includes('firm') || clean.includes('organization') || clean.includes('trade')) return 'business_name';
+    if (clean.includes('legalname') || clean.includes('registeredname') || clean.includes('officialname')) return 'legal_name';
+    if (clean.includes('gstin') || clean.includes('gstno') || clean.includes('gstnumber') || clean === 'gst') return 'gstin';
+    if (clean.includes('cin') || clean.includes('corporateid') || clean.includes('mcacin')) return 'cin';
+    if (clean.includes('pan') || clean.includes('panno') || clean.includes('pannumber')) return 'pan';
+    if (clean.includes('phone') || clean.includes('mobile') || clean.includes('contactno') || clean.includes('contactnumber') || clean.includes('telephone') || clean.includes('tel') || clean.includes('whatsapp') || clean.includes('cell')) return 'phone';
+    if (clean.includes('email') || clean.includes('mail') || clean.includes('emailid')) return 'email';
+    if (clean.includes('website') || clean.includes('web') || clean.includes('site') || clean.includes('url') || clean.includes('domain')) return 'website';
+    if (clean === 'state' || clean.includes('statename') || clean.includes('province') || clean.includes('region')) return 'state';
+    if (clean === 'city' || clean.includes('cityname') || clean.includes('town') || clean.includes('hub')) return 'city';
+    if (clean.includes('district') || clean.includes('dist')) return 'district';
+    if (clean.includes('pincode') || clean.includes('pin') || clean.includes('postal') || clean.includes('zip')) return 'pincode';
+    if (clean.includes('address') || clean.includes('street') || clean.includes('office') || clean.includes('premises') || clean.includes('location')) return 'address_line1';
+    if (clean.includes('contactperson') || clean.includes('contactname') || clean.includes('director') || clean.includes('promoter') || clean.includes('owner') || clean.includes('keycontact')) return 'contact_person';
+    if (clean.includes('contacttitle') || clean.includes('designation') || clean.includes('role') || clean === 'title' || clean.includes('position')) return 'contact_title';
+    if (clean.includes('businesstype') || clean.includes('entitytype') || clean.includes('constitution') || clean.includes('companytype')) return 'business_type';
+    if (clean.includes('msme') || clean.includes('enterprisetype')) return 'msme_category';
+    if (clean.includes('industry') || clean.includes('sector')) return 'industry';
+    if (clean.includes('category') || clean.includes('subindustry') || clean.includes('segment')) return 'category';
+    if (clean.includes('description') || clean.includes('about') || clean.includes('summary')) return 'description';
+    if (clean.includes('founding') || clean.includes('incorporation') || clean.includes('registrationdate') || clean.includes('established')) return 'founding_year';
+
+    // 2. Content-Type Fallback Heuristic Auto-Detection if Header is Unknown / Unrecognized
+    if (sampleVal) {
+      const valTrim = sampleVal.trim();
+      if (/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(valTrim)) return 'gstin';
+      if (/^[LU][0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}$/i.test(valTrim)) return 'cin';
+      if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i.test(valTrim)) return 'pan';
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valTrim)) return 'email';
+      if (/^(?:\+91[\-\s]?)?[6-9]\d{9}$/.test(valTrim.replace(/[\s\-\(\)]/g, ''))) return 'phone';
+      if (/^(https?:\/\/)?(www\.)?[a-zA-Z0-9\-]+\.[a-zA-Z]{2,}(\/.*)?$/.test(valTrim)) return 'website';
+      if (INDIAN_STATES_SET.has(valTrim.toLowerCase())) return 'state';
+      if (/^[1-9][0-9]{5}$/.test(valTrim)) return 'pincode';
+    }
+
+    return h;
+  };
+
   const initMappingsFromRows = (rows: Array<Record<string, unknown>>) => {
     if (rows.length === 0) return;
     const headers = Object.keys(rows[0]);
     const mappings: Record<string, string> = {};
     headers.forEach((h) => {
-      const clean = h.toLowerCase().replace(/[^a-z0-9]/g, '');
-      if (clean.includes('business') || clean.includes('company') || clean === 'name' || clean.includes('entity')) {
-        mappings[h] = 'business_name';
-      } else if (clean.includes('gst') || clean.includes('gstin')) {
-        mappings[h] = 'gstin';
-      } else if (clean.includes('cin')) {
-        mappings[h] = 'cin';
-      } else if (clean.includes('pan')) {
-        mappings[h] = 'pan';
-      } else if (clean.includes('phone') || clean.includes('mobile')) {
-        mappings[h] = 'phone';
-      } else if (clean.includes('email') || clean.includes('mail')) {
-        mappings[h] = 'email';
-      } else if (clean.includes('state')) {
-        mappings[h] = 'state';
-      } else if (clean.includes('city') || clean.includes('location')) {
-        mappings[h] = 'city';
-      } else if (clean.includes('pin') || clean.includes('postal')) {
-        mappings[h] = 'pincode';
-      } else if (clean.includes('web') || clean.includes('site') || clean.includes('url')) {
-        mappings[h] = 'website';
-      } else if (clean.includes('industry') || clean.includes('sector')) {
-        mappings[h] = 'industry';
-      } else {
-        mappings[h] = h;
-      }
+      const sampleVal = rows[0] && rows[0][h] !== undefined && rows[0][h] !== null ? String(rows[0][h]) : '';
+      mappings[h] = getCanonicalKeyForHeader(h, sampleVal);
     });
     setFieldMappings(mappings);
   };
@@ -298,10 +326,83 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
       const mapped: Record<string, string> = {};
       Object.entries(raw).forEach(([k, v]) => {
         if (v !== undefined && v !== null && v !== '') {
-          const canonicalKey = mappings[k] || k;
-          mapped[canonicalKey] = String(v).trim();
+          const valStr = String(v).trim();
+          const canonicalKey = mappings[k] || getCanonicalKeyForHeader(k, valStr);
+          if (canonicalKey && canonicalKey !== '_ignore') {
+            mapped[canonicalKey] = valStr;
+
+            // Set property aliases for seamless access
+            if (canonicalKey === 'business_name' || canonicalKey === 'name') {
+              mapped.business_name = valStr;
+              mapped.name = valStr;
+              mapped.company_name = valStr;
+            } else if (canonicalKey === 'legal_name' || canonicalKey === 'legalName') {
+              mapped.legal_name = valStr;
+              mapped.legalName = valStr;
+            } else if (canonicalKey === 'address_line1' || canonicalKey === 'address') {
+              mapped.address_line1 = valStr;
+              mapped.address = valStr;
+            } else if (canonicalKey === 'contact_person' || canonicalKey === 'contactPerson') {
+              mapped.contact_person = valStr;
+              mapped.contactPerson = valStr;
+            } else if (canonicalKey === 'contact_title' || canonicalKey === 'title') {
+              mapped.contact_title = valStr;
+              mapped.title = valStr;
+            } else if (canonicalKey === 'business_type' || canonicalKey === 'businessType') {
+              mapped.business_type = valStr;
+              mapped.businessType = valStr;
+            } else if (canonicalKey === 'msme_category' || canonicalKey === 'msmeCategory') {
+              mapped.msme_category = valStr;
+              mapped.msmeCategory = valStr;
+            } else if (canonicalKey === 'founding_year' || canonicalKey === 'foundingYear') {
+              mapped.founding_year = valStr;
+              mapped.foundingYear = valStr;
+            } else if (canonicalKey === 'category' || canonicalKey === 'subIndustry') {
+              mapped.category = valStr;
+              mapped.subIndustry = valStr;
+            }
+          }
         }
       });
+
+      // Intra-Row Fallback Auto-Detection for missing mandatory fields
+      if (!mapped.business_name && !mapped.name) {
+        for (const [k, v] of Object.entries(raw)) {
+          const valStr = String(v || '').trim();
+          if (valStr && !/^[0-9+@]/i.test(valStr) && valStr.length > 2 && !INDIAN_STATES_SET.has(valStr.toLowerCase())) {
+            mapped.business_name = valStr;
+            mapped.name = valStr;
+            break;
+          }
+        }
+      }
+      if (!mapped.state) {
+        for (const [k, v] of Object.entries(raw)) {
+          const valStr = String(v || '').trim();
+          if (valStr && INDIAN_STATES_SET.has(valStr.toLowerCase())) {
+            mapped.state = valStr;
+            break;
+          }
+        }
+      }
+      if (!mapped.phone) {
+        for (const [k, v] of Object.entries(raw)) {
+          const valStr = String(v || '').trim();
+          if (/^(?:\+91[\-\s]?)?[6-9]\d{9}$/.test(valStr.replace(/[\s\-\(\)]/g, ''))) {
+            mapped.phone = valStr;
+            break;
+          }
+        }
+      }
+      if (!mapped.email) {
+        for (const [k, v] of Object.entries(raw)) {
+          const valStr = String(v || '').trim();
+          if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valStr)) {
+            mapped.email = valStr;
+            break;
+          }
+        }
+      }
 
       const businessName = mapped.business_name || mapped.name || mapped.company_name || '';
       const state = mapped.state || '';
@@ -688,6 +789,96 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
               <span className="text-xl font-bold font-mono text-red-700 dark:text-red-300">{previewData.invalidCount}</span>
             </div>
           </div>
+
+          {/* Detected CSV Headers & Field Mapping Card */}
+          {parsedRows.length > 0 && (
+            <div className="bg-zinc-50/70 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-2.5">
+                <div>
+                  <h3 className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5 text-xs">
+                    <Database className="w-4 h-4 text-zinc-500" />
+                    <span>Detected CSV Headers & Internal Schema Mapping</span>
+                  </h3>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">
+                    {Object.keys(parsedRows[0] || {}).length} CSV headers detected. Common headers ('Business Name', 'State', 'City', 'Phone', 'GSTIN') are auto-mapped. Adjust mappings below if required.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300 font-bold text-[10px] flex items-center gap-1 border border-green-200 dark:border-green-800">
+                    <Check className="w-3 h-3" />
+                    <span>Auto Header Mapping Active</span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                {Object.keys(parsedRows[0] || {}).map((header) => {
+                  const sampleVal = String(parsedRows[0]?.[header] ?? '');
+                  const currentTarget = fieldMappings[header] || getCanonicalKeyForHeader(header);
+                  const isAuto = currentTarget === getCanonicalKeyForHeader(header);
+
+                  return (
+                    <div key={header} className="p-2.5 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 space-y-1.5 shadow-2xs">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-bold font-mono text-zinc-900 dark:text-zinc-100 truncate text-[11px]" title={header}>
+                          {header}
+                        </span>
+                        <span className={cn(
+                          'px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0',
+                          isAuto ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-900' : 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-900'
+                        )}>
+                          {isAuto ? 'Auto-Mapped' : 'Custom'}
+                        </span>
+                      </div>
+
+                      {sampleVal && (
+                        <p className="text-[10px] text-zinc-400 truncate font-mono bg-zinc-50 dark:bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-100 dark:border-zinc-800/80">
+                          Sample: <span className="text-zinc-700 dark:text-zinc-300">{sampleVal}</span>
+                        </p>
+                      )}
+
+                      <div className="flex items-center gap-1 pt-0.5">
+                        <ArrowRight className="w-3 h-3 text-zinc-400 shrink-0" />
+                        <select
+                          value={currentTarget}
+                          onChange={(e) => {
+                            const newMappings = { ...fieldMappings, [header]: e.target.value };
+                            setFieldMappings(newMappings);
+                            const updatedPreview = synthesizeClientPreview(parsedRows, newMappings);
+                            setPreviewData(updatedPreview);
+                          }}
+                          className="w-full text-[10px] bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded p-1 font-semibold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-400 cursor-pointer"
+                        >
+                          <option value="business_name">Business Name (Mandatory)</option>
+                          <option value="state">State / UT (Mandatory)</option>
+                          <option value="city">City / Location</option>
+                          <option value="phone">Phone Number</option>
+                          <option value="gstin">GSTIN (Statutory)</option>
+                          <option value="cin">CIN / MCA Reg</option>
+                          <option value="pan">PAN</option>
+                          <option value="email">Email</option>
+                          <option value="address_line1">Address Line 1</option>
+                          <option value="pincode">Pincode</option>
+                          <option value="website">Website URL</option>
+                          <option value="legal_name">Legal Name</option>
+                          <option value="industry">Industry</option>
+                          <option value="category">Category / Sub Industry</option>
+                          <option value="contact_person">Contact Person</option>
+                          <option value="contact_title">Contact Title</option>
+                          <option value="business_type">Business Type</option>
+                          <option value="msme_category">MSME Category</option>
+                          <option value="founding_year">Founding Year</option>
+                          <option value="description">Description</option>
+                          <option value="district">District</option>
+                          <option value="_ignore">— Do Not Import —</option>
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Raw Preview Table */}
           {(() => {

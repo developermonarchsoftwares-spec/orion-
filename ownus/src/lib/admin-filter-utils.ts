@@ -226,7 +226,27 @@ export function filterAdminBusinessRecord(
   if (filters.orionScoreTier === 'medium' && (score < 50 || score >= 80)) return false;
   if (filters.orionScoreTier === 'low' && score >= 50) return false;
 
-  // 10. Quick Filter Chips
+  // 10. Custom Dynamic Admin Filters
+  if (filters.customAdminFilters) {
+    for (const [catId, selectedValues] of Object.entries(filters.customAdminFilters)) {
+      if (Array.isArray(selectedValues) && selectedValues.length > 0) {
+        const match = selectedValues.some((sv) => {
+          const query = sv.toLowerCase();
+          return (
+            (record.category && record.category.toLowerCase().includes(query)) ||
+            (record.industry && record.industry.toLowerCase().includes(query)) ||
+            (record.subIndustry && record.subIndustry.toLowerCase().includes(query)) ||
+            (record.businessType && record.businessType.toLowerCase().includes(query)) ||
+            (record.tags && record.tags.some(t => t.toLowerCase().includes(query))) ||
+            (record.name && record.name.toLowerCase().includes(query))
+          );
+        });
+        if (!match) return false;
+      }
+    }
+  }
+
+  // 11. Quick Filter Chips
   if (activeChips.length > 0) {
     if (activeChips.includes('new_today')) {
       if (!recordDate || (now - recordDate) / (1000 * 60 * 60 * 24) > 1) return false;
@@ -271,6 +291,12 @@ export function getAdminActiveFiltersCount(
   if (filters.businessCategories && filters.businessCategories.length > 0) count += filters.businessCategories.length;
   if (filters.businessTypes && filters.businessTypes.length > 0) count += filters.businessTypes.length;
   if (filters.msmeCategories && filters.msmeCategories.length > 0) count += filters.msmeCategories.length;
+
+  if (filters.customAdminFilters) {
+    Object.values(filters.customAdminFilters).forEach((selected) => {
+      if (Array.isArray(selected)) count += selected.length;
+    });
+  }
 
   if (filters.agePreset !== 'all') count += 1;
   if (filters.ageMaxMonths < 36) count += 1;

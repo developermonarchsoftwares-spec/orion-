@@ -94,6 +94,8 @@ import { BusinessValidationModal } from '@/components/admin/modals/business-vali
 import { MergePreviewModal } from '@/components/admin/modals/merge-preview-modal';
 import { GlobalAdminSearchModal } from '@/components/admin/modals/global-admin-search-modal';
 
+import { syncAdminRecordsToPublishedStore } from '@/lib/published-businesses-store';
+
 export default function AdminPortalPage() {
   // Admin Authentication & Security Gate State
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
@@ -115,6 +117,11 @@ export default function AdminPortalPage() {
 
   // Core Data Stores
   const [records, setRecords] = useState<AdminBusinessRecord[]>(INITIAL_ADMIN_BUSINESSES);
+
+  // Automatically sync published records to real-time store & API backend whenever records state updates
+  useEffect(() => {
+    syncAdminRecordsToPublishedStore(records);
+  }, [records]);
   const [batches, setBatches] = useState<ImportBatch[]>(INITIAL_IMPORT_BATCHES);
   const [duplicatePairs, setDuplicatePairs] = useState<DuplicatePair[]>(INITIAL_DUPLICATES);
   const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>(INITIAL_VALIDATION_ISSUES);

@@ -28,9 +28,10 @@ import {
   SlidersHorizontal,
   Activity
 } from 'lucide-react';
-import { industries, subIndustriesMap, businessCategories } from '@/lib/data/businesses';
+import { industries as staticIndustries, subIndustriesMap as staticSubIndustriesMap, businessCategories as staticBusinessCategories } from '@/lib/data/businesses';
 import { INDIAN_STATES_AND_UTS } from '@/lib/data/india-locations';
 import { cn } from '@/lib/utils';
+import { useFilterOptions, FilterCategory, FilterOption } from '@/lib/filter-options-store';
 
 export interface DiscoverFilterState {
   // Location (India)
@@ -47,6 +48,9 @@ export interface DiscoverFilterState {
   businessCategories: string[];
   businessTypes: string[];
   msmeCategories: string[];
+
+  // Dynamic Custom Admin Category Filters
+  customAdminFilters?: Record<string, string[]>;
 
   // Business Age & Recency
   agePreset: 'all' | 'today' | 'yesterday' | '7d' | '30d' | '90d' | 'custom';
@@ -97,6 +101,7 @@ export const initialFilterState: DiscoverFilterState = {
   businessCategories: [],
   businessTypes: [],
   msmeCategories: [],
+  customAdminFilters: {},
 
   agePreset: 'all',
   customDateStart: '',
@@ -217,21 +222,80 @@ export function DiscoverFilters({
     return Array.from(citiesSet);
   }, [selectedStateData, filters.districts]);
 
+  const { config } = useFilterOptions();
+
+  // Dynamic Industries list from Admin Config
+  const dynamicIndustries = useMemo(() => {
+    const cat = config.categories.find((c) => c.id === 'industries');
+    if (cat && cat.options && cat.options.length > 0) {
+      return cat.options.filter((o) => o.isActive !== false).map((o) => o.value || o.label);
+    }
+    return staticIndustries;
+  }, [config]);
+
+  // Dynamic Sub-Industries list & map from Admin Config
+  const dynamicSubIndustriesMap = useMemo(() => {
+    const cat = config.categories.find((c) => c.id === 'sub_industries');
+    if (cat && cat.options && cat.options.length > 0) {
+      const map: Record<string, string[]> = {};
+      cat.options.filter((o) => o.isActive !== false).forEach((o) => {
+        const parent = o.parentValue || 'General';
+        if (!map[parent]) map[parent] = [];
+        map[parent].push(o.value || o.label);
+      });
+      return map;
+    }
+    return staticSubIndustriesMap;
+  }, [config]);
+
+  // Dynamic Business Categories from Admin Config
+  const dynamicBusinessCategories = useMemo(() => {
+    const cat = config.categories.find((c) => c.id === 'business_categories');
+    if (cat && cat.options && cat.options.length > 0) {
+      return cat.options.filter((o) => o.isActive !== false).map((o) => o.value || o.label);
+    }
+    return staticBusinessCategories;
+  }, [config]);
+
+  // Dynamic Business Types from Admin Config
+  const dynamicBusinessTypes = useMemo(() => {
+    const cat = config.categories.find((c) => c.id === 'business_types');
+    if (cat && cat.options && cat.options.length > 0) {
+      return cat.options.filter((o) => o.isActive !== false).map((o) => o.value || o.label);
+    }
+    return BUSINESS_TYPE_OPTIONS;
+  }, [config]);
+
+  // Dynamic MSME Categories from Admin Config
+  const dynamicMsmeCategories = useMemo(() => {
+    const cat = config.categories.find((c) => c.id === 'msme_categories');
+    if (cat && cat.options && cat.options.length > 0) {
+      return cat.options.filter((o) => o.isActive !== false).map((o) => o.value || o.label);
+    }
+    return MSME_OPTIONS;
+  }, [config]);
+
+  // Custom Admin-created Categories
+  const customAdminCategories = useMemo(() => {
+    const knownIds = new Set(['quick_filters', 'industries', 'sub_industries', 'business_categories', 'business_types', 'msme_categories', 'location_masters', 'business_age', 'contact_availability', 'digital_presence', 'business_status', 'orion_score']);
+    return config.categories.filter((c) => !knownIds.has(c.id) && c.isActive !== false);
+  }, [config]);
+
   // Available sub-industries based on selected industries
   const availableSubIndustries = useMemo(() => {
     if (filters.industries.length === 0) {
       const allSubs = new Set<string>();
-      Object.values(subIndustriesMap).forEach((list) => list.forEach((s) => allSubs.add(s)));
+      Object.values(dynamicSubIndustriesMap).forEach((list) => list.forEach((s) => allSubs.add(s)));
       return Array.from(allSubs);
     }
     const subs = new Set<string>();
     filters.industries.forEach((ind) => {
-      if (subIndustriesMap[ind]) {
-        subIndustriesMap[ind].forEach((s) => subs.add(s));
+      if (dynamicSubIndustriesMap[ind]) {
+        dynamicSubIndustriesMap[ind].forEach((s) => subs.add(s));
       }
     });
     return Array.from(subs);
-  }, [filters.industries]);
+  }, [filters.industries, dynamicSubIndustriesMap]);
 
   // Location searches
   const filteredStatesList = useMemo(() => {
@@ -255,9 +319,9 @@ export function DiscoverFilters({
   // Industry search
   const filteredIndustries = useMemo(() => {
     const q = industrySearch.toLowerCase().trim();
-    if (!q) return industries;
-    return industries.filter((ind) => ind.toLowerCase().includes(q));
-  }, [industrySearch]);
+    if (!q) return dynamicIndustries;
+    return dynamicIndustries.filter((ind) => ind.toLowerCase().includes(q));
+  }, [industrySearch, dynamicIndustries]);
 
   const filteredSubIndustries = useMemo(() => {
     const q = subIndustrySearch.toLowerCase().trim();
@@ -795,7 +859,7 @@ export function DiscoverFilters({
               <div>
                 <label className="text-[11px] font-medium text-zinc-500 block mb-1">Business Category</label>
                 <div className="space-y-1">
-                  {businessCategories.map((cat) => (
+                  {dynamicBusinessCategories.map((cat) => (
                     <label
                       key={cat}
                       className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer text-zinc-700 dark:text-zinc-300 select-none text-[11px]"
@@ -816,7 +880,7 @@ export function DiscoverFilters({
               <div>
                 <label className="text-[11px] font-medium text-zinc-500 block mb-1">Business Type</label>
                 <div className="flex flex-wrap gap-1">
-                  {BUSINESS_TYPE_OPTIONS.map((type) => {
+                  {dynamicBusinessTypes.map((type) => {
                     const isSelected = filters.businessTypes.includes(type);
                     return (
                       <button
@@ -840,7 +904,7 @@ export function DiscoverFilters({
               <div>
                 <label className="text-[11px] font-medium text-zinc-500 block mb-1">MSME Category</label>
                 <div className="space-y-1">
-                  {MSME_OPTIONS.map((msme) => (
+                  {dynamicMsmeCategories.map((msme) => (
                     <label
                       key={msme}
                       className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer text-zinc-700 dark:text-zinc-300 select-none text-[11px]"
@@ -1276,6 +1340,67 @@ export function DiscoverFilters({
             </div>
           )}
         </div>
+
+        {/* 8. DYNAMIC CUSTOM ADMIN CATEGORIES */}
+        {customAdminCategories.map((customCat) => {
+          const selectedValues = filters.customAdminFilters?.[customCat.id] || [];
+          const isOpen = Boolean(openSections[customCat.id] ?? true);
+          const activeOptions = customCat.options.filter((o) => o.isActive !== false);
+
+          return (
+            <div key={customCat.id} className="p-3.5">
+              <button
+                onClick={() => toggleSection(customCat.id)}
+                className="w-full flex items-center justify-between font-semibold text-zinc-800 dark:text-zinc-200 hover:text-zinc-950 dark:hover:text-white cursor-pointer"
+              >
+                <span className="flex items-center gap-2">
+                  <Tag className="w-3.5 h-3.5 text-zinc-500" />
+                  {customCat.name}
+                  {selectedValues.length > 0 && (
+                    <span className="px-1.5 py-0.2 text-[10px] bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded font-medium">
+                      {selectedValues.length}
+                    </span>
+                  )}
+                </span>
+                {isOpen ? <ChevronUp className="w-3.5 h-3.5 text-zinc-400" /> : <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />}
+              </button>
+
+              {isOpen && (
+                <div className="mt-3 space-y-1.5 pt-1">
+                  {activeOptions.map((opt) => {
+                    const val = opt.value || opt.label;
+                    const isChecked = selectedValues.includes(val);
+                    return (
+                      <label
+                        key={opt.id}
+                        className="flex items-center justify-between px-2 py-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-900 cursor-pointer border border-zinc-200/60 dark:border-zinc-800/60"
+                      >
+                        <span className="text-zinc-700 dark:text-zinc-300 text-[11px]">{opt.label}</span>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            const nextVals = isChecked
+                              ? selectedValues.filter((v) => v !== val)
+                              : [...selectedValues, val];
+                            onChange({
+                              ...filters,
+                              customAdminFilters: {
+                                ...(filters.customAdminFilters || {}),
+                                [customCat.id]: nextVals,
+                              },
+                            });
+                          }}
+                          className="rounded border-zinc-300 dark:border-zinc-700 w-3.5 h-3.5"
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
 
       </div>
     </aside>

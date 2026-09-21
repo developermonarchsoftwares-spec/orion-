@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { 
   Sparkles, 
   Globe, 
@@ -10,9 +10,15 @@ import {
   ShieldCheck, 
   TrendingUp, 
   Calendar,
-  Check
+  Check,
+  Tag,
+  Star,
+  Zap,
+  Award,
+  Filter
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useFilterOptions } from "@/lib/filter-options-store";
 
 export interface QuickFilterChip {
   id: string;
@@ -20,33 +26,58 @@ export interface QuickFilterChip {
   icon?: React.ComponentType<{ className?: string }>;
 }
 
-export const UNIVERSAL_QUICK_FILTERS: QuickFilterChip[] = [
-  { id: "new_today", label: "New Today", icon: Sparkles },
-  { id: "added_this_week", label: "Added This Week", icon: Calendar },
-  { id: "added_this_month", label: "Added This Month", icon: Calendar },
-  { id: "no_website", label: "No Website", icon: Globe2 },
-  { id: "has_website", label: "Has Website", icon: Globe },
-  { id: "has_email", label: "Has Email", icon: Mail },
-  { id: "has_phone", label: "Has Phone", icon: Phone },
-  { id: "verified", label: "Verified", icon: ShieldCheck },
-  { id: "high_orion_score", label: "High Orion Score", icon: TrendingUp },
-];
-
-interface QuickFilterChipsProps {
-  activeChips: string[];
-  onToggleChip: (chipId: string) => void;
-  className?: string;
-}
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  Sparkles,
+  Globe,
+  Globe2,
+  Mail,
+  Phone,
+  ShieldCheck,
+  TrendingUp,
+  Calendar,
+  Tag,
+  Star,
+  Zap,
+  Award,
+  Filter,
+};
 
 export function QuickFilterChips({
   activeChips,
   onToggleChip,
   className,
-}: QuickFilterChipsProps) {
+}: {
+  activeChips: string[];
+  onToggleChip: (chipId: string) => void;
+  className?: string;
+}) {
+  const { config } = useFilterOptions();
+
+  const quickFilterCategory = useMemo(() => {
+    return config.categories.find((c) => c.id === "quick_filters");
+  }, [config]);
+
+  const dynamicChips: QuickFilterChip[] = useMemo(() => {
+    if (!quickFilterCategory || !quickFilterCategory.options) return [];
+    return quickFilterCategory.options
+      .filter((opt) => opt.isActive !== false)
+      .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
+      .map((opt) => {
+        const IconComponent = opt.iconName ? ICON_MAP[opt.iconName] || Tag : Tag;
+        return {
+          id: opt.value || opt.id,
+          label: opt.label,
+          icon: IconComponent,
+        };
+      });
+  }, [quickFilterCategory]);
+
+  if (dynamicChips.length === 0) return null;
+
   return (
     <div className={cn("flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none py-1", className)}>
       <div className="flex items-center gap-1.5 shrink-0">
-        {UNIVERSAL_QUICK_FILTERS.map((chip) => {
+        {dynamicChips.map((chip) => {
           const isActive = activeChips.includes(chip.id);
           const Icon = chip.icon;
 
