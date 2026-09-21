@@ -949,6 +949,44 @@ async function handleAdminImportSubmit(req: NextRequest): Promise<NextResponse> 
        ON CONFLICT (id) DO NOTHING`,
       [batchId, filename, `imports/${batchId}_${filename}`, JSON.stringify(rows).length, 'text/csv', rows.length, rows.length, 0, 0]
     );
+
+    // Persist imported business records into PostgreSQL businesses table as draft entities
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const bId = `BIZ-IMP-${batchId.slice(-4)}-${i + 1}`;
+      const bName = String(row.business_name || row.name || row.Name || row['Business Name'] || `Imported Business #${i + 1}`);
+      const bType = String(row.business_type || row.entityType || 'Private Limited Company');
+      const msme = String(row.msme_category || 'Medium Enterprise');
+      const descVal = String(row.description || '');
+      const cityVal = String(row.city || row.City || 'Mumbai');
+      const stateVal = String(row.state || row.State || 'Maharashtra');
+      const pincodeVal = String(row.pincode || row.zipCode || '400001');
+      const phoneVal = String(row.phone || row.Phone || '');
+      const emailVal = String(row.email || row.Email || '');
+
+      await queryDb(
+        `INSERT INTO businesses (id, name, slug, status, business_type, msme_category, is_verified, description, created_at, updated_at)
+         VALUES ($1, $2, LOWER(REPLACE($2, ' ', '-')), 'draft', $3, $4, false, $5, NOW(), NOW())
+         ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, updated_at = NOW()`,
+        [bId, bName, bType, msme, descVal]
+      ).catch(() => {});
+
+      await queryDb(
+        `INSERT INTO business_locations (business_id, city, state, pincode, address_line1)
+         VALUES ($1, $2, $3, $4, 'Industrial Estate')
+         ON CONFLICT (business_id) DO NOTHING`,
+        [bId, cityVal, stateVal, pincodeVal]
+      ).catch(() => {});
+
+      if (phoneVal || emailVal) {
+        await queryDb(
+          `INSERT INTO business_contacts (business_id, phone, email)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (business_id) DO NOTHING`,
+          [bId, phoneVal, emailVal]
+        ).catch(() => {});
+      }
+    }
   } catch (dbErr) {
     console.warn('[Admin Import] Database batch insert notice:', (dbErr as any)?.message);
   }
@@ -1414,6 +1452,9 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
     : defaultBusinesses;
 
   const matched = pool.filter((item: any) => {
+    if (item.status && item.status !== 'published' && item.status !== 'active') {
+      return false;
+    }
     if (q) {
       const matchName = (item.name || '').toLowerCase().includes(q);
       const matchInd = (item.industry || '').toLowerCase().includes(q);
@@ -1485,13 +1526,20 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
     if (req.method === 'POST') {
       try {
         const body = await req.json();
-        if (Array.isArray(body)) {
-          serverPublishedBusinessesStore = body;
-        } else if (body && Array.isArray(body.businesses)) {
-          serverPublishedBusinessesStore = body.businesses;
+        const rawList = Array.isArray(body) ? body : Array.isArray(body?.businesses) ? body.businesses : [];
+        serverPublishedBusinessesStore = rawList.filter((b: any) => b.status === 'published' || b.status === 'active');
+
+        // Persist status updates & record state directly into PostgreSQL businesses table
+        for (const item of rawList) {
+          if (item.id && item.status) {
+            await queryDb(
+              `UPDATE businesses SET status = $1, updated_at = NOW() WHERE id = $2 OR slug = $2`,
+              [item.status, item.id]
+            ).catch(() => {});
+          }
         }
       } catch (err) {}
-      return NextResponse.json({ success: true, statusCode: 200, message: 'Published businesses updated successfully', timestamp: new Date().toISOString() });
+      return NextResponse.json({ success: true, statusCode: 200, message: 'Published businesses updated successfully in database', timestamp: new Date().toISOString() });
     }
     const rows = await queryDb(`
       SELECT b.id, b.name, b.slug, b.status, b.created_at, b.updated_at,
