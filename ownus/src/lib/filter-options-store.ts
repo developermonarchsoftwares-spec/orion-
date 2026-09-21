@@ -171,22 +171,10 @@ export const DEFAULT_FILTER_CONFIG: FilterOptionsConfig = {
   ],
 };
 
+let inMemoryFilterConfig: FilterOptionsConfig = DEFAULT_FILTER_CONFIG;
+
 export function getFilterOptionsConfig(): FilterOptionsConfig {
-  if (typeof window === 'undefined') {
-    return DEFAULT_FILTER_CONFIG;
-  }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.categories)) {
-        return parsed;
-      }
-    }
-  } catch (err) {
-    console.warn('[FilterOptionsStore] LocalStorage read notice:', err);
-  }
-  return DEFAULT_FILTER_CONFIG;
+  return inMemoryFilterConfig;
 }
 
 export function saveFilterOptionsConfig(config: FilterOptionsConfig): void {
@@ -195,24 +183,17 @@ export function saveFilterOptionsConfig(config: FilterOptionsConfig): void {
     lastUpdated: new Date().toISOString(),
   };
 
+  inMemoryFilterConfig = payload;
   if (typeof window !== 'undefined') {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-      window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: payload }));
-    } catch (err) {
-      console.warn('[FilterOptionsStore] LocalStorage write notice:', err);
-    }
+    window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: payload }));
   }
 
-  // Also sync asynchronously with backend API
   if (typeof fetch !== 'undefined') {
     fetch('/api/v1/admin/filter-options', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-    }).catch(() => {
-      // Graceful fallback
-    });
+    }).catch(() => {});
   }
 }
 
@@ -332,13 +313,27 @@ export function resetFilterOptionsToDefault(): void {
 }
 
 export function useFilterOptions() {
-  const [config, setConfig] = useState<FilterOptionsConfig>(DEFAULT_FILTER_CONFIG);
+  const [config, setConfig] = useState<FilterOptionsConfig>(inMemoryFilterConfig);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const initialConfig = getFilterOptionsConfig();
-    setConfig(initialConfig);
-    setLoading(false);
+    let isMounted = true;
+    fetch('/api/v1/discover/filter-options')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (isMounted && data?.data?.categories && Array.isArray(data.data.categories)) {
+          const remoteConfig: FilterOptionsConfig = {
+            categories: data.data.categories,
+            lastUpdated: data.data.lastUpdated || new Date().toISOString(),
+          };
+          inMemoryFilterConfig = remoteConfig;
+          setConfig(remoteConfig);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
 
     const handleUpdate = (e: Event) => {
       const customEvent = e as CustomEvent<FilterOptionsConfig>;
@@ -349,35 +344,11 @@ export function useFilterOptions() {
       }
     };
 
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) {
-        setConfig(getFilterOptionsConfig());
-      }
-    };
-
     window.addEventListener(EVENT_NAME, handleUpdate);
-    window.addEventListener('storage', handleStorage);
-
-    // Fetch from backend API if available
-    fetch('/api/v1/discover/filter-options')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.data?.categories && Array.isArray(data.data.categories)) {
-          const remoteConfig: FilterOptionsConfig = {
-            categories: data.data.categories,
-            lastUpdated: data.data.lastUpdated || new Date().toISOString(),
-          };
-          setConfig(remoteConfig);
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteConfig));
-          } catch {}
-        }
-      })
-      .catch(() => {});
 
     return () => {
+      isMounted = false;
       window.removeEventListener(EVENT_NAME, handleUpdate);
-      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 

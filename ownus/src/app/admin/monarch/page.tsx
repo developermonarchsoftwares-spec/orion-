@@ -94,14 +94,6 @@ import { BusinessValidationModal } from '@/components/admin/modals/business-vali
 import { MergePreviewModal } from '@/components/admin/modals/merge-preview-modal';
 import { GlobalAdminSearchModal } from '@/components/admin/modals/global-admin-search-modal';
 
-import { 
-  loadAdminRecordsFromStorage, 
-  saveAdminRecordsToStorage, 
-  loadImportBatchesFromStorage, 
-  saveImportBatchesToStorage, 
-  loadDuplicatePairsFromStorage, 
-  saveDuplicatePairsToStorage 
-} from '@/lib/admin-data-store';
 import { syncAdminRecordsToPublishedStore } from '@/lib/published-businesses-store';
 
 export default function AdminPortalPage() {
@@ -123,24 +115,15 @@ export default function AdminPortalPage() {
   // Independent Admin Theme State (completely isolated from Customer Portal theme)
   const { isDark, toggleAdminTheme } = useAdminTheme();
 
-  // Core Data Stores with Full Workflow Persistence
-  const [records, setRecords] = useState<AdminBusinessRecord[]>(loadAdminRecordsFromStorage);
-  const [batches, setBatches] = useState<ImportBatch[]>(loadImportBatchesFromStorage);
-  const [duplicatePairs, setDuplicatePairs] = useState<DuplicatePair[]>(loadDuplicatePairsFromStorage);
+  // Core Data Stores with Full Workflow Persistence via Neon PostgreSQL
+  const [records, setRecords] = useState<AdminBusinessRecord[]>([]);
+  const [batches, setBatches] = useState<ImportBatch[]>([]);
+  const [duplicatePairs, setDuplicatePairs] = useState<DuplicatePair[]>([]);
 
-  // Automatically persist admin records & published store whenever records update
+  // Automatically sync strictly published records to customer store when records change
   useEffect(() => {
-    saveAdminRecordsToStorage(records);
     syncAdminRecordsToPublishedStore(records);
   }, [records]);
-
-  useEffect(() => {
-    saveImportBatchesToStorage(batches);
-  }, [batches]);
-
-  useEffect(() => {
-    saveDuplicatePairsToStorage(duplicatePairs);
-  }, [duplicatePairs]);
   const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>(INITIAL_VALIDATION_ISSUES);
   const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>(INITIAL_ACTIVITY_LOGS);
   const [customerUsers, setCustomerUsers] = useState<CustomerUser[]>(INITIAL_CUSTOMER_USERS);
@@ -383,6 +366,12 @@ export default function AdminPortalPage() {
     };
     setActivityLogs(prev => [newLog, ...prev]);
 
+    fetch('/api/v1/admin/businesses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ businesses: [{ id: recordId, status: newStatus }] }),
+    }).catch(() => {});
+
     showToast(`Status updated to ${newStatus.toUpperCase()}`);
   };
 
@@ -401,6 +390,12 @@ export default function AdminPortalPage() {
       }
       return rec;
     }));
+
+    fetch('/api/v1/admin/businesses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ businesses: ids.map(id => ({ id, status: newStatus })) }),
+    }).catch(() => {});
 
     const newLog: ActivityLogEntry = {
       id: `act-${Date.now()}`,

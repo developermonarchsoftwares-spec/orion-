@@ -166,20 +166,13 @@ export default function DiscoverPage() {
 
           const mappedItems = applyUnlockedStatusToBusinesses(rawMapped);
 
-          if (mappedItems.length > 0) {
-            setData(mappedItems);
-            setTotalRecords(res.total ?? mappedItems.length);
-          } else if (publishedBusinesses && publishedBusinesses.length > 0) {
-            setData(applyUnlockedStatusToBusinesses(publishedBusinesses));
-            setTotalRecords(publishedBusinesses.length);
-          }
+          setData(mappedItems);
+          setTotalRecords(res.total ?? mappedItems.length);
         }
       } catch (err) {
         console.warn('Live search error:', err);
-        if (publishedBusinesses && publishedBusinesses.length > 0) {
-          setData(applyUnlockedStatusToBusinesses(publishedBusinesses));
-          setTotalRecords(publishedBusinesses.length);
-        }
+        setData([]);
+        setTotalRecords(0);
       } finally {
         if (!isCancelled) setIsLoading(false);
       }
