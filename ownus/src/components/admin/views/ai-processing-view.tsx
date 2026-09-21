@@ -21,7 +21,6 @@ import {
   Loader2
 } from 'lucide-react';
 import { AiPipelineDefinition } from '@/types/admin';
-import { INITIAL_AI_PIPELINES } from '@/lib/admin-mock-data';
 
 interface AiProcessingViewProps {
   pipelines?: AiPipelineDefinition[];
@@ -30,7 +29,7 @@ interface AiProcessingViewProps {
 }
 
 export const AiProcessingView: React.FC<AiProcessingViewProps> = ({
-  pipelines = INITIAL_AI_PIPELINES,
+  pipelines = [],
   onRunBenchmark,
   onResetPipelines,
 }) => {

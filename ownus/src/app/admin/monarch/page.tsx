@@ -56,6 +56,7 @@ import {
   INITIAL_SYSTEM_SERVICES,
   INITIAL_SEARCH_INDEX_STATUS,
 } from '@/lib/admin-mock-data';
+import { deleteAdminRecordsFromApi } from '@/lib/admin-data-store';
 
 // Layout components
 import { AdminSidebar } from '@/components/admin/admin-sidebar';
@@ -124,20 +125,29 @@ export default function AdminPortalPage() {
   useEffect(() => {
     syncAdminRecordsToPublishedStore(records);
   }, [records]);
-  const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>(INITIAL_VALIDATION_ISSUES);
-  const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>(INITIAL_ACTIVITY_LOGS);
-  const [customerUsers, setCustomerUsers] = useState<CustomerUser[]>(INITIAL_CUSTOMER_USERS);
-  const [transactions, setTransactions] = useState<TransactionRecord[]>(INITIAL_PLATFORM_TRANSACTIONS);
-  const [roles, setRoles] = useState<RoleDefinition[]>(INITIAL_ROLES_PERMISSIONS);
-  const [tickets, setTickets] = useState<SupportTicket[]>(INITIAL_SUPPORT_TICKETS);
+  const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
+  const [customerUsers, setCustomerUsers] = useState<CustomerUser[]>([]);
+  const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
+  const [roles, setRoles] = useState<RoleDefinition[]>([]);
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
 
   // Module 4 Data Stores: Data Intelligence & Automation
-  const [dataSources, setDataSources] = useState<DataSourceRecord[]>(INITIAL_DATA_SOURCES);
-  const [enrichmentJobs, setEnrichmentJobs] = useState<EnrichmentJob[]>(INITIAL_ENRICHMENT_JOBS);
-  const [aiPipelines, setAiPipelines] = useState<AiPipelineDefinition[]>(INITIAL_AI_PIPELINES);
-  const [automationRules, setAutomationRules] = useState<AutomationRule[]>(INITIAL_AUTOMATION_RULES);
-  const [systemServices, setSystemServices] = useState<SystemServiceHealth[]>(INITIAL_SYSTEM_SERVICES);
-  const [searchIndexStatus, setSearchIndexStatus] = useState<SearchIndexStatus>(INITIAL_SEARCH_INDEX_STATUS);
+  const [dataSources, setDataSources] = useState<DataSourceRecord[]>([]);
+  const [enrichmentJobs, setEnrichmentJobs] = useState<EnrichmentJob[]>([]);
+  const [aiPipelines, setAiPipelines] = useState<AiPipelineDefinition[]>([]);
+  const [automationRules, setAutomationRules] = useState<AutomationRule[]>([]);
+  const [systemServices, setSystemServices] = useState<SystemServiceHealth[]>([]);
+  const [searchIndexStatus, setSearchIndexStatus] = useState<SearchIndexStatus>({
+    indexedBusinesses: 0,
+    pendingIndex: 0,
+    failedIndex: 0,
+    clusterHealth: 'Green',
+    shardsCount: 1,
+    indexSizeBytes: '0 MB',
+    lastOptimized: 'Never',
+    avgQueryLatencyMs: 0,
+  });
 
   // Modal / Drawer States
   const [selectedRecordForDetail, setSelectedRecordForDetail] = useState<AdminBusinessRecord | null>(null);
@@ -414,7 +424,7 @@ export default function AdminPortalPage() {
   };
 
   // Bulk Delete Handler
-  const handleBulkDelete = (ids: string[]) => {
+  const handleBulkDelete = async (ids: string[]) => {
     setRecords(prev => prev.filter(r => !ids.includes(r.id)));
     const newLog: ActivityLogEntry = {
       id: `act-${Date.now()}`,
@@ -423,12 +433,13 @@ export default function AdminPortalPage() {
       entityType: 'Business',
       entityId: 'BULK_DELETE',
       entityName: `${ids.length} Business Records`,
-      details: `Bulk deleted ${ids.length} records from repository.`,
+      details: `Bulk deleted ${ids.length} records from repository and Neon PostgreSQL database.`,
       ipAddress: '192.168.1.1',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     };
     setActivityLogs(prev => [newLog, ...prev]);
-    showToast(`Deleted ${ids.length} business records.`);
+    await deleteAdminRecordsFromApi(ids);
+    showToast(`Permanently deleted ${ids.length} business record(s) from database.`);
   };
 
   const handleApproveRecord = (id: string) => {
@@ -468,12 +479,13 @@ export default function AdminPortalPage() {
     showToast(`Record ${id} rejected.`);
   };
 
-  const handleDeleteRecord = (id: string) => {
+  const handleDeleteRecord = async (id: string) => {
     setRecords(prev => prev.filter(r => r.id !== id));
     if (selectedRecordForValidation && selectedRecordForValidation.id === id) {
       setSelectedRecordForValidation(null);
     }
-    showToast(`Record ${id} deleted.`);
+    await deleteAdminRecordsFromApi([id]);
+    showToast(`Permanently deleted record ${id} from database.`);
   };
 
   const handleMoveToDraft = (id: string) => {
@@ -1219,9 +1231,14 @@ export default function AdminPortalPage() {
               <ImportHistoryView
                 batches={batches}
                 onRetryBatch={batchId => showToast(`Retrying batch ${batchId}...`)}
-                onDeleteBatch={batchId => {
+                onDeleteBatch={async (batchId) => {
                   setBatches(prev => prev.filter(b => b.id !== batchId));
-                  showToast(`Batch ${batchId} deleted.`);
+                  await fetch('/api/v1/admin/import/batches', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: batchId }),
+                  }).catch(() => {});
+                  showToast(`Batch ${batchId} permanently deleted from database.`);
                 }}
               />
             )}

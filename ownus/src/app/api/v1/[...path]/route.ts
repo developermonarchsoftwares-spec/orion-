@@ -918,6 +918,18 @@ async function handleUpdateFilterOptions(req: NextRequest): Promise<NextResponse
   });
 }
 
+function normalizeBusinessStatus(statusStr?: string): string {
+  if (!statusStr) return 'DRAFT';
+  const s = String(statusStr).toUpperCase().trim();
+  if (s === 'DRAFT') return 'DRAFT';
+  if (s === 'VALIDATED' || s === 'VALIDATION' || s === 'PENDING' || s === 'PENDING_VALIDATION' || s === 'DUPLICATE_REVIEW') return 'PENDING_VALIDATION';
+  if (s === 'VERIFIED' || s === 'APPROVED' || s === 'PUBLISH_QUEUE') return 'VERIFIED';
+  if (s === 'PUBLISHED' || s === 'ACTIVE') return 'PUBLISHED';
+  if (s === 'ARCHIVED') return 'ARCHIVED';
+  if (s === 'REJECTED') return 'REJECTED';
+  return 'DRAFT';
+}
+
 async function handleAdminImportSubmit(req: NextRequest): Promise<NextResponse> {
   let body: any = {};
   try {
@@ -939,10 +951,11 @@ async function handleAdminImportSubmit(req: NextRequest): Promise<NextResponse> 
     );
   }
 
-  const batchId = `BATCH-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+  const batchId = crypto.randomUUID();
+  const insertedRecords: any[] = [];
 
-  // Persist batch record into PostgreSQL import_batches if available
   try {
+    // Persist batch record into PostgreSQL import_batches
     await queryDb(
       `INSERT INTO import_batches (id, filename, file_key, file_size, mime_type, status, total_records, processed_records, successful_records, failed_records, duplicate_records, created_at, started_at, completed_at)
        VALUES ($1, $2, $3, $4, $5, 'COMPLETED', $6, $6, $7, $8, $9, NOW(), NOW(), NOW())
@@ -950,52 +963,97 @@ async function handleAdminImportSubmit(req: NextRequest): Promise<NextResponse> 
       [batchId, filename, `imports/${batchId}_${filename}`, JSON.stringify(rows).length, 'text/csv', rows.length, rows.length, 0, 0]
     );
 
-    // Persist imported business records into PostgreSQL businesses table as draft entities
+    // Persist imported business records into PostgreSQL businesses table as DRAFT entities
     for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const bId = `BIZ-IMP-${batchId.slice(-4)}-${i + 1}`;
-      const bName = String(row.business_name || row.name || row.Name || row['Business Name'] || `Imported Business #${i + 1}`);
-      const bType = String(row.business_type || row.entityType || 'Private Limited Company');
-      const msme = String(row.msme_category || 'Medium Enterprise');
-      const descVal = String(row.description || '');
-      const cityVal = String(row.city || row.City || 'Mumbai');
-      const stateVal = String(row.state || row.State || 'Maharashtra');
-      const pincodeVal = String(row.pincode || row.zipCode || '400001');
-      const phoneVal = String(row.phone || row.Phone || '');
-      const emailVal = String(row.email || row.Email || '');
+      const rawRow = rows[i];
+      const mappedRow: Record<string, any> = {};
+      for (const [k, v] of Object.entries(rawRow)) {
+        if (v !== undefined && v !== null && v !== '') {
+          const valStr = String(v).trim();
+          const canonicalKey = normalizeRowHeader(k, customMapping, valStr);
+          mappedRow[canonicalKey] = valStr;
+        }
+      }
+
+      const bId = crypto.randomUUID();
+      const bName = String(mappedRow.business_name || mappedRow.name || mappedRow.company_name || rawRow['Business Name'] || rawRow.name || `Imported Business #${i + 1}`);
+      const slugBase = bName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'business';
+      const bSlug = `${slugBase}-${bId.slice(0, 8)}`;
+
+      const bType = String(mappedRow.business_type || mappedRow.businessType || mappedRow.entityType || 'Private Limited Company');
+      const msme = String(mappedRow.msme_category || mappedRow.msmeCategory || 'Medium Enterprise');
+      const descVal = String(mappedRow.description || '');
+      const cityVal = String(mappedRow.city || mappedRow.City || 'Mumbai');
+      const stateVal = String(mappedRow.state || mappedRow.State || 'Maharashtra');
+      const pincodeVal = String(mappedRow.pincode || mappedRow.zipCode || '400001');
+      const addressVal = String(mappedRow.address_line1 || mappedRow.address || 'Industrial Estate');
+      const phoneVal = String(mappedRow.phone || mappedRow.Phone || '');
+      const emailVal = String(mappedRow.email || mappedRow.Email || '');
 
       await queryDb(
-        `INSERT INTO businesses (id, name, slug, status, business_type, msme_category, is_verified, description, created_at, updated_at)
-         VALUES ($1, $2, LOWER(REPLACE($2, ' ', '-')), 'draft', $3, $4, false, $5, NOW(), NOW())
+        `INSERT INTO businesses (id, name, slug, status, is_verified, description, created_at, updated_at)
+         VALUES ($1, $2, $3, 'DRAFT', false, $4, NOW(), NOW())
          ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, updated_at = NOW()`,
-        [bId, bName, bType, msme, descVal]
-      ).catch(() => {});
+        [bId, bName, bSlug, descVal]
+      );
 
       await queryDb(
-        `INSERT INTO business_locations (business_id, city, state, pincode, address_line1)
-         VALUES ($1, $2, $3, $4, 'Industrial Estate')
+        `INSERT INTO business_locations (business_id, city, district, state, pincode, address_line1)
+         VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (business_id) DO NOTHING`,
-        [bId, cityVal, stateVal, pincodeVal]
-      ).catch(() => {});
+        [bId, cityVal, cityVal, stateVal, pincodeVal, addressVal]
+      );
 
       if (phoneVal || emailVal) {
+        const contactName = String(mappedRow.contact_person || mappedRow.full_name || mappedRow.contact_name || `${bName} Contact`);
         await queryDb(
-          `INSERT INTO business_contacts (business_id, phone, email)
-           VALUES ($1, $2, $3)
+          `INSERT INTO business_contacts (business_id, full_name, phone, email)
+           VALUES ($1, $2, $3, $4)
            ON CONFLICT (business_id) DO NOTHING`,
-          [bId, phoneVal, emailVal]
-        ).catch(() => {});
+          [bId, contactName, phoneVal, emailVal]
+        );
       }
+
+      insertedRecords.push({
+        id: bId,
+        name: bName,
+        slug: bSlug,
+        industry: 'Manufacturing & Industrial',
+        subIndustry: '',
+        category: 'Enterprise',
+        businessType: bType,
+        msmeCategory: msme,
+        address: addressVal,
+        state: stateVal,
+        district: cityVal,
+        city: cityVal,
+        pincode: pincodeVal,
+        phone: phoneVal,
+        email: emailVal,
+        status: 'draft',
+        createdAt: new Date().toISOString().split('T')[0],
+        updatedAt: new Date().toISOString().split('T')[0],
+      });
     }
-  } catch (dbErr) {
-    console.warn('[Admin Import] Database batch insert notice:', (dbErr as any)?.message);
+
+    console.log(`[Admin Import] Successfully persisted batch ${batchId} with ${insertedRecords.length} records into PostgreSQL.`);
+  } catch (dbErr: any) {
+    console.error('[Admin Import Error] Database batch insert failed:', dbErr?.message || dbErr);
+    return NextResponse.json(
+      {
+        success: false,
+        statusCode: 500,
+        message: `Database Ingestion Error: ${dbErr?.message || 'Failed to persist records into Neon PostgreSQL database.'}`,
+      },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json(
     {
       success: true,
       statusCode: 201,
-      message: 'Batch ingestion executed successfully',
+      message: 'Batch ingestion executed and persisted successfully in PostgreSQL database',
       data: {
         batch: {
           id: batchId,
@@ -1006,12 +1064,15 @@ async function handleAdminImportSubmit(req: NextRequest): Promise<NextResponse> 
         filename,
         status: 'COMPLETED',
         totalRecords: rows.length,
-        publishedCount: rows.length,
+        publishedCount: 0,
+        draftCount: rows.length,
         duplicateCount: 0,
         failedCount: 0,
+        newRecords: insertedRecords,
         stats: {
           total: rows.length,
-          published: rows.length,
+          draft: rows.length,
+          published: 0,
           duplicates: 0,
           invalid: 0,
         },
@@ -1410,6 +1471,73 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
 
   // Real Database Admin - Businesses List
   if (fullPath === 'admin/businesses') {
+    if (req.method === 'DELETE') {
+      try {
+        let idsToDelete: string[] = [];
+        try {
+          const body = await req.json();
+          if (Array.isArray(body?.ids)) idsToDelete = body.ids;
+          else if (body?.id) idsToDelete = [body.id];
+        } catch {
+          const queryId = req.nextUrl.searchParams.get('id');
+          const queryIds = req.nextUrl.searchParams.get('ids');
+          if (queryId) idsToDelete = [queryId];
+          else if (queryIds) idsToDelete = queryIds.split(',').map((s) => s.trim()).filter(Boolean);
+        }
+
+        const validUuids = idsToDelete.filter((id) =>
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+        );
+        const slugsToDelete = idsToDelete.filter(
+          (id) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+        );
+
+        if (validUuids.length > 0) {
+          await queryDb(`DELETE FROM business_contacts WHERE business_id = ANY($1::uuid[])`, [validUuids]);
+          await queryDb(`DELETE FROM business_locations WHERE business_id = ANY($1::uuid[])`, [validUuids]);
+          await queryDb(`DELETE FROM digital_presences WHERE business_id = ANY($1::uuid[])`, [validUuids]);
+          await queryDb(`DELETE FROM business_identifiers WHERE business_id = ANY($1::uuid[])`, [validUuids]);
+          await queryDb(`DELETE FROM business_history WHERE business_id = ANY($1::uuid[])`, [validUuids]);
+          await queryDb(`DELETE FROM business_metrics WHERE business_id = ANY($1::uuid[])`, [validUuids]);
+          await queryDb(`DELETE FROM business_scores WHERE business_id = ANY($1::uuid[])`, [validUuids]);
+          await queryDb(`DELETE FROM business_refresh_history WHERE business_id = ANY($1::uuid[])`, [validUuids]);
+          await queryDb(`DELETE FROM duplicate_candidates WHERE matched_business_id = ANY($1::uuid[])`, [validUuids]);
+          await queryDb(`DELETE FROM duplicate_clusters WHERE primary_business_id = ANY($1::uuid[])`, [validUuids]);
+          await queryDb(`DELETE FROM publish_queue WHERE target_business_id = ANY($1::uuid[])`, [validUuids]);
+          await queryDb(`DELETE FROM search_sync_logs WHERE business_id = ANY($1::uuid[])`, [validUuids]);
+          await queryDb(`DELETE FROM lead_unlocks WHERE business_id = ANY($1::uuid[])`, [validUuids]);
+          await queryDb(`DELETE FROM saved_leads WHERE business_id = ANY($1::uuid[])`, [validUuids]);
+          await queryDb(`DELETE FROM businesses WHERE id = ANY($1::uuid[])`, [validUuids]);
+        }
+
+        for (const slug of slugsToDelete) {
+          const rows = await queryDb(`SELECT id FROM businesses WHERE slug = $1`, [slug]);
+          const matchId = rows[0]?.id;
+          if (matchId) {
+            const uidArr = [matchId];
+            await queryDb(`DELETE FROM business_contacts WHERE business_id = ANY($1::uuid[])`, [uidArr]);
+            await queryDb(`DELETE FROM business_locations WHERE business_id = ANY($1::uuid[])`, [uidArr]);
+            await queryDb(`DELETE FROM digital_presences WHERE business_id = ANY($1::uuid[])`, [uidArr]);
+            await queryDb(`DELETE FROM businesses WHERE id = ANY($1::uuid[])`, [uidArr]);
+          }
+        }
+
+        console.log(`[Admin Businesses DELETE] Permanently deleted ${idsToDelete.length} records from Neon PostgreSQL database.`);
+        return NextResponse.json({
+          success: true,
+          statusCode: 200,
+          message: `Permanently deleted ${idsToDelete.length} business record(s) from PostgreSQL database`,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (err: any) {
+        console.error('[Admin Businesses DELETE Error] Failed to delete records from database:', err?.message || err);
+        return NextResponse.json(
+          { success: false, statusCode: 500, message: err?.message || 'Failed to delete records from database' },
+          { status: 500 }
+        );
+      }
+    }
+
     if (req.method === 'POST') {
       try {
         const body = await req.json();
@@ -1419,13 +1547,25 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
         // Persist status updates & record state directly into PostgreSQL businesses table
         for (const item of rawList) {
           if (item.id && item.status) {
-            await queryDb(
-              `UPDATE businesses SET status = $1, updated_at = NOW() WHERE id = $2 OR slug = $2`,
-              [item.status, item.id]
-            ).catch(() => {});
+            const dbStatus = normalizeBusinessStatus(item.status);
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.id);
+            if (isUuid) {
+              await queryDb(
+                `UPDATE businesses SET status = $1, updated_at = NOW() WHERE id = $2`,
+                [dbStatus, item.id]
+              );
+            } else {
+              await queryDb(
+                `UPDATE businesses SET status = $1, updated_at = NOW() WHERE slug = $2`,
+                [dbStatus, item.id]
+              );
+            }
           }
         }
-      } catch (err) {}
+      } catch (err: any) {
+        console.error('[Admin Businesses POST Error] Failed to update business statuses:', err?.message || err);
+        return NextResponse.json({ success: false, statusCode: 500, message: err?.message || 'Failed to update database' }, { status: 500 });
+      }
       return NextResponse.json({ success: true, statusCode: 200, message: 'Published businesses updated successfully in database', timestamp: new Date().toISOString() });
     }
     const rows = await queryDb(`
@@ -1447,6 +1587,16 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
       const msme = r.msme_category && r.msme_category !== 'NOT_APPLICABLE' 
         ? `${String(r.msme_category).replace(/_/g, ' ')} Enterprise` 
         : 'Medium Enterprise';
+
+      let mappedStatus = 'draft';
+      const rawStatus = String(r.status || '').toUpperCase();
+      if (rawStatus === 'PUBLISHED') mappedStatus = 'published';
+      else if (rawStatus === 'VERIFIED') mappedStatus = 'approved';
+      else if (rawStatus === 'PENDING_VALIDATION') mappedStatus = 'validated';
+      else if (rawStatus === 'ARCHIVED') mappedStatus = 'archived';
+      else if (rawStatus === 'REJECTED') mappedStatus = 'rejected';
+      else mappedStatus = 'draft';
+
       return {
         id: r.id || `BIZ-${10001 + i}`,
         name: r.name,
@@ -1466,7 +1616,7 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
         website: r.website || '',
         registrationDate: r.incorporation_date ? new Date(r.incorporation_date).toISOString().split('T')[0] : r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : '',
         description: r.description || '',
-        status: (r.status || 'draft').toLowerCase(),
+        status: mappedStatus,
         validationStatus: r.is_verified ? 'Approved' : 'Validated',
         phoneStatus: r.phone ? 'valid' : 'missing',
         emailStatus: r.email ? 'valid' : 'missing',
@@ -1492,6 +1642,21 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
 
   // Real Database Admin - Import Batches
   if (fullPath === 'admin/import/batches') {
+    if (req.method === 'DELETE') {
+      try {
+        let batchId = req.nextUrl.searchParams.get('id');
+        if (!batchId) {
+          const body = await req.json().catch(() => ({}));
+          batchId = body?.id;
+        }
+        if (batchId) {
+          await queryDb(`DELETE FROM import_batches WHERE id = $1`, [batchId]).catch(() => {});
+        }
+        return NextResponse.json({ success: true, statusCode: 200, message: 'Import batch permanently deleted from database' });
+      } catch (e: any) {
+        return NextResponse.json({ success: false, statusCode: 500, message: 'Failed to delete import batch' });
+      }
+    }
     const rows = await queryDb(`
       SELECT id, filename, status, total_records, processed_records, successful_records, failed_records, duplicate_records, created_at, completed_at
       FROM import_batches

@@ -43,6 +43,20 @@ export async function saveAdminRecordStatusToApi(records: AdminBusinessRecord[])
   }
 }
 
+export async function deleteAdminRecordsFromApi(ids: string[]): Promise<boolean> {
+  try {
+    const res = await fetch('/api/v1/admin/businesses', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('[Admin Data Store] Failed to delete admin records from API:', err);
+    return false;
+  }
+}
+
 export async function fetchImportBatchesFromApi(): Promise<ImportBatch[]> {
   try {
     const res = await fetch('/api/v1/admin/import/batches', { cache: 'no-store' });

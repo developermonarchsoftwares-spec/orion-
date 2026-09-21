@@ -634,7 +634,7 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
     });
 
     try {
-      await apiClient.request('/admin/import/submit', {
+      const res = await apiClient.request('/admin/import/submit', {
         method: 'POST',
         body: JSON.stringify({
           batchName: filename,
@@ -643,30 +643,33 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
           customMapping: fieldMappings,
           autoPublish: false,
         }),
-      }).catch(() => {});
+      });
 
       clearInterval(progressInterval);
       setProgress(100);
       setIsProcessing(false);
 
+      const dbRecords = Array.isArray(res?.data?.newRecords) && res.data.newRecords.length > 0 ? res.data.newRecords : newRecords;
+      const dbBatchId = res?.data?.batchId || batchId;
+
       const batchResult = {
         batch: {
-          id: batchId,
+          id: dbBatchId,
           filename,
           totalRecords: parsedRows.length,
         },
-        batchId,
+        batchId: dbBatchId,
         filename,
         status: 'COMPLETED',
         totalRecords: parsedRows.length,
-        newRecords,
+        newRecords: dbRecords,
         newDuplicates,
         stats: {
           total: parsedRows.length,
           published: 0,
           duplicates: newDuplicates.length,
           invalid: 0,
-          validationPending: newRecords.length,
+          validationPending: dbRecords.length,
         },
       };
       setFinalResult(batchResult);
@@ -674,27 +677,7 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
       clearInterval(progressInterval);
       setProgress(100);
       setIsProcessing(false);
-      const batchResult = {
-        batch: {
-          id: batchId,
-          filename,
-          totalRecords: parsedRows.length,
-        },
-        batchId,
-        filename,
-        status: 'COMPLETED',
-        totalRecords: parsedRows.length,
-        newRecords,
-        newDuplicates,
-        stats: {
-          total: parsedRows.length,
-          published: 0,
-          duplicates: newDuplicates.length,
-          invalid: 0,
-          validationPending: newRecords.length,
-        },
-      };
-      setFinalResult(batchResult);
+      setErrorMessage(err?.message || 'Database Ingestion failed. Please try again.');
     }
   };
 

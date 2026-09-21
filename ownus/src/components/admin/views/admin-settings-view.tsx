@@ -25,7 +25,6 @@ import {
   SlidersHorizontal
 } from 'lucide-react';
 import { CreditPackage, SubscriptionPlan } from '@/types/admin';
-import { INITIAL_CREDIT_PACKAGES, INITIAL_SUBSCRIPTION_PLANS } from '@/lib/admin-mock-data';
 
 import { AdminFilterManager } from '@/components/admin/views/admin-filter-manager';
 
@@ -98,8 +97,8 @@ export const AdminSettingsView: React.FC = () => {
   ]);
 
   // 3. Economy & Plans
-  const [creditPacks, setCreditPacks] = useState<CreditPackage[]>(INITIAL_CREDIT_PACKAGES);
-  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>(INITIAL_SUBSCRIPTION_PLANS);
+  const [creditPacks, setCreditPacks] = useState<CreditPackage[]>([]);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>([]);
 
   // 4. Validation & Import Rules
   const [strictPhoneValidation, setStrictPhoneValidation] = useState(true);
