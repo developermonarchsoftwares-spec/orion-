@@ -37,9 +37,10 @@ import {
   Loader2,
   Bookmark,
 } from 'lucide-react';
-import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
+import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
+import { addUnlockedLeadId, isLeadUnlocked } from '@/lib/unlocked-leads-store';
 
 export default function BusinessDetailPage() {
   const params = useParams();
@@ -81,13 +82,14 @@ export default function BusinessDetailPage() {
     setIsUnlocking(true);
     try {
       const res = await apiClient.unlock.unlockBusiness(business.id);
+      addUnlockedLeadId(business.id);
       if (res?.balance !== undefined) {
         setWalletBalance(res.balance, res.dailyCredits, res.purchasedCredits);
       }
       toast.success(res?.message || 'Business unlocked successfully! Full contacts are now available.');
       // Refresh profile to reveal full contacts
       const updatedBiz = await apiClient.discover.getBusinessBySlug(id);
-      setBusiness(updatedBiz);
+      setBusiness({ ...updatedBiz, isUnlocked: true });
     } catch (err: any) {
       toast.error(err.message || 'Failed to unlock business. Please check credit balance.');
     } finally {
@@ -153,7 +155,7 @@ export default function BusinessDetailPage() {
   const primaryContact = business.contacts?.find((c: any) => c.isPrimary) || business.contacts?.[0] || {};
   const websitePresence = business.digitalPresence?.find((dp: any) => dp.platform === 'WEBSITE');
   const orionScore = business.metrics?.orionScore ?? 75;
-  const isUnlocked = business.isUnlocked;
+  const isUnlocked = Boolean(business.isUnlocked || (business.id && isLeadUnlocked(business.id)) || (id && isLeadUnlocked(id as string)));
   const userCredits = wallet?.balance ?? 25;
 
   return (

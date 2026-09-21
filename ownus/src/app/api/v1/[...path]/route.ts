@@ -1236,7 +1236,7 @@ async function proxyRequest(
 
 let serverPublishedBusinessesStore: any[] | null = null;
 
-function handleDiscoverSearch(req: NextRequest): NextResponse {
+async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
   const q = req.nextUrl.searchParams.get('q')?.toLowerCase() || '';
   const state = req.nextUrl.searchParams.get('state')?.toLowerCase() || '';
   const city = req.nextUrl.searchParams.get('city')?.toLowerCase() || '';
@@ -1431,12 +1431,33 @@ function handleDiscoverSearch(req: NextRequest): NextResponse {
   const startIndex = (page - 1) * limit;
   const paginated = matched.slice(startIndex, startIndex + limit);
 
+  const authHeader = req.headers.get('authorization') || '';
+  const rawToken = authHeader.replace(/^Bearer\s+/i, '');
+  const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
+  const userIdentifier = tokenData?.sub || tokenData?.email || 'kathirrajput@gmail.com';
+  let unlockedIdsSet = new Set<string>();
+  try {
+    const wallet = await getOrSyncUserWallet(userIdentifier);
+    if (wallet.userId) {
+      const unlockedRows = await queryDb(
+        `SELECT business_id FROM lead_unlocks WHERE user_id = $1`,
+        [wallet.userId]
+      );
+      unlockedRows.forEach((r: any) => unlockedIdsSet.add(String(r.business_id)));
+    }
+  } catch (e) {}
+
+  const paginatedWithUnlock = paginated.map((item: any) => ({
+    ...item,
+    isUnlocked: Boolean(item.isUnlocked || unlockedIdsSet.has(String(item.id))),
+  }));
+
   return NextResponse.json({
     success: true,
     statusCode: 200,
     message: 'Published businesses search executed successfully',
     data: {
-      items: paginated,
+      items: paginatedWithUnlock,
       total: matched.length,
       page,
       limit,
@@ -1448,7 +1469,7 @@ function handleDiscoverSearch(req: NextRequest): NextResponse {
 
   // Discover Search API Handler
   if (fullPath === 'discover/search' || fullPath === 'discover/businesses') {
-    return handleDiscoverSearch(req);
+    return await handleDiscoverSearch(req);
   }
 
   // Admin & Discover Dynamic Filter Options Governance

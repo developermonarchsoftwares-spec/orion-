@@ -51,6 +51,13 @@ import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
 
 import { usePublishedBusinesses } from '@/lib/published-businesses-store';
+import {
+  addUnlockedLeadId,
+  addUnlockedLeadIds,
+  applyUnlockedStatusToBusinesses,
+  isLeadUnlocked,
+  useUnlockedLeads,
+} from '@/lib/unlocked-leads-store';
 
 type SortOption = 
   | 'newest'
@@ -63,11 +70,17 @@ type SortOption =
 export default function DiscoverPage() {
   const { user, wallet, setWalletBalance } = useAuth();
   const { publishedBusinesses } = usePublishedBusinesses();
+  const { unlockedIds } = useUnlockedLeads();
 
   // Main Data
-  const [data, setData] = useState<Business[]>(publishedBusinesses);
+  const [data, setData] = useState<Business[]>(() => applyUnlockedStatusToBusinesses(publishedBusinesses));
   const [totalRecords, setTotalRecords] = useState(publishedBusinesses.length);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Sync unlocked leads whenever unlockedIds changes
+  useEffect(() => {
+    setData((prev) => applyUnlockedStatusToBusinesses(prev));
+  }, [unlockedIds]);
   
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -99,7 +112,7 @@ export default function DiscoverPage() {
   // Real-time synchronization when Admin publishes or updates businesses
   useEffect(() => {
     if (publishedBusinesses && publishedBusinesses.length > 0) {
-      setData(publishedBusinesses);
+      setData(applyUnlockedStatusToBusinesses(publishedBusinesses));
       setTotalRecords(publishedBusinesses.length);
     }
   }, [publishedBusinesses]);
@@ -126,7 +139,7 @@ export default function DiscoverPage() {
         });
 
         if (!isCancelled && res) {
-          const mappedItems: Business[] = (res.items || []).map((hit: any) => ({
+          const rawMapped: Business[] = (res.items || []).map((hit: any) => ({
             id: hit.id,
             name: hit.name,
             legalName: hit.legalName || hit.name,
@@ -151,18 +164,20 @@ export default function DiscoverPage() {
             status: 'active',
           }));
 
+          const mappedItems = applyUnlockedStatusToBusinesses(rawMapped);
+
           if (mappedItems.length > 0) {
             setData(mappedItems);
             setTotalRecords(res.total ?? mappedItems.length);
           } else if (publishedBusinesses && publishedBusinesses.length > 0) {
-            setData(publishedBusinesses);
+            setData(applyUnlockedStatusToBusinesses(publishedBusinesses));
             setTotalRecords(publishedBusinesses.length);
           }
         }
       } catch (err) {
         console.warn('Live search error:', err);
         if (publishedBusinesses && publishedBusinesses.length > 0) {
-          setData(publishedBusinesses);
+          setData(applyUnlockedStatusToBusinesses(publishedBusinesses));
           setTotalRecords(publishedBusinesses.length);
         }
       } finally {
@@ -440,19 +455,16 @@ export default function DiscoverPage() {
           console.warn(`Unlock error for ${id}:`, err);
         }
       }
-      const unlockedSet = new Set(idsToUnlock);
-      setData((prev) =>
-        prev.map((b) => (unlockedSet.has(b.id) ? { ...b, isUnlocked: true } : b))
-      );
+      addUnlockedLeadIds(idsToUnlock);
+      setData((prev) => applyUnlockedStatusToBusinesses(prev));
       setSelectedIds(new Set());
       toast.success(`Successfully unlocked ${successCount} verified leads!`);
     } else if (unlockModalState.business) {
       const bId = unlockModalState.business.id;
       try {
         const res = await apiClient.unlock.unlockBusiness(bId);
-        setData((prev) =>
-          prev.map((b) => (b.id === bId ? { ...b, isUnlocked: true } : b))
-        );
+        addUnlockedLeadId(bId);
+        setData((prev) => applyUnlockedStatusToBusinesses(prev));
         if (previewBusiness && previewBusiness.id === bId) {
           setPreviewBusiness({ ...previewBusiness, isUnlocked: true });
         }
@@ -469,6 +481,7 @@ export default function DiscoverPage() {
 
   // CSV Export
   const handleExportCSV = useCallback((itemsToExport: Business[]) => {
+    const preparedItems = applyUnlockedStatusToBusinesses(itemsToExport);
     const headers = [
       'Name',
       'Industry',
@@ -485,7 +498,8 @@ export default function DiscoverPage() {
     ];
 
     const csvRows = [headers.join(',')];
-    itemsToExport.forEach((item) => {
+    preparedItems.forEach((item) => {
+      const isUnlockedItem = Boolean(item.isUnlocked || isLeadUnlocked(item.id));
       const row = [
         `"${item.name.replace(/"/g, '""')}"`,
         `"${item.industry}"`,
@@ -493,12 +507,12 @@ export default function DiscoverPage() {
         `"${item.city}"`,
         `"${item.state}"`,
         `"${item.zipCode || ''}"`,
-        `"${item.isUnlocked ? item.phone || '' : 'Locked'}"`,
-        `"${item.isUnlocked ? item.email || '' : 'Locked'}"`,
+        `"${isUnlockedItem ? item.phone || '' : 'Locked'}"`,
+        `"${isUnlockedItem ? item.email || '' : 'Locked'}"`,
         `"${item.website || ''}"`,
         item.opportunityScore ?? 0,
         `"${item.businessAge}"`,
-        item.isUnlocked ? 'Yes' : 'No',
+        isUnlockedItem ? 'Yes' : 'No',
       ];
       csvRows.push(row.join(','));
     });

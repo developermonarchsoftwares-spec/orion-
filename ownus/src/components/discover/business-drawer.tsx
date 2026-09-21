@@ -26,6 +26,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { Business } from '@/lib/types';
+import { isLeadUnlocked } from '@/lib/unlocked-leads-store';
 
 interface BusinessDrawerProps {
   business: Business | null;
@@ -46,6 +47,8 @@ export function BusinessDrawer({
   const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'pitch'>('overview');
 
   if (!isOpen || !business) return null;
+
+  const isUnlocked = Boolean(business.isUnlocked || isLeadUnlocked(business.id));
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -114,7 +117,7 @@ export function BusinessDrawer({
             </div>
 
             {/* Unlock Status CTA */}
-            {business.isUnlocked ? (
+            {isUnlocked ? (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700 text-xs font-semibold">
                 <Unlock className="w-3.5 h-3.5" />
                 Unlocked
@@ -285,7 +288,7 @@ export function BusinessDrawer({
                     <Phone className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
                     Phone / Direct Line
                   </div>
-                  {business.isUnlocked ? (
+                  {isUnlocked ? (
                     <span className="text-[10px] text-zinc-900 dark:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full font-medium">
                       Verified
                     </span>
@@ -294,7 +297,7 @@ export function BusinessDrawer({
                   )}
                 </div>
 
-                {business.isUnlocked ? (
+                {isUnlocked ? (
                   <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
                     <span className="text-sm font-mono font-medium text-zinc-900 dark:text-zinc-100">
                       {business.phone || '+91 98450 12345'}
@@ -338,7 +341,7 @@ export function BusinessDrawer({
                     <Mail className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
                     Decision Maker Email
                   </div>
-                  {business.isUnlocked ? (
+                  {isUnlocked ? (
                     <span className="text-[10px] text-zinc-900 dark:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full font-medium">
                       Deliverable
                     </span>
@@ -347,7 +350,7 @@ export function BusinessDrawer({
                   )}
                 </div>
 
-                {business.isUnlocked ? (
+                {isUnlocked ? (
                   <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
                     <span className="text-sm font-mono font-medium text-zinc-900 dark:text-zinc-100 truncate pr-2">
                       {business.email || 'contact@' + (business.name.toLowerCase().replace(/[^a-z]/g, '') || 'company') + '.in'}
@@ -452,7 +455,7 @@ export function BusinessDrawer({
             Save to List
           </button>
 
-          {!business.isUnlocked ? (
+          {!isUnlocked ? (
             <button
               onClick={() => onUnlock(business)}
               className="px-5 py-2 text-xs font-semibold bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:opacity-90 rounded-lg shadow-xs transition-all flex items-center gap-2 cursor-pointer"
