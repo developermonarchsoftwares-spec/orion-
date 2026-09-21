@@ -127,13 +127,23 @@ export default function DiscoverPage() {
           q: searchQuery || undefined,
           state: filters.state || undefined,
           city: filters.cities?.[0] || undefined,
+          cities: filters.cities?.length ? filters.cities.join(',') : undefined,
           district: filters.districts?.[0] || undefined,
+          districts: filters.districts?.length ? filters.districts.join(',') : undefined,
           pincode: filters.pincode || undefined,
-          hasWebsite: activeChips.includes('has_website') ? true : activeChips.includes('no_website') ? false : undefined,
-          hasPhone: activeChips.includes('has_phone') ? true : undefined,
-          hasEmail: activeChips.includes('has_email') ? true : undefined,
+          industries: filters.industries?.length ? filters.industries.join(',') : undefined,
+          subIndustries: filters.subIndustries?.length ? filters.subIndustries.join(',') : undefined,
+          businessCategories: filters.businessCategories?.length ? filters.businessCategories.join(',') : undefined,
+          businessTypes: filters.businessTypes?.length ? filters.businessTypes.join(',') : undefined,
+          msmeCategories: filters.msmeCategories?.length ? filters.msmeCategories.join(',') : undefined,
+          hasWebsite: activeChips.includes('has_website') ? true : activeChips.includes('no_website') ? false : (filters.contactAvailability.hasWebsite ? true : filters.contactAvailability.noWebsite ? false : undefined),
+          hasPhone: activeChips.includes('has_phone') || filters.contactAvailability.hasPhone ? true : undefined,
+          hasEmail: activeChips.includes('has_email') || filters.contactAvailability.hasEmail ? true : undefined,
+          hasWhatsApp: filters.contactAvailability.hasWhatsApp ? true : undefined,
+          verified: activeChips.includes('verified') || filters.businessStatus.verified ? true : undefined,
           minOrionScore: activeChips.includes('high_orion_score') ? 80 : (filters.orionScoreRange?.[0] || 0),
           maxOrionScore: filters.orionScoreRange?.[1] || 100,
+          sort: sortOption,
           page: pageIndex + 1,
           limit: pageSize,
         });
@@ -185,7 +195,6 @@ export default function DiscoverPage() {
     };
   }, [searchQuery, filters, activeChips, sortOption, pageIndex, pageSize, publishedBusinesses]);
 
-  // Active Filter Count calculation
   // Active Filter Count calculation
   const activeFiltersCount = useMemo(() => {
     let count = 0;
@@ -250,142 +259,11 @@ export default function DiscoverPage() {
     setPageIndex(0);
   };
 
-  // Filter Data calculation (Universal Industry-Neutral Criteria)
-  const filteredData = useMemo(() => {
-    return data.filter((item) => {
-      // 1. Global Search query (Business Name, Industry, Category, City, District)
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchName = item.name.toLowerCase().includes(q);
-        const matchIndustry = item.industry.toLowerCase().includes(q);
-        const matchCity = item.city.toLowerCase().includes(q);
-        const matchState = item.state.toLowerCase().includes(q);
-        const matchDistrict = (item.district || '').toLowerCase().includes(q);
-        const matchEntity = (item.entityType || '').toLowerCase().includes(q);
-        const matchPin = (item.zipCode || '').includes(q);
-        if (!matchName && !matchIndustry && !matchCity && !matchState && !matchDistrict && !matchEntity && !matchPin) {
-          return false;
-        }
-      }
-
-      // 2. India Hierarchical Location filter
-      if (filters.state && item.state !== filters.state && !item.state.toLowerCase().includes(filters.state.toLowerCase())) {
-        return false;
-      }
-      if (filters.districts && filters.districts.length > 0 && item.district && !filters.districts.includes(item.district)) {
-        return false;
-      }
-      if (filters.cities && filters.cities.length > 0 && !filters.cities.includes(item.city)) {
-        return false;
-      }
-      if (filters.pincode && item.zipCode && !item.zipCode.includes(filters.pincode)) {
-        return false;
-      }
-
-      // 3. Business Information
-      if (filters.industries.length > 0 && !filters.industries.includes(item.industry)) {
-        return false;
-      }
-      if (filters.businessTypes.length > 0 && item.entityType && !filters.businessTypes.includes(item.entityType)) {
-        return false;
-      }
-      if (filters.msmeCategories.length > 0 && item.msmeCategory && !filters.msmeCategories.includes(item.msmeCategory)) {
-        return false;
-      }
-
-      // Custom dynamic admin filters
-      if (filters.customAdminFilters) {
-        for (const [catId, selectedValues] of Object.entries(filters.customAdminFilters)) {
-          if (Array.isArray(selectedValues) && selectedValues.length > 0) {
-            const match = selectedValues.some((sv) => {
-              const query = sv.toLowerCase();
-              return (
-                item.industry.toLowerCase().includes(query) ||
-                (item.entityType && item.entityType.toLowerCase().includes(query)) ||
-                (item.msmeCategory && item.msmeCategory.toLowerCase().includes(query)) ||
-                item.name.toLowerCase().includes(query)
-              );
-            });
-            if (!match) return false;
-          }
-        }
-      }
-
-      // 4. Contact Availability
-      if (filters.contactAvailability.hasWebsite && !item.website) return false;
-      if (filters.contactAvailability.noWebsite && item.website) return false;
-      if (filters.contactAvailability.hasEmail && !item.email && item.emailStatus !== 'available') return false;
-      if (filters.contactAvailability.hasPhone && !item.phone && item.phoneStatus !== 'available') return false;
-      if (filters.contactAvailability.hasWhatsApp && !item.phone && !item.hasWhatsApp) return false;
-
-      // 5. Digital Presence
-      if (filters.digitalPresence.websiteAvailable && !item.website) return false;
-      if (filters.digitalPresence.websiteMissing && item.website) return false;
-      if (filters.digitalPresence.socialMediaAvailable && !item.socialMedia?.linkedin && !item.socialMedia?.facebook) return false;
-
-      // 6. Business Status
-      if (filters.businessStatus.active && item.status !== 'active') return false;
-      if (filters.businessStatus.verified && !item.verified) return false;
-      if (filters.businessStatus.completeProfile && !item.completeProfile && (!item.phone || !item.email)) return false;
-
-      // 7. Orion Score Range
-      const score = item.opportunityScore ?? 50;
-      if (score < filters.orionScoreRange[0] || score > filters.orionScoreRange[1]) {
-        return false;
-      }
-
-      // 8. Universal Quick Filter Chips criteria
-      if (activeChips.includes('no_website') && item.website) return false;
-      if (activeChips.includes('has_website') && !item.website) return false;
-      if (activeChips.includes('has_phone') && !item.phone && item.phoneStatus !== 'available') return false;
-      if (activeChips.includes('has_email') && !item.email && item.emailStatus !== 'available') return false;
-      if (activeChips.includes('high_orion_score') && score < 80) return false;
-      if (activeChips.includes('verified') && !item.verified) return false;
-
-      return true;
-    });
-  }, [data, searchQuery, filters, activeChips]);
-
-  // Sorted Data calculation with user-selectable sort criteria
-  const sortedData = useMemo(() => {
-    return [...filteredData].sort((a, b) => {
-      switch (sortOption) {
-        case 'highest_orion_score': {
-          const scoreA = a.opportunityScore ?? 0;
-          const scoreB = b.opportunityScore ?? 0;
-          return scoreB - scoreA;
-        }
-        case 'newest': {
-          const dateA = a.registrationDate ? new Date(a.registrationDate).getTime() : 0;
-          const dateB = b.registrationDate ? new Date(b.registrationDate).getTime() : 0;
-          return dateB - dateA;
-        }
-        case 'oldest': {
-          const dateA = a.registrationDate ? new Date(a.registrationDate).getTime() : 0;
-          const dateB = b.registrationDate ? new Date(b.registrationDate).getTime() : 0;
-          return dateA - dateB;
-        }
-        case 'recently_updated': {
-          return (b.recentlyUpdated ? 1 : 0) - (a.recentlyUpdated ? 1 : 0);
-        }
-        case 'name_asc': {
-          return a.name.localeCompare(b.name);
-        }
-        case 'name_desc': {
-          return b.name.localeCompare(a.name);
-        }
-        default:
-          return (b.opportunityScore ?? 0) - (a.opportunityScore ?? 0);
-      }
-    });
-  }, [filteredData, sortOption]);
-
-  // Paginated Data calculation
-  const totalPages = Math.ceil(sortedData.length / pageSize) || 1;
-  const paginatedData = useMemo(() => {
-    const start = pageIndex * pageSize;
-    return sortedData.slice(start, start + pageSize);
-  }, [sortedData, pageIndex, pageSize]);
+  // Server-driven data & pagination: data is retrieved directly from Neon PostgreSQL
+  const filteredData = data;
+  const sortedData = data;
+  const totalPages = Math.ceil(totalRecords / pageSize) || 1;
+  const paginatedData = data;
 
   // Row Selection helpers
   const isAllPageSelected = paginatedData.length > 0 && paginatedData.every((b) => selectedIds.has(b.id));
@@ -578,7 +456,7 @@ export default function DiscoverPage() {
                 <h1 className="text-base font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                   Business Discovery & Intelligence
                   <span className="text-xs px-2 py-0.5 rounded-full font-mono font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
-                    {filteredData.length} records
+                    {totalRecords} records
                   </span>
                 </h1>
                 <p className="text-[11px] text-zinc-500">
@@ -621,7 +499,7 @@ export default function DiscoverPage() {
                 className="px-3 py-1.5 text-xs font-medium bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:opacity-90 rounded-lg shadow-2xs transition-opacity flex items-center gap-1.5 cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
-                Export ({filteredData.length})
+                Export ({totalRecords})
               </button>
             </div>
 
@@ -1023,15 +901,15 @@ export default function DiscoverPage() {
                 <span>
                   Showing{' '}
                   <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                    {filteredData.length > 0 ? pageIndex * pageSize + 1 : 0}
+                    {data.length > 0 ? pageIndex * pageSize + 1 : 0}
                   </span>{' '}
                   to{' '}
                   <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                    {Math.min((pageIndex + 1) * pageSize, filteredData.length)}
+                    {Math.min((pageIndex + 1) * pageSize, totalRecords)}
                   </span>{' '}
                   of{' '}
                   <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                    {filteredData.length}
+                    {totalRecords}
                   </span>{' '}
                   businesses
                 </span>

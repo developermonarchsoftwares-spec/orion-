@@ -1336,33 +1336,212 @@ async function proxyRequest(
 let serverPublishedBusinessesStore: any[] | null = null;
 
 async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
-  const q = req.nextUrl.searchParams.get('q')?.toLowerCase() || '';
-  const state = req.nextUrl.searchParams.get('state')?.toLowerCase() || '';
-  const city = req.nextUrl.searchParams.get('city')?.toLowerCase() || '';
-  const district = req.nextUrl.searchParams.get('district')?.toLowerCase() || '';
-  const pincode = req.nextUrl.searchParams.get('pincode') || '';
+  const searchParams = req.nextUrl.searchParams;
 
-  const page = parseInt(req.nextUrl.searchParams.get('page') || '1', 10);
-  const limit = parseInt(req.nextUrl.searchParams.get('limit') || '25', 10);
+  const q = searchParams.get('q')?.trim() || '';
+  const state = searchParams.get('state')?.trim() || '';
+  const city = searchParams.get('city')?.trim() || '';
+  const citiesParam = searchParams.get('cities')?.trim() || '';
+  const district = searchParams.get('district')?.trim() || '';
+  const districtsParam = searchParams.get('districts')?.trim() || '';
+  const pincode = searchParams.get('pincode')?.trim() || '';
+  
+  const industriesParam = searchParams.get('industries')?.trim() || '';
+  const subIndustriesParam = searchParams.get('subIndustries')?.trim() || searchParams.get('categories')?.trim() || searchParams.get('businessCategories')?.trim() || '';
+  const businessTypesParam = searchParams.get('businessTypes')?.trim() || '';
+  const msmeCategoriesParam = searchParams.get('msmeCategories')?.trim() || '';
 
-  // Fetch strictly published records directly from Neon PostgreSQL database
-  const rows = await queryDb(`
-    SELECT b.id, b.name, b.slug, b.status, b.created_at, b.updated_at,
-           b.business_type, b.msme_category, b.is_verified, b.incorporation_date,
-           i.name as industry, c.name as category,
-           bl.city, bl.state, bl.district, bl.pincode, bl.address_line1 as address,
-           bc.phone, bc.email, dp.url as website, b.description
+  const hasWebsite = searchParams.get('hasWebsite');
+  const hasPhone = searchParams.get('hasPhone');
+  const hasEmail = searchParams.get('hasEmail');
+  const hasWhatsApp = searchParams.get('hasWhatsApp');
+  const verified = searchParams.get('verified');
+
+  const sort = searchParams.get('sort') || searchParams.get('sortOption') || 'highest_orion_score';
+  const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+  const limit = Math.max(1, Math.min(100, parseInt(searchParams.get('limit') || '25', 10)));
+  const offset = (page - 1) * limit;
+
+  // Enforce strictly PUBLISHED businesses filter
+  const whereClauses: string[] = [
+    `(b.status = 'PUBLISHED' OR LOWER(b.status::text) = 'published' OR LOWER(b.status::text) = 'active')`
+  ];
+  const queryValues: any[] = [];
+  let paramIdx = 1;
+
+  if (q) {
+    whereClauses.push(`(
+      b.name ILIKE $${paramIdx} OR
+      COALESCE(i.name, '') ILIKE $${paramIdx} OR
+      COALESCE(c.name, '') ILIKE $${paramIdx} OR
+      COALESCE(bl.city, '') ILIKE $${paramIdx} OR
+      COALESCE(bl.state, '') ILIKE $${paramIdx} OR
+      COALESCE(bl.district, '') ILIKE $${paramIdx} OR
+      COALESCE(bl.pincode, '') ILIKE $${paramIdx} OR
+      COALESCE(b.business_type::text, '') ILIKE $${paramIdx} OR
+      COALESCE(b.description, '') ILIKE $${paramIdx}
+    )`);
+    queryValues.push(`%${q}%`);
+    paramIdx++;
+  }
+
+  if (state) {
+    whereClauses.push(`LOWER(bl.state) LIKE $${paramIdx}`);
+    queryValues.push(`%${state.toLowerCase()}%`);
+    paramIdx++;
+  }
+
+  const districts = [
+    ...(district ? [district] : []),
+    ...(districtsParam ? districtsParam.split(',').map((s) => s.trim()).filter(Boolean) : []),
+  ];
+  if (districts.length > 0) {
+    whereClauses.push(`LOWER(bl.district) = ANY($${paramIdx}::text[])`);
+    queryValues.push(districts.map((d) => d.toLowerCase()));
+    paramIdx++;
+  }
+
+  const cities = [
+    ...(city ? [city] : []),
+    ...(citiesParam ? citiesParam.split(',').map((s) => s.trim()).filter(Boolean) : []),
+  ];
+  if (cities.length > 0) {
+    whereClauses.push(`LOWER(bl.city) = ANY($${paramIdx}::text[])`);
+    queryValues.push(cities.map((c) => c.toLowerCase()));
+    paramIdx++;
+  }
+
+  if (pincode) {
+    whereClauses.push(`bl.pincode ILIKE $${paramIdx}`);
+    queryValues.push(`%${pincode}%`);
+    paramIdx++;
+  }
+
+  if (industriesParam) {
+    const inds = industriesParam.split(',').map((s) => s.trim()).filter(Boolean);
+    if (inds.length > 0) {
+      whereClauses.push(`LOWER(i.name) = ANY($${paramIdx}::text[])`);
+      queryValues.push(inds.map((i) => i.toLowerCase()));
+      paramIdx++;
+    }
+  }
+
+  if (subIndustriesParam) {
+    const subs = subIndustriesParam.split(',').map((s) => s.trim()).filter(Boolean);
+    if (subs.length > 0) {
+      whereClauses.push(`LOWER(c.name) = ANY($${paramIdx}::text[])`);
+      queryValues.push(subs.map((s) => s.toLowerCase()));
+      paramIdx++;
+    }
+  }
+
+  if (businessTypesParam) {
+    const bTypes = businessTypesParam.split(',').map((s) => s.trim()).filter(Boolean);
+    if (bTypes.length > 0) {
+      whereClauses.push(`(
+        LOWER(b.business_type::text) = ANY($${paramIdx}::text[]) OR
+        LOWER(REPLACE(b.business_type::text, '_', ' ')) = ANY($${paramIdx}::text[])
+      )`);
+      queryValues.push(bTypes.map((t) => t.toLowerCase()));
+      paramIdx++;
+    }
+  }
+
+  if (msmeCategoriesParam) {
+    const msmes = msmeCategoriesParam.split(',').map((s) => s.trim()).filter(Boolean);
+    if (msmes.length > 0) {
+      whereClauses.push(`(
+        LOWER(b.msme_category::text) = ANY($${paramIdx}::text[]) OR
+        LOWER(REPLACE(b.msme_category::text, '_', ' ')) = ANY($${paramIdx}::text[])
+      )`);
+      queryValues.push(msmes.map((m) => m.toLowerCase()));
+      paramIdx++;
+    }
+  }
+
+  if (hasWebsite === 'true') {
+    whereClauses.push(`dp.url IS NOT NULL AND dp.url != ''`);
+  } else if (hasWebsite === 'false') {
+    whereClauses.push(`(dp.url IS NULL OR dp.url = '')`);
+  }
+
+  if (hasPhone === 'true' || hasWhatsApp === 'true') {
+    whereClauses.push(`bc.phone IS NOT NULL AND bc.phone != ''`);
+  }
+
+  if (hasEmail === 'true') {
+    whereClauses.push(`bc.email IS NOT NULL AND bc.email != ''`);
+  }
+
+  if (verified === 'true') {
+    whereClauses.push(`b.is_verified = true`);
+  }
+
+  const whereSql = whereClauses.join(' AND ');
+
+  let orderBySql = 'ORDER BY created_at DESC';
+  switch (sort) {
+    case 'newest':
+      orderBySql = 'ORDER BY created_at DESC';
+      break;
+    case 'oldest':
+      orderBySql = 'ORDER BY created_at ASC';
+      break;
+    case 'name_asc':
+      orderBySql = 'ORDER BY name ASC';
+      break;
+    case 'name_desc':
+      orderBySql = 'ORDER BY name DESC';
+      break;
+    case 'recently_updated':
+      orderBySql = 'ORDER BY updated_at DESC';
+      break;
+    case 'highest_orion_score':
+    default:
+      orderBySql = 'ORDER BY created_at DESC';
+      break;
+  }
+
+  const countSql = `
+    SELECT COUNT(DISTINCT b.id)::int as total
     FROM businesses b
     LEFT JOIN industries i ON b.industry_id = i.id
     LEFT JOIN categories c ON b.category_id = c.id
     LEFT JOIN business_locations bl ON b.id = bl.business_id
     LEFT JOIN business_contacts bc ON b.id = bc.business_id
     LEFT JOIN digital_presences dp ON b.id = dp.business_id AND dp.platform = 'WEBSITE'
-    WHERE b.status = 'PUBLISHED' OR LOWER(b.status::text) = 'published' OR LOWER(b.status::text) = 'active'
-    ORDER BY b.created_at DESC
-  `);
+    WHERE ${whereSql}
+  `;
 
-  const dbPool = rows.map((r, i) => {
+  const countRows = await queryDb(countSql, queryValues);
+  const total = countRows[0]?.total || 0;
+
+  const limitIdx = paramIdx;
+  const offsetIdx = paramIdx + 1;
+  const dataSql = `
+    SELECT b_sub.*
+    FROM (
+      SELECT DISTINCT ON (b.id) b.id, b.name, b.slug, b.status, b.created_at, b.updated_at,
+             b.business_type, b.msme_category, b.is_verified, b.incorporation_date,
+             i.name as industry, c.name as category,
+             bl.city, bl.state, bl.district, bl.pincode, bl.address_line1 as address,
+             bc.phone, bc.email, dp.url as website, b.description
+      FROM businesses b
+      LEFT JOIN industries i ON b.industry_id = i.id
+      LEFT JOIN categories c ON b.category_id = c.id
+      LEFT JOIN business_locations bl ON b.id = bl.business_id
+      LEFT JOIN business_contacts bc ON b.id = bc.business_id
+      LEFT JOIN digital_presences dp ON b.id = dp.business_id AND dp.platform = 'WEBSITE'
+      WHERE ${whereSql}
+      ORDER BY b.id
+    ) b_sub
+    ${orderBySql}
+    LIMIT $${limitIdx} OFFSET $${offsetIdx}
+  `;
+
+  const rows = await queryDb(dataSql, [...queryValues, limit, offset]);
+
+  const items = rows.map((r: any, i: number) => {
     const bType = r.business_type ? String(r.business_type).replace(/_/g, ' ') : 'Private Limited';
     const msme = r.msme_category && r.msme_category !== 'NOT_APPLICABLE' 
       ? String(r.msme_category).replace(/_/g, ' ')
@@ -1402,24 +1581,6 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
     };
   });
 
-  const matched = dbPool.filter((item: any) => {
-    if (q) {
-      const matchName = (item.name || '').toLowerCase().includes(q);
-      const matchInd = (item.industry || '').toLowerCase().includes(q);
-      const matchCity = (item.city || '').toLowerCase().includes(q);
-      const matchState = (item.state || '').toLowerCase().includes(q);
-      if (!matchName && !matchInd && !matchCity && !matchState) return false;
-    }
-    if (state && !(item.state || '').toLowerCase().includes(state)) return false;
-    if (city && !(item.city || '').toLowerCase().includes(city)) return false;
-    if (district && item.district && !(item.district || '').toLowerCase().includes(district)) return false;
-    if (pincode && item.pincode && !(item.pincode || '').includes(pincode)) return false;
-    return true;
-  });
-
-  const startIndex = (page - 1) * limit;
-  const paginated = matched.slice(startIndex, startIndex + limit);
-
   const authHeader = req.headers.get('authorization') || '';
   const rawToken = authHeader.replace(/^Bearer\s+/i, '');
   const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
@@ -1436,7 +1597,7 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
     }
   } catch (e) {}
 
-  const paginatedWithUnlock = paginated.map((item: any) => ({
+  const itemsWithUnlock = items.map((item: any) => ({
     ...item,
     isUnlocked: Boolean(item.isUnlocked || unlockedIdsSet.has(String(item.id))),
   }));
@@ -1446,11 +1607,11 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
     statusCode: 200,
     message: 'Published businesses search executed successfully',
     data: {
-      items: paginatedWithUnlock,
-      total: matched.length,
+      items: itemsWithUnlock,
+      total,
       page,
       limit,
-      totalPages: Math.ceil(matched.length / limit) || 1,
+      totalPages: Math.ceil(total / limit) || 1,
     },
     timestamp: new Date().toISOString(),
   });
