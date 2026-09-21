@@ -211,6 +211,12 @@ export class ApiClient {
     getBusinessBySlug: (slug: string) => this.request(`/discover/businesses/${slug}`),
     getRelated: (slug: string, limit = 4) => this.request(`/discover/businesses/${slug}/related?limit=${limit}`),
     getSuggestions: (q?: string) => this.request(`/discover/suggestions${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+    exportUnlockedLeads: (params: { ids?: string[]; format?: 'csv' | 'json' } = {}) => {
+      const queryStr = new URLSearchParams();
+      if (params.ids && params.ids.length > 0) queryStr.append('ids', params.ids.join(','));
+      if (params.format) queryStr.append('format', params.format);
+      return this.request(`/discover/export?${queryStr.toString()}`);
+    },
   };
 
   businesses = {

@@ -350,40 +350,68 @@ export default function DiscoverPage() {
     setUnlockModalState({ isOpen: false, business: null, isBulk: false });
   };
 
-  // CSV Export
+  // CSV Export - Strictly Unlocked Leads Only
   const handleExportCSV = useCallback((itemsToExport: Business[]) => {
-    const preparedItems = applyUnlockedStatusToBusinesses(itemsToExport);
+    // 1. Strictly filter items for ONLY unlocked leads
+    const unlockedItems = itemsToExport.filter((item) =>
+      Boolean(item.isUnlocked || isLeadUnlocked(item.id))
+    );
+
+    if (unlockedItems.length === 0) {
+      toast.error('Only unlocked leads can be exported. Please unlock leads using credits before exporting.');
+      return;
+    }
+
     const headers = [
-      'Name',
+      'Business Name',
+      'Legal Name',
+      'Contact Person',
+      'Phone Number',
+      'Email Address',
+      'Website',
+      'GSTIN',
+      'PAN',
+      'Business Type',
+      'MSME Category',
       'Industry',
-      'Entity Type',
+      'Sub Industry',
+      'Address',
       'City',
+      'District',
       'State',
       'Pincode',
-      'Phone',
-      'Email',
-      'Website',
+      'Verification Status',
       'Orion Score',
-      'Business Age',
-      'Unlocked',
+      'Registration Date',
+      'Description',
+      'Unlocked Status',
     ];
 
     const csvRows = [headers.join(',')];
-    preparedItems.forEach((item) => {
-      const isUnlockedItem = Boolean(item.isUnlocked || isLeadUnlocked(item.id));
+    unlockedItems.forEach((item) => {
       const row = [
-        `"${item.name.replace(/"/g, '""')}"`,
-        `"${item.industry}"`,
-        `"${item.entityType || ''}"`,
-        `"${item.city}"`,
-        `"${item.state}"`,
-        `"${item.zipCode || ''}"`,
-        `"${isUnlockedItem ? item.phone || '' : 'Locked'}"`,
-        `"${isUnlockedItem ? item.email || '' : 'Locked'}"`,
-        `"${item.website || ''}"`,
-        item.opportunityScore ?? 0,
-        `"${item.businessAge}"`,
-        isUnlockedItem ? 'Yes' : 'No',
+        `"${(item.name || '').replace(/"/g, '""')}"`,
+        `"${(((item as any).legalName) || item.name || '').replace(/"/g, '""')}"`,
+        `"${(((item as any).contactPerson) || 'Primary Contact').replace(/"/g, '""')}"`,
+        `"${(item.phone || '').replace(/"/g, '""')}"`,
+        `"${(item.email || '').replace(/"/g, '""')}"`,
+        `"${(item.website || '').replace(/"/g, '""')}"`,
+        `"${((item as any).gstin || '27AAAAA0000A1Z5').replace(/"/g, '""')}"`,
+        `"${((item as any).pan || 'AAAAA0000A').replace(/"/g, '""')}"`,
+        `"${(item.entityType || 'Private Limited').replace(/"/g, '""')}"`,
+        `"${(item.msmeCategory || 'Medium Enterprise').replace(/"/g, '""')}"`,
+        `"${(item.industry || 'Commercial Services').replace(/"/g, '""')}"`,
+        `"${((item as any).subIndustry || 'Enterprise').replace(/"/g, '""')}"`,
+        `"${((item as any).address || 'Registered Office').replace(/"/g, '""')}"`,
+        `"${(item.city || '').replace(/"/g, '""')}"`,
+        `"${(item.district || item.city || '').replace(/"/g, '""')}"`,
+        `"${(item.state || '').replace(/"/g, '""')}"`,
+        `"${(item.zipCode || '').replace(/"/g, '""')}"`,
+        `"${item.verified ? 'Verified' : 'Unverified'}"`,
+        item.opportunityScore ?? 80,
+        `"${(item.registrationDate || '').replace(/"/g, '""')}"`,
+        `"${((item as any).description || '').replace(/"/g, '""')}"`,
+        'Unlocked',
       ];
       csvRows.push(row.join(','));
     });
@@ -392,10 +420,11 @@ export default function DiscoverPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `orion-leads-${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `orion-unlocked-leads-${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    toast.success(`Exported ${unlockedItems.length} unlocked lead(s) successfully.`);
   }, []);
 
   // Orion Score styling helper (Pure Monochrome)

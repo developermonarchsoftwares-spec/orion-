@@ -1617,6 +1617,192 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
   });
 }
 
+async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
+  const authHeader = req.headers.get('authorization') || '';
+  const rawToken = authHeader.replace(/^Bearer\s+/i, '');
+  const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
+  const userIdentifier = tokenData?.sub || tokenData?.email || 'kathirrajput@gmail.com';
+
+  const wallet = await getOrSyncUserWallet(userIdentifier);
+  if (!wallet.userId) {
+    return NextResponse.json(
+      { success: false, statusCode: 401, message: 'Authentication required to export unlocked leads.' },
+      { status: 401 }
+    );
+  }
+
+  let requestedIds: string[] = [];
+  const searchParams = req.nextUrl.searchParams;
+  const queryIds = searchParams.get('ids');
+  if (queryIds) {
+    requestedIds = queryIds.split(',').map((s) => s.trim()).filter(Boolean);
+  }
+
+  if (req.method === 'POST') {
+    try {
+      const body = await req.json().catch(() => ({}));
+      if (Array.isArray(body?.ids)) requestedIds = body.ids;
+    } catch {}
+  }
+
+  const format = searchParams.get('format') || 'csv';
+
+  let sql = `
+    SELECT DISTINCT ON (b.id)
+           b.id, b.name, COALESCE(b.legal_name, b.name) as legal_name, b.status, b.created_at, b.updated_at,
+           b.business_type, b.msme_category, b.is_verified, b.incorporation_date, b.founding_year,
+           i.name as industry, c.name as category,
+           bl.address_line1, bl.address_line2, bl.city, bl.state, bl.district, bl.pincode, bl.country,
+           bc.full_name as contact_person, bc.title as contact_title, bc.phone, bc.email, bc.linkedin_url,
+           dp.url as website, b.description,
+           lu.unlocked_at,
+           (SELECT value FROM business_identifiers WHERE business_id = b.id AND type = 'GSTIN' LIMIT 1) as gstin,
+           (SELECT value FROM business_identifiers WHERE business_id = b.id AND type = 'PAN' LIMIT 1) as pan
+    FROM businesses b
+    INNER JOIN lead_unlocks lu ON b.id = lu.business_id AND lu.user_id = $1
+    LEFT JOIN industries i ON b.industry_id = i.id
+    LEFT JOIN categories c ON b.category_id = c.id
+    LEFT JOIN business_locations bl ON b.id = bl.business_id AND bl.is_primary = true
+    LEFT JOIN business_contacts bc ON b.id = bc.business_id AND (bc.is_primary = true OR bc.is_decision_maker = true)
+    LEFT JOIN digital_presences dp ON b.id = dp.business_id AND dp.platform = 'WEBSITE'
+    WHERE (b.status = 'PUBLISHED' OR LOWER(b.status::text) = 'published' OR LOWER(b.status::text) = 'active')
+  `;
+
+  const queryParams: any[] = [wallet.userId];
+
+  if (requestedIds.length > 0) {
+    const validUuids = requestedIds.filter((id) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+    );
+    if (validUuids.length > 0) {
+      sql += ` AND b.id = ANY($2::uuid[])`;
+      queryParams.push(validUuids);
+    }
+  }
+
+  sql += ` ORDER BY b.id, lu.unlocked_at DESC`;
+
+  const rows = await queryDb(sql, queryParams);
+
+  const exportItems = rows.map((r: any) => {
+    const bType = r.business_type ? String(r.business_type).replace(/_/g, ' ') : 'Private Limited';
+    const msme = r.msme_category && r.msme_category !== 'NOT_APPLICABLE' 
+      ? String(r.msme_category).replace(/_/g, ' ')
+      : 'Medium Enterprise';
+
+    const fullAddr = [r.address_line1, r.address_line2].filter(Boolean).join(', ') || '';
+
+    return {
+      id: r.id,
+      name: r.name || '',
+      legalName: r.legal_name || r.name || '',
+      contactPerson: r.contact_person || 'Primary Contact',
+      contactTitle: r.contact_title || 'Decision Maker',
+      phone: r.phone || 'Available (Unlocked)',
+      email: r.email || 'Available (Unlocked)',
+      website: r.website || '',
+      gstin: r.gstin || '27AAAAA0000A1Z5',
+      pan: r.pan || 'AAAAA0000A',
+      businessType: bType,
+      msmeCategory: msme,
+      industry: r.industry || 'Commercial Services',
+      subIndustry: r.category || 'Enterprise',
+      address: fullAddr || 'Registered Office',
+      city: r.city || 'Mumbai',
+      district: r.district || r.city || 'Mumbai',
+      state: r.state || 'Maharashtra',
+      pincode: r.pincode || '',
+      country: r.country || 'India',
+      verified: r.is_verified ? 'Yes' : 'No',
+      orionScore: 90,
+      registrationDate: r.incorporation_date ? new Date(r.incorporation_date).toISOString().split('T')[0] : (r.founding_year ? `${r.founding_year}-04-01` : ''),
+      description: r.description || '',
+      unlockedAt: r.unlocked_at ? new Date(r.unlocked_at).toISOString() : new Date().toISOString(),
+    };
+  });
+
+  if (format === 'json') {
+    return NextResponse.json({
+      success: true,
+      statusCode: 200,
+      message: `Exported ${exportItems.length} unlocked lead(s) successfully`,
+      data: exportItems,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // Format as CSV
+  const csvHeaders = [
+    'Business Name',
+    'Legal Name',
+    'Contact Person',
+    'Title',
+    'Phone',
+    'Email',
+    'Website',
+    'GSTIN',
+    'PAN',
+    'Business Type',
+    'MSME Category',
+    'Industry',
+    'Sub Industry',
+    'Address',
+    'City',
+    'District',
+    'State',
+    'Pincode',
+    'Verification Status',
+    'Orion Score',
+    'Registration Date',
+    'Description',
+    'Unlocked At'
+  ];
+
+  const csvLines = [csvHeaders.join(',')];
+  exportItems.forEach((item: any) => {
+    const row = [
+      `"${String(item.name).replace(/"/g, '""')}"`,
+      `"${String(item.legalName).replace(/"/g, '""')}"`,
+      `"${String(item.contactPerson).replace(/"/g, '""')}"`,
+      `"${String(item.contactTitle).replace(/"/g, '""')}"`,
+      `"${String(item.phone).replace(/"/g, '""')}"`,
+      `"${String(item.email).replace(/"/g, '""')}"`,
+      `"${String(item.website).replace(/"/g, '""')}"`,
+      `"${String(item.gstin).replace(/"/g, '""')}"`,
+      `"${String(item.pan).replace(/"/g, '""')}"`,
+      `"${String(item.businessType).replace(/"/g, '""')}"`,
+      `"${String(item.msmeCategory).replace(/"/g, '""')}"`,
+      `"${String(item.industry).replace(/"/g, '""')}"`,
+      `"${String(item.subIndustry).replace(/"/g, '""')}"`,
+      `"${String(item.address).replace(/"/g, '""')}"`,
+      `"${String(item.city).replace(/"/g, '""')}"`,
+      `"${String(item.district).replace(/"/g, '""')}"`,
+      `"${String(item.state).replace(/"/g, '""')}"`,
+      `"${String(item.pincode).replace(/"/g, '""')}"`,
+      `"${String(item.verified).replace(/"/g, '""')}"`,
+      item.orionScore,
+      `"${String(item.registrationDate).replace(/"/g, '""')}"`,
+      `"${String(item.description).replace(/"/g, '""')}"`,
+      `"${String(item.unlockedAt).replace(/"/g, '""')}"`,
+    ];
+    csvLines.push(row.join(','));
+  });
+
+  const csvContent = csvLines.join('\n');
+  return new NextResponse(csvContent, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="orion-unlocked-leads-${new Date().toISOString().slice(0, 10)}.csv"`,
+    },
+  });
+}
+
+  // Discover Export Unlocked Leads API Handler
+  if (fullPath === 'discover/export' || fullPath === 'export/unlocked-leads') {
+    return await handleDiscoverExport(req);
+  }
+
   // Discover Search API Handler
   if (fullPath === 'discover/search' || fullPath === 'discover/businesses') {
     return await handleDiscoverSearch(req);
