@@ -571,10 +571,13 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
     const newRecords: AdminBusinessRecord[] = parsedRows.map((row: any, i: number) => {
       const bName = row.business_name || row.name || row.Name || row['Business Name'] || `Imported Business #${i + 1}`;
       const ind = row.industry || row.Industry || 'Manufacturing & Industrial';
-      const cityVal = row.city || row.City || row.location?.city || 'Mumbai';
-      const stateVal = row.state || row.State || row.location?.state || 'Maharashtra';
-      const phoneVal = row.phone || row.Phone || row['Phone Number'] || row.contact_number || '+91 98000 00000';
-      const emailVal = row.email || row.Email || row['Email Address'] || 'contact@business.in';
+      const cityVal = String(row.city || row.City || row.location?.city || '').trim();
+      const districtVal = String(row.district || row.District || cityVal || '').trim();
+      const stateVal = String(row.state || row.State || row.location?.state || '').trim();
+      const addressVal = String(row.address || row.address_line1 || row.Address || '').trim();
+      const pincodeVal = String(row.pincode || row.Pincode || row.zipCode || '').trim();
+      const phoneVal = row.phone || row.Phone || row['Phone Number'] || row.contact_number || '';
+      const emailVal = row.email || row.Email || row['Email Address'] || '';
 
       return {
         id: `BIZ-IMP-${1000 + i}`,
@@ -584,11 +587,11 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
         subIndustry: String(row.subIndustry || row.sub_industry || row.category || 'Commercial Services'),
         businessType: String(row.business_type || row.entityType || 'Private Limited Company'),
         msmeCategory: String(row.msme_category || 'Medium Enterprise'),
-        address: String(row.address || row.address_line1 || 'Industrial Estate'),
-        state: String(stateVal),
-        district: String(row.district || cityVal),
-        city: String(cityVal),
-        pincode: String(row.pincode || row.zipCode || '400001'),
+        address: addressVal,
+        state: stateVal,
+        district: districtVal,
+        city: cityVal,
+        pincode: pincodeVal,
         phone: String(phoneVal),
         email: String(emailVal),
         website: String(row.website || row.Website || ''),

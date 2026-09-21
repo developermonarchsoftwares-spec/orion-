@@ -1022,15 +1022,16 @@ async function handleAdminImportSubmit(req: NextRequest): Promise<NextResponse> 
       const slugBase = bName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'business';
       const bSlug = `${slugBase}-${bId.slice(0, 8)}`;
 
-      const bType = String(mappedRow.business_type || mappedRow.businessType || mappedRow.entityType || 'Private Limited Company');
-      const msme = String(mappedRow.msme_category || mappedRow.msmeCategory || 'Medium Enterprise');
-      const descVal = String(mappedRow.description || '');
-      const cityVal = String(mappedRow.city || mappedRow.City || 'Mumbai');
-      const stateVal = String(mappedRow.state || mappedRow.State || 'Maharashtra');
-      const pincodeVal = String(mappedRow.pincode || mappedRow.zipCode || '400001');
-      const addressVal = String(mappedRow.address_line1 || mappedRow.address || 'Industrial Estate');
-      const phoneVal = String(mappedRow.phone || mappedRow.Phone || '');
-      const emailVal = String(mappedRow.email || mappedRow.Email || '');
+      const bType = String(mappedRow.business_type || mappedRow.businessType || mappedRow.entityType || rawRow['Business Type'] || rawRow.business_type || 'Private Limited Company');
+      const msme = String(mappedRow.msme_category || mappedRow.msmeCategory || rawRow['MSME Category'] || rawRow.msme_category || 'Medium Enterprise');
+      const descVal = String(mappedRow.description || rawRow.description || rawRow.Description || '');
+      const cityVal = String(mappedRow.city || mappedRow.City || rawRow.city || rawRow.City || '').trim();
+      const districtVal = String(mappedRow.district || mappedRow.District || rawRow.district || rawRow.District || cityVal || '').trim();
+      const stateVal = String(mappedRow.state || mappedRow.State || rawRow.state || rawRow.State || '').trim();
+      const pincodeVal = String(mappedRow.pincode || mappedRow.Pincode || mappedRow.zipCode || rawRow.pincode || rawRow.Pincode || '').trim();
+      const addressVal = String(mappedRow.address_line1 || mappedRow.address || mappedRow.Address || rawRow.address || rawRow.Address || '').trim();
+      const phoneVal = String(mappedRow.phone || mappedRow.Phone || rawRow.phone || rawRow.Phone || '').trim();
+      const emailVal = String(mappedRow.email || mappedRow.Email || rawRow.email || rawRow.Email || '').trim();
 
       await queryDb(
         `INSERT INTO businesses (id, name, slug, status, is_verified, description, created_at, updated_at)
@@ -1039,15 +1040,15 @@ async function handleAdminImportSubmit(req: NextRequest): Promise<NextResponse> 
         [bId, bName, bSlug, descVal]
       );
 
+      await queryDb(`DELETE FROM business_locations WHERE business_id = $1`, [bId]);
       await queryDb(
-        `INSERT INTO business_locations (business_id, city, district, state, pincode, address_line1)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (business_id) DO NOTHING`,
-        [bId, cityVal, cityVal, stateVal, pincodeVal, addressVal]
+        `INSERT INTO business_locations (business_id, city, district, state, pincode, address_line1, country, is_primary, is_registered_office)
+         VALUES ($1, $2, $3, $4, $5, $6, 'India', true, true)`,
+        [bId, cityVal, districtVal, stateVal, pincodeVal, addressVal]
       );
 
       if (phoneVal || emailVal) {
-        const contactName = String(mappedRow.contact_person || mappedRow.full_name || mappedRow.contact_name || `${bName} Contact`);
+        const contactName = String(mappedRow.contact_person || mappedRow.full_name || mappedRow.contact_name || rawRow['Contact Person'] || `${bName} Contact`);
         await queryDb(
           `INSERT INTO business_contacts (business_id, full_name, phone, email)
            VALUES ($1, $2, $3, $4)
@@ -1060,14 +1061,14 @@ async function handleAdminImportSubmit(req: NextRequest): Promise<NextResponse> 
         id: bId,
         name: bName,
         slug: bSlug,
-        industry: 'Manufacturing & Industrial',
+        industry: String(mappedRow.industry || rawRow.Industry || 'Manufacturing & Industrial'),
         subIndustry: '',
-        category: 'Enterprise',
+        category: String(mappedRow.category || rawRow.Category || 'Enterprise'),
         businessType: bType,
         msmeCategory: msme,
         address: addressVal,
         state: stateVal,
-        district: cityVal,
+        district: districtVal,
         city: cityVal,
         pincode: pincodeVal,
         phone: phoneVal,
@@ -2051,9 +2052,9 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
       industry: r.industry || 'Information Technology',
       subIndustry: r.category || 'Services',
       category: r.category || 'Enterprise',
-      city: r.city || 'Mumbai',
-      district: r.district || r.city || 'Mumbai',
-      state: r.state || 'Maharashtra',
+      city: r.city || '',
+      district: r.district || r.city || '',
+      state: r.state || '',
       address: r.address || '',
       zipCode: r.pincode || '',
       pincode: r.pincode || '',
