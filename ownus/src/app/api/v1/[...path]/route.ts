@@ -1030,8 +1030,9 @@ async function handleAdminImportSubmit(req: NextRequest): Promise<NextResponse> 
       const stateVal = String(mappedRow.state || mappedRow.State || rawRow.state || rawRow.State || '').trim();
       const pincodeVal = String(mappedRow.pincode || mappedRow.Pincode || mappedRow.zipCode || rawRow.pincode || rawRow.Pincode || '').trim();
       const addressVal = String(mappedRow.address_line1 || mappedRow.address || mappedRow.Address || rawRow.address || rawRow.Address || '').trim();
-      const phoneVal = String(mappedRow.phone || mappedRow.Phone || rawRow.phone || rawRow.Phone || '').trim();
-      const emailVal = String(mappedRow.email || mappedRow.Email || rawRow.email || rawRow.Email || '').trim();
+      const phoneVal = String(mappedRow.phone || mappedRow.Phone || mappedRow.phone_number || rawRow.phone || rawRow.Phone || rawRow['Phone Number'] || rawRow['phone_number'] || '').trim();
+      const emailVal = String(mappedRow.email || mappedRow.Email || mappedRow.email_address || rawRow.email || rawRow.Email || rawRow['Email Address'] || rawRow['email_address'] || '').trim();
+      const websiteVal = String(mappedRow.website || mappedRow.Website || mappedRow.url || rawRow.website || rawRow.Website || rawRow.url || '').trim();
 
       await queryDb(
         `INSERT INTO businesses (id, name, slug, status, is_verified, description, created_at, updated_at)
@@ -1047,13 +1048,23 @@ async function handleAdminImportSubmit(req: NextRequest): Promise<NextResponse> 
         [bId, cityVal, districtVal, stateVal, pincodeVal, addressVal]
       );
 
+      await queryDb(`DELETE FROM business_contacts WHERE business_id = $1`, [bId]);
       if (phoneVal || emailVal) {
         const contactName = String(mappedRow.contact_person || mappedRow.full_name || mappedRow.contact_name || rawRow['Contact Person'] || `${bName} Contact`);
         await queryDb(
-          `INSERT INTO business_contacts (business_id, full_name, phone, email)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (business_id) DO NOTHING`,
+          `INSERT INTO business_contacts (business_id, full_name, phone, email, is_primary, is_decision_maker, is_phone_verified, is_email_verified)
+           VALUES ($1, $2, $3, $4, true, true, true, true)`,
           [bId, contactName, phoneVal, emailVal]
+        );
+      }
+
+      await queryDb(`DELETE FROM digital_presences WHERE business_id = $1 AND platform = 'WEBSITE'`, [bId]);
+      if (websiteVal) {
+        const cleanDomain = websiteVal.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+        await queryDb(
+          `INSERT INTO digital_presences (business_id, platform, url, domain, is_verified, is_active)
+           VALUES ($1, 'WEBSITE', $2, $3, true, true)`,
+          [bId, websiteVal.startsWith('http') ? websiteVal : `https://${websiteVal}`, cleanDomain]
         );
       }
 
@@ -1073,6 +1084,7 @@ async function handleAdminImportSubmit(req: NextRequest): Promise<NextResponse> 
         pincode: pincodeVal,
         phone: phoneVal,
         email: emailVal,
+        website: websiteVal,
         status: 'draft',
         createdAt: new Date().toISOString().split('T')[0],
         updatedAt: new Date().toISOString().split('T')[0],
@@ -2162,7 +2174,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
     LEFT JOIN industries i ON b.industry_id = i.id
     LEFT JOIN categories c ON b.category_id = c.id
     LEFT JOIN business_locations bl ON b.id = bl.business_id AND bl.is_primary = true
-    LEFT JOIN business_contacts bc ON b.id = bc.business_id AND (bc.is_primary = true OR bc.is_decision_maker = true)
+    LEFT JOIN business_contacts bc ON b.id = bc.business_id
     LEFT JOIN digital_presences dp ON b.id = dp.business_id AND dp.platform = 'WEBSITE'
     WHERE (b.status = 'PUBLISHED' OR LOWER(b.status::text) = 'published' OR LOWER(b.status::text) = 'active')
   `;
@@ -2185,14 +2197,14 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
 
   const exportItems = rows.map((r: any) => {
     const bType = r.business_type ? String(r.business_type).replace(/_/g, ' ') : 'Private Limited';
-    const fullAddr = [r.address_line1, r.address_line2].filter(Boolean).join(', ') || '';
+    const fullAddr = [r.address_line1, r.address_line2].filter(Boolean).join(', ') || [r.city, r.state].filter(Boolean).join(', ') || '';
     const unlockDate = r.unlocked_at ? new Date(r.unlocked_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
 
     return {
       businessName: r.name || '',
-      phoneNumber: r.phone || '',
-      email: r.email || '',
-      website: r.website || '',
+      phoneNumber: r.phone ? String(r.phone).trim() : '',
+      email: r.email ? String(r.email).trim() : '',
+      website: r.website ? String(r.website).trim() : '',
       businessType: bType,
       address: fullAddr || '',
       city: r.city || '',

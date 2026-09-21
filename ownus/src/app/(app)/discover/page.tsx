@@ -351,7 +351,7 @@ export default function DiscoverPage() {
   };
 
   // CSV Export - Strictly Unlocked Leads Only
-  const handleExportCSV = useCallback((itemsToExport: Business[]) => {
+  const handleExportCSV = useCallback(async (itemsToExport: Business[]) => {
     // 1. Strictly filter items for ONLY unlocked leads
     const unlockedItems = itemsToExport.filter((item) =>
       Boolean(item.isUnlocked || isLeadUnlocked(item.id))
@@ -360,6 +360,30 @@ export default function DiscoverPage() {
     if (unlockedItems.length === 0) {
       toast.error('Only unlocked leads can be exported. Please unlock leads using credits before exporting.');
       return;
+    }
+
+    // Try backend export first for high-fidelity database values
+    try {
+      const token = typeof window !== 'undefined' ? (localStorage.getItem('orion_access_token') || localStorage.getItem('orion_admin_token')) : null;
+      const unlockedIds = unlockedItems.map(b => b.id).filter(Boolean);
+      const queryParam = unlockedIds.length > 0 ? `?ids=${unlockedIds.join(',')}&format=csv` : '?format=csv';
+      const res = await fetch(`/api/v1/discover/export${queryParam}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `orion-unlocked-leads-${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success(`Exported ${unlockedItems.length} unlocked lead(s) successfully.`);
+        return;
+      }
+    } catch (apiErr) {
+      console.warn('Backend export failed, generating from client data:', apiErr);
     }
 
     const headers = [
@@ -381,11 +405,15 @@ export default function DiscoverPage() {
       const fullAddr = (item as any).address || [item.city, item.state].filter(Boolean).join(', ') || '';
       const unlockDate = (item as any).unlockedAt ? new Date((item as any).unlockedAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
 
+      const cleanPhone = item.phone && !item.phone.includes('Unlock') ? String(item.phone).trim() : '';
+      const cleanEmail = item.email && !item.email.includes('Unlock') ? String(item.email).trim() : '';
+      const cleanWebsite = item.website && item.website !== 'https://' ? String(item.website).trim() : '';
+
       const row = [
         `"${(item.name || '').replace(/"/g, '""')}"`,
-        `"${(item.phone || '').replace(/"/g, '""')}"`,
-        `"${(item.email || '').replace(/"/g, '""')}"`,
-        `"${(item.website || '').replace(/"/g, '""')}"`,
+        `"${cleanPhone.replace(/"/g, '""')}"`,
+        `"${cleanEmail.replace(/"/g, '""')}"`,
+        `"${cleanWebsite.replace(/"/g, '""')}"`,
         `"${(bType || '').replace(/"/g, '""')}"`,
         `"${(fullAddr || '').replace(/"/g, '""')}"`,
         `"${(item.city || '').replace(/"/g, '""')}"`,
