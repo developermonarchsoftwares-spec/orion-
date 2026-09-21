@@ -1358,7 +1358,7 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
     LEFT JOIN business_locations bl ON b.id = bl.business_id
     LEFT JOIN business_contacts bc ON b.id = bc.business_id
     LEFT JOIN digital_presences dp ON b.id = dp.business_id AND dp.platform = 'WEBSITE'
-    WHERE LOWER(b.status) = 'published' OR LOWER(b.status) = 'active'
+    WHERE b.status = 'PUBLISHED' OR LOWER(b.status::text) = 'published' OR LOWER(b.status::text) = 'active'
     ORDER BY b.created_at DESC
   `);
 

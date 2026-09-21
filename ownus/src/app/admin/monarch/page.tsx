@@ -57,6 +57,7 @@ import {
   INITIAL_SEARCH_INDEX_STATUS,
 } from '@/lib/admin-mock-data';
 import { deleteAdminRecordsFromApi } from '@/lib/admin-data-store';
+import { syncAdminRecordsToPublishedStore } from '@/lib/published-businesses-store';
 
 // Layout components
 import { AdminSidebar } from '@/components/admin/admin-sidebar';
@@ -94,8 +95,6 @@ import { BusinessDetailsModal } from '@/components/admin/modals/business-details
 import { BusinessValidationModal } from '@/components/admin/modals/business-validation-modal';
 import { MergePreviewModal } from '@/components/admin/modals/merge-preview-modal';
 import { GlobalAdminSearchModal } from '@/components/admin/modals/global-admin-search-modal';
-
-import { syncAdminRecordsToPublishedStore } from '@/lib/published-businesses-store';
 
 export default function AdminPortalPage() {
   // Admin Authentication & Security Gate State
@@ -341,19 +340,23 @@ export default function AdminPortalPage() {
 
   // Record Workflow Status Transition Handler
   const handleStatusChange = (recordId: string, newStatus: BusinessStatus) => {
-    setRecords(prev => prev.map(rec => {
-      if (rec.id === recordId) {
-        return {
-          ...rec,
-          status: newStatus,
-          validationStatus: newStatus === 'approved' || newStatus === 'published' ? 'Approved' : rec.validationStatus,
-          updatedAt: new Date().toISOString(),
-          approvedDate: newStatus === 'approved' || newStatus === 'published' ? new Date().toISOString().replace('T', ' ').slice(0, 16) : rec.approvedDate,
-          reviewer: newStatus === 'approved' || newStatus === 'published' ? (adminEmail || 'Monarch Administrator') : rec.reviewer,
-        };
-      }
-      return rec;
-    }));
+    setRecords(prev => {
+      const updated = prev.map(rec => {
+        if (rec.id === recordId) {
+          return {
+            ...rec,
+            status: newStatus,
+            validationStatus: newStatus === 'approved' || newStatus === 'published' ? 'Approved' : rec.validationStatus,
+            updatedAt: new Date().toISOString(),
+            approvedDate: newStatus === 'approved' || newStatus === 'published' ? new Date().toISOString().replace('T', ' ').slice(0, 16) : rec.approvedDate,
+            reviewer: newStatus === 'approved' || newStatus === 'published' ? (adminEmail || 'Monarch Administrator') : rec.reviewer,
+          };
+        }
+        return rec;
+      });
+      syncAdminRecordsToPublishedStore(updated);
+      return updated;
+    });
 
     if (selectedRecordForDetail && selectedRecordForDetail.id === recordId) {
       setSelectedRecordForDetail(prev => prev ? { ...prev, status: newStatus } : null);
@@ -387,19 +390,23 @@ export default function AdminPortalPage() {
 
   // Bulk Status Update Handler
   const handleBulkStatusChange = (ids: string[], newStatus: BusinessStatus) => {
-    setRecords(prev => prev.map(rec => {
-      if (ids.includes(rec.id)) {
-        return {
-          ...rec,
-          status: newStatus,
-          validationStatus: newStatus === 'approved' || newStatus === 'published' ? 'Approved' : rec.validationStatus,
-          updatedAt: new Date().toISOString(),
-          approvedDate: newStatus === 'approved' || newStatus === 'published' ? new Date().toISOString().replace('T', ' ').slice(0, 16) : rec.approvedDate,
-          reviewer: newStatus === 'approved' || newStatus === 'published' ? (adminEmail || 'Monarch Administrator') : rec.reviewer,
-        };
-      }
-      return rec;
-    }));
+    setRecords(prev => {
+      const updated = prev.map(rec => {
+        if (ids.includes(rec.id)) {
+          return {
+            ...rec,
+            status: newStatus,
+            validationStatus: newStatus === 'approved' || newStatus === 'published' ? 'Approved' : rec.validationStatus,
+            updatedAt: new Date().toISOString(),
+            approvedDate: newStatus === 'approved' || newStatus === 'published' ? new Date().toISOString().replace('T', ' ').slice(0, 16) : rec.approvedDate,
+            reviewer: newStatus === 'approved' || newStatus === 'published' ? (adminEmail || 'Monarch Administrator') : rec.reviewer,
+          };
+        }
+        return rec;
+      });
+      syncAdminRecordsToPublishedStore(updated);
+      return updated;
+    });
 
     fetch('/api/v1/admin/businesses', {
       method: 'POST',
