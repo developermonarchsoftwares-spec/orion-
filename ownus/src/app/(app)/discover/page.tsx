@@ -364,54 +364,34 @@ export default function DiscoverPage() {
 
     const headers = [
       'Business Name',
-      'Legal Name',
-      'Contact Person',
       'Phone Number',
-      'Email Address',
+      'Email',
       'Website',
-      'GSTIN',
-      'PAN',
       'Business Type',
-      'MSME Category',
-      'Industry',
-      'Sub Industry',
       'Address',
       'City',
       'District',
       'State',
-      'Pincode',
-      'Verification Status',
-      'Orion Score',
-      'Registration Date',
-      'Description',
-      'Unlocked Status',
+      'Unlock Date',
     ];
 
     const csvRows = [headers.join(',')];
     unlockedItems.forEach((item) => {
+      const bType = item.entityType || (item as any).businessType ? String((item as any).businessType || item.entityType).replace(/_/g, ' ') : 'Private Limited';
+      const fullAddr = (item as any).address || [item.city, item.state].filter(Boolean).join(', ') || '';
+      const unlockDate = (item as any).unlockedAt ? new Date((item as any).unlockedAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+
       const row = [
         `"${(item.name || '').replace(/"/g, '""')}"`,
-        `"${(((item as any).legalName) || item.name || '').replace(/"/g, '""')}"`,
-        `"${(((item as any).contactPerson) || 'Primary Contact').replace(/"/g, '""')}"`,
         `"${(item.phone || '').replace(/"/g, '""')}"`,
         `"${(item.email || '').replace(/"/g, '""')}"`,
         `"${(item.website || '').replace(/"/g, '""')}"`,
-        `"${((item as any).gstin || '27AAAAA0000A1Z5').replace(/"/g, '""')}"`,
-        `"${((item as any).pan || 'AAAAA0000A').replace(/"/g, '""')}"`,
-        `"${(item.entityType || 'Private Limited').replace(/"/g, '""')}"`,
-        `"${(item.msmeCategory || 'Medium Enterprise').replace(/"/g, '""')}"`,
-        `"${(item.industry || 'Commercial Services').replace(/"/g, '""')}"`,
-        `"${((item as any).subIndustry || 'Enterprise').replace(/"/g, '""')}"`,
-        `"${((item as any).address || 'Registered Office').replace(/"/g, '""')}"`,
+        `"${(bType || '').replace(/"/g, '""')}"`,
+        `"${(fullAddr || '').replace(/"/g, '""')}"`,
         `"${(item.city || '').replace(/"/g, '""')}"`,
         `"${(item.district || item.city || '').replace(/"/g, '""')}"`,
         `"${(item.state || '').replace(/"/g, '""')}"`,
-        `"${(item.zipCode || '').replace(/"/g, '""')}"`,
-        `"${item.verified ? 'Verified' : 'Unverified'}"`,
-        item.opportunityScore ?? 80,
-        `"${(item.registrationDate || '').replace(/"/g, '""')}"`,
-        `"${((item as any).description || '').replace(/"/g, '""')}"`,
-        'Unlocked',
+        `"${(unlockDate || '').replace(/"/g, '""')}"`,
       ];
       csvRows.push(row.join(','));
     });

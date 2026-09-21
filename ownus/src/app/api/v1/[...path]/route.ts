@@ -1215,6 +1215,416 @@ async function getOrSyncUserWallet(userIdentifier?: string) {
   }
 }
 
+function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, storedHashStr: string): boolean {
+  if (!storedHashStr || !storedHashStr.includes(':')) return false;
+  const [salt, hash] = storedHashStr.split(':');
+  const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(verifyHash, 'hex'));
+  } catch {
+    return false;
+  }
+}
+
+async function getUserFromRequest(req: NextRequest) {
+  const authHeader = req.headers.get('authorization') || '';
+  const rawToken = authHeader.replace(/^Bearer\s+/i, '');
+  const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
+  const userIdentifier = tokenData?.sub || tokenData?.email || 'kathirrajput@gmail.com';
+
+  const walletData = await getOrSyncUserWallet(userIdentifier);
+  let dbUser = walletData.user;
+
+  if (!dbUser && walletData.userId) {
+    const rows = await queryDb(`SELECT * FROM users WHERE id = $1 LIMIT 1`, [walletData.userId]);
+    dbUser = rows[0];
+  }
+
+  if (!dbUser && userIdentifier) {
+    const rows = userIdentifier.includes('@')
+      ? await queryDb(`SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`, [userIdentifier])
+      : await queryDb(`SELECT * FROM users WHERE id = $1 LIMIT 1`, [userIdentifier]);
+    dbUser = rows[0];
+  }
+
+  return { dbUser, walletData, tokenData, userIdentifier };
+}
+
+async function handleGetUserProfile(req: NextRequest): Promise<NextResponse> {
+  const { dbUser, walletData, tokenData } = await getUserFromRequest(req);
+
+  const email = dbUser?.email || tokenData?.email || 'user@example.com';
+  const firstName = dbUser?.first_name || tokenData?.firstName || '';
+  const lastName = dbUser?.last_name || tokenData?.lastName || '';
+  const fullName = dbUser?.display_name || (firstName ? `${firstName} ${lastName}`.trim() : email.split('@')[0]);
+
+  return NextResponse.json({
+    success: true,
+    statusCode: 200,
+    data: {
+      id: dbUser?.id || walletData.userId || 'usr_default',
+      email,
+      firstName,
+      lastName,
+      name: fullName,
+      displayName: fullName,
+      avatarUrl: dbUser?.avatar_url || null,
+      role: dbUser?.role || 'USER',
+      status: dbUser?.status || 'ACTIVE',
+      organizationName: dbUser?.organization_name || null,
+      companyName: dbUser?.organization_name || null,
+      phone: dbUser?.phone_number || null,
+      phoneNumber: dbUser?.phone_number || null,
+      isEmailVerified: dbUser?.is_email_verified ?? true,
+      provider: dbUser?.provider || 'EMAIL',
+      googleLinked: Boolean(dbUser?.google_id || dbUser?.provider === 'google'),
+      microsoftLinked: Boolean(dbUser?.microsoft_id || dbUser?.provider === 'microsoft'),
+      hasPassword: Boolean(dbUser?.password_hash && dbUser.password_hash.length > 0),
+      wallet: {
+        dailyCredits: walletData.dailyCredits,
+        purchasedCredits: walletData.purchasedCredits,
+        balance: walletData.balance,
+        lifetimePurchased: walletData.lifetimePurchased,
+        lifetimeUsed: walletData.lifetimeUsed,
+        lastDailyCreditDate: walletData.lastDailyCreditDate,
+      },
+      metadata: dbUser?.metadata || {},
+    },
+    timestamp: new Date().toISOString(),
+  });
+}
+
+async function handleGetUserSettings(req: NextRequest): Promise<NextResponse> {
+  const { dbUser } = await getUserFromRequest(req);
+  const meta = (dbUser?.metadata as any) || {};
+
+  return NextResponse.json({
+    success: true,
+    statusCode: 200,
+    message: 'Settings retrieved from database',
+    data: {
+      company: {
+        companyName: dbUser?.organization_name || '',
+        phone: dbUser?.phone_number || '',
+        jobTitle: meta.jobTitle || '',
+      },
+      notifications: meta.notifications || {
+        emailNewBusinesses: true,
+        savedSearchAlerts: true,
+        creditLowWarning: true,
+        weeklyDigest: false,
+        productUpdates: true,
+        marketingEmails: false,
+      },
+      preferences: meta.preferences || {
+        resultsPerPage: '25 results',
+        defaultView: 'Table View',
+        timezone: 'India Standard Time (IST) - New Delhi, Kolkata',
+        dateFormat: 'DD/MM/YYYY',
+      },
+      billing: meta.billing || {
+        currency: 'INR',
+        plan: 'Professional Plan',
+      },
+    },
+    timestamp: new Date().toISOString(),
+  });
+}
+
+async function handleUpdateUserProfile(req: NextRequest): Promise<NextResponse> {
+  const { dbUser, walletData } = await getUserFromRequest(req);
+  const userId = dbUser?.id || walletData.userId;
+  const email = dbUser?.email;
+
+  if (!userId && !email) {
+    return NextResponse.json({ success: false, statusCode: 401, message: 'Unauthorized' }, { status: 401 });
+  }
+
+  let body: any = {};
+  try {
+    body = await req.json();
+  } catch {}
+
+  const rawName = String(body.name || body.displayName || '').trim();
+  let firstName = body.firstName !== undefined ? String(body.firstName).trim() : undefined;
+  let lastName = body.lastName !== undefined ? String(body.lastName).trim() : undefined;
+
+  if (rawName && (firstName === undefined || lastName === undefined)) {
+    const parts = rawName.split(' ');
+    firstName = parts[0] || '';
+    lastName = parts.slice(1).join(' ') || '';
+  }
+
+  const displayName = rawName || (firstName ? `${firstName} ${lastName || ''}`.trim() : undefined);
+  const organizationName = body.companyName || body.organizationName;
+  const phone = body.phone || body.phoneNumber;
+  const jobTitle = body.jobTitle;
+
+  const currentMeta = (dbUser?.metadata as any) || {};
+  let updatedMeta = { ...currentMeta };
+  if (jobTitle !== undefined) {
+    updatedMeta.jobTitle = String(jobTitle).trim();
+  }
+
+  const rows = await queryDb(
+    `UPDATE users
+     SET first_name = COALESCE($1, first_name),
+         last_name = COALESCE($2, last_name),
+         display_name = COALESCE($3, display_name),
+         organization_name = COALESCE($4, organization_name),
+         phone_number = COALESCE($5, phone_number),
+         metadata = $6::jsonb,
+         updated_at = NOW()
+     WHERE id = $7 OR (email IS NOT NULL AND LOWER(email) = LOWER($8))
+     RETURNING *`,
+    [
+      firstName || null,
+      lastName !== undefined ? lastName : null,
+      displayName || null,
+      organizationName || null,
+      phone || null,
+      JSON.stringify(updatedMeta),
+      userId || '00000000-0000-0000-0000-000000000000',
+      email || '',
+    ]
+  );
+
+  const updatedUser = rows[0] || dbUser;
+
+  return NextResponse.json({
+    success: true,
+    statusCode: 200,
+    message: 'Profile updated successfully in PostgreSQL database',
+    data: {
+      id: updatedUser.id,
+      email: updatedUser.email,
+      firstName: updatedUser.first_name,
+      lastName: updatedUser.last_name,
+      name: updatedUser.display_name || `${updatedUser.first_name || ''} ${updatedUser.last_name || ''}`.trim(),
+      displayName: updatedUser.display_name,
+      organizationName: updatedUser.organization_name,
+      companyName: updatedUser.organization_name,
+      phone: updatedUser.phone_number,
+      phoneNumber: updatedUser.phone_number,
+      metadata: updatedUser.metadata,
+    },
+    timestamp: new Date().toISOString(),
+  });
+}
+
+async function handleUpdateUserCompany(req: NextRequest): Promise<NextResponse> {
+  const { dbUser, walletData } = await getUserFromRequest(req);
+  const userId = dbUser?.id || walletData.userId;
+  const email = dbUser?.email;
+
+  if (!userId && !email) {
+    return NextResponse.json({ success: false, statusCode: 401, message: 'Unauthorized' }, { status: 401 });
+  }
+
+  let body: any = {};
+  try {
+    body = await req.json();
+  } catch {}
+
+  const organizationName = body.companyName || body.organizationName || body.name;
+  const phone = body.phone || body.phoneNumber;
+  const jobTitle = body.jobTitle;
+
+  const currentMeta = (dbUser?.metadata as any) || {};
+  let updatedMeta = { ...currentMeta };
+  if (jobTitle !== undefined) {
+    updatedMeta.jobTitle = String(jobTitle).trim();
+  }
+
+  const rows = await queryDb(
+    `UPDATE users
+     SET organization_name = COALESCE($1, organization_name),
+         phone_number = COALESCE($2, phone_number),
+         metadata = $3::jsonb,
+         updated_at = NOW()
+     WHERE id = $4 OR (email IS NOT NULL AND LOWER(email) = LOWER($5))
+     RETURNING *`,
+    [
+      organizationName || null,
+      phone || null,
+      JSON.stringify(updatedMeta),
+      userId || '00000000-0000-0000-0000-000000000000',
+      email || '',
+    ]
+  );
+
+  const updatedUser = rows[0] || dbUser;
+
+  return NextResponse.json({
+    success: true,
+    statusCode: 200,
+    message: 'Company details saved directly to Neon PostgreSQL database',
+    data: {
+      companyName: updatedUser.organization_name,
+      phone: updatedUser.phone_number,
+      jobTitle: updatedUser.metadata?.jobTitle || '',
+    },
+    timestamp: new Date().toISOString(),
+  });
+}
+
+async function handleUpdateUserNotifications(req: NextRequest): Promise<NextResponse> {
+  const { dbUser, walletData } = await getUserFromRequest(req);
+  const userId = dbUser?.id || walletData.userId;
+  const email = dbUser?.email;
+
+  if (!userId && !email) {
+    return NextResponse.json({ success: false, statusCode: 401, message: 'Unauthorized' }, { status: 401 });
+  }
+
+  let body: any = {};
+  try {
+    body = await req.json();
+  } catch {}
+
+  const currentMeta = (dbUser?.metadata as any) || {};
+  const updatedNotifications = {
+    ...(currentMeta.notifications || {}),
+    ...body,
+  };
+  const updatedMeta = {
+    ...currentMeta,
+    notifications: updatedNotifications,
+  };
+
+  const rows = await queryDb(
+    `UPDATE users
+     SET metadata = $1::jsonb,
+         updated_at = NOW()
+     WHERE id = $2 OR (email IS NOT NULL AND LOWER(email) = LOWER($3))
+     RETURNING *`,
+    [
+      JSON.stringify(updatedMeta),
+      userId || '00000000-0000-0000-0000-000000000000',
+      email || '',
+    ]
+  );
+
+  const updatedUser = rows[0] || dbUser;
+
+  return NextResponse.json({
+    success: true,
+    statusCode: 200,
+    message: 'Notification preferences saved to Neon PostgreSQL database',
+    data: updatedUser.metadata?.notifications || updatedNotifications,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+async function handleUpdateUserPreferences(req: NextRequest): Promise<NextResponse> {
+  const { dbUser, walletData } = await getUserFromRequest(req);
+  const userId = dbUser?.id || walletData.userId;
+  const email = dbUser?.email;
+
+  if (!userId && !email) {
+    return NextResponse.json({ success: false, statusCode: 401, message: 'Unauthorized' }, { status: 401 });
+  }
+
+  let body: any = {};
+  try {
+    body = await req.json();
+  } catch {}
+
+  const currentMeta = (dbUser?.metadata as any) || {};
+  const updatedPreferences = {
+    ...(currentMeta.preferences || {}),
+    ...body,
+  };
+  const updatedMeta = {
+    ...currentMeta,
+    preferences: updatedPreferences,
+  };
+
+  const rows = await queryDb(
+    `UPDATE users
+     SET metadata = $1::jsonb,
+         updated_at = NOW()
+     WHERE id = $2 OR (email IS NOT NULL AND LOWER(email) = LOWER($3))
+     RETURNING *`,
+    [
+      JSON.stringify(updatedMeta),
+      userId || '00000000-0000-0000-0000-000000000000',
+      email || '',
+    ]
+  );
+
+  const updatedUser = rows[0] || dbUser;
+
+  return NextResponse.json({
+    success: true,
+    statusCode: 200,
+    message: 'App preferences saved to Neon PostgreSQL database',
+    data: updatedUser.metadata?.preferences || updatedPreferences,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+async function handleUpdateUserPassword(req: NextRequest): Promise<NextResponse> {
+  const { dbUser, walletData } = await getUserFromRequest(req);
+  const userId = dbUser?.id || walletData.userId;
+  const email = dbUser?.email;
+
+  if (!userId && !email) {
+    return NextResponse.json({ success: false, statusCode: 401, message: 'Unauthorized' }, { status: 401 });
+  }
+
+  let body: any = {};
+  try {
+    body = await req.json();
+  } catch {}
+
+  const currentPassword = String(body.currentPassword || '').trim();
+  const newPassword = String(body.newPassword || '').trim();
+
+  if (!newPassword) {
+    return NextResponse.json({ success: false, statusCode: 400, message: 'New password is required' }, { status: 400 });
+  }
+
+  if (newPassword.length < 8) {
+    return NextResponse.json({ success: false, statusCode: 400, message: 'Password must be at least 8 characters long' }, { status: 400 });
+  }
+
+  const existingHash = dbUser?.password_hash;
+  if (existingHash && existingHash.length > 0) {
+    if (!currentPassword) {
+      return NextResponse.json({ success: false, statusCode: 400, message: 'Current password is required' }, { status: 400 });
+    }
+    const isValid = verifyPassword(currentPassword, existingHash);
+    if (!isValid) {
+      return NextResponse.json({ success: false, statusCode: 400, message: 'Incorrect current password. Verification failed.' }, { status: 400 });
+    }
+  }
+
+  const newHashStr = hashPassword(newPassword);
+
+  await queryDb(
+    `UPDATE users
+     SET password_hash = $1,
+         updated_at = NOW()
+     WHERE id = $2 OR (email IS NOT NULL AND LOWER(email) = LOWER($3))`,
+    [newHashStr, userId || '00000000-0000-0000-0000-000000000000', email || '']
+  );
+
+  return NextResponse.json({
+    success: true,
+    statusCode: 200,
+    message: existingHash ? 'Password updated successfully in PostgreSQL database' : 'New password set successfully in PostgreSQL database',
+    data: { passwordUpdated: true, hasPassword: true },
+    timestamp: new Date().toISOString(),
+  });
+}
+
 async function proxyRequest(
   req: NextRequest,
   context: { params: Promise<{ path: string[] }> },
@@ -1230,6 +1640,39 @@ async function proxyRequest(
   }
 
   const fullPath = path.join('/');
+
+  // Customer Panel - Profile & User Settings Database Handlers
+  if (fullPath === 'auth/me' || fullPath === 'user/profile') {
+    if (req.method === 'GET') {
+      return await handleGetUserProfile(req);
+    } else if (req.method === 'PATCH' || req.method === 'PUT' || req.method === 'POST') {
+      return await handleUpdateUserProfile(req);
+    }
+  }
+
+  if (fullPath === 'settings') {
+    if (req.method === 'GET') {
+      return await handleGetUserSettings(req);
+    } else if (req.method === 'PATCH' || req.method === 'PUT' || req.method === 'POST') {
+      return await handleUpdateUserProfile(req);
+    }
+  }
+
+  if (fullPath === 'settings/company') {
+    return await handleUpdateUserCompany(req);
+  }
+
+  if (fullPath === 'settings/notifications') {
+    return await handleUpdateUserNotifications(req);
+  }
+
+  if (fullPath === 'settings/preferences' || fullPath === 'user/settings') {
+    return await handleUpdateUserPreferences(req);
+  }
+
+  if (fullPath === 'user/change-password' || fullPath === 'auth/change-password' || fullPath === 'settings/change-password') {
+    return await handleUpdateUserPassword(req);
+  }
 
   // Admin Auth - Send OTP
   if (fullPath === 'admin/auth/send-otp') {
@@ -1686,38 +2129,20 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
 
   const exportItems = rows.map((r: any) => {
     const bType = r.business_type ? String(r.business_type).replace(/_/g, ' ') : 'Private Limited';
-    const msme = r.msme_category && r.msme_category !== 'NOT_APPLICABLE' 
-      ? String(r.msme_category).replace(/_/g, ' ')
-      : 'Medium Enterprise';
-
     const fullAddr = [r.address_line1, r.address_line2].filter(Boolean).join(', ') || '';
+    const unlockDate = r.unlocked_at ? new Date(r.unlocked_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
 
     return {
-      id: r.id,
-      name: r.name || '',
-      legalName: r.legal_name || r.name || '',
-      contactPerson: r.contact_person || 'Primary Contact',
-      contactTitle: r.contact_title || 'Decision Maker',
-      phone: r.phone || 'Available (Unlocked)',
-      email: r.email || 'Available (Unlocked)',
+      businessName: r.name || '',
+      phoneNumber: r.phone || '',
+      email: r.email || '',
       website: r.website || '',
-      gstin: r.gstin || '27AAAAA0000A1Z5',
-      pan: r.pan || 'AAAAA0000A',
       businessType: bType,
-      msmeCategory: msme,
-      industry: r.industry || 'Commercial Services',
-      subIndustry: r.category || 'Enterprise',
-      address: fullAddr || 'Registered Office',
-      city: r.city || 'Mumbai',
-      district: r.district || r.city || 'Mumbai',
-      state: r.state || 'Maharashtra',
-      pincode: r.pincode || '',
-      country: r.country || 'India',
-      verified: r.is_verified ? 'Yes' : 'No',
-      orionScore: 90,
-      registrationDate: r.incorporation_date ? new Date(r.incorporation_date).toISOString().split('T')[0] : (r.founding_year ? `${r.founding_year}-04-01` : ''),
-      description: r.description || '',
-      unlockedAt: r.unlocked_at ? new Date(r.unlocked_at).toISOString() : new Date().toISOString(),
+      address: fullAddr || '',
+      city: r.city || '',
+      district: r.district || r.city || '',
+      state: r.state || '',
+      unlockDate: unlockDate,
     };
   });
 
@@ -1734,56 +2159,30 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
   // Format as CSV
   const csvHeaders = [
     'Business Name',
-    'Legal Name',
-    'Contact Person',
-    'Title',
-    'Phone',
+    'Phone Number',
     'Email',
     'Website',
-    'GSTIN',
-    'PAN',
     'Business Type',
-    'MSME Category',
-    'Industry',
-    'Sub Industry',
     'Address',
     'City',
     'District',
     'State',
-    'Pincode',
-    'Verification Status',
-    'Orion Score',
-    'Registration Date',
-    'Description',
-    'Unlocked At'
+    'Unlock Date'
   ];
 
   const csvLines = [csvHeaders.join(',')];
   exportItems.forEach((item: any) => {
     const row = [
-      `"${String(item.name).replace(/"/g, '""')}"`,
-      `"${String(item.legalName).replace(/"/g, '""')}"`,
-      `"${String(item.contactPerson).replace(/"/g, '""')}"`,
-      `"${String(item.contactTitle).replace(/"/g, '""')}"`,
-      `"${String(item.phone).replace(/"/g, '""')}"`,
+      `"${String(item.businessName).replace(/"/g, '""')}"`,
+      `"${String(item.phoneNumber).replace(/"/g, '""')}"`,
       `"${String(item.email).replace(/"/g, '""')}"`,
       `"${String(item.website).replace(/"/g, '""')}"`,
-      `"${String(item.gstin).replace(/"/g, '""')}"`,
-      `"${String(item.pan).replace(/"/g, '""')}"`,
       `"${String(item.businessType).replace(/"/g, '""')}"`,
-      `"${String(item.msmeCategory).replace(/"/g, '""')}"`,
-      `"${String(item.industry).replace(/"/g, '""')}"`,
-      `"${String(item.subIndustry).replace(/"/g, '""')}"`,
       `"${String(item.address).replace(/"/g, '""')}"`,
       `"${String(item.city).replace(/"/g, '""')}"`,
       `"${String(item.district).replace(/"/g, '""')}"`,
       `"${String(item.state).replace(/"/g, '""')}"`,
-      `"${String(item.pincode).replace(/"/g, '""')}"`,
-      `"${String(item.verified).replace(/"/g, '""')}"`,
-      item.orionScore,
-      `"${String(item.registrationDate).replace(/"/g, '""')}"`,
-      `"${String(item.description).replace(/"/g, '""')}"`,
-      `"${String(item.unlockedAt).replace(/"/g, '""')}"`,
+      `"${String(item.unlockDate).replace(/"/g, '""')}"`,
     ];
     csvLines.push(row.join(','));
   });

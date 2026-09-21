@@ -283,6 +283,7 @@ export class ApiClient {
     getSettings: () => this.request('/settings'),
     updateCompany: (dto: any) => this.request('/settings/company', { method: 'PATCH', body: JSON.stringify(dto) }),
     updateNotifications: (dto: any) => this.request('/settings/notifications', { method: 'PATCH', body: JSON.stringify(dto) }),
+    updatePreferences: (dto: any) => this.request('/settings/preferences', { method: 'PATCH', body: JSON.stringify(dto) }),
     updateBilling: (dto: any) => this.request('/settings/billing', { method: 'PATCH', body: JSON.stringify(dto) }),
   };
 }

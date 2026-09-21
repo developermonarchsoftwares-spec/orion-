@@ -82,11 +82,20 @@ export default function SettingsPage() {
     marketingEmails: false,
   });
 
+  // App Preferences State
+  const [preferences, setPreferences] = useState({
+    resultsPerPage: "25 results",
+    defaultView: "Table View",
+    timezone: "India Standard Time (IST) - New Delhi, Kolkata",
+    dateFormat: "DD/MM/YYYY",
+  });
+
   useEffect(() => {
     if (user) {
       setFullName(user.name || "");
       setEmail(user.email || "");
-      setCompanyName(user.companyName || "");
+      setCompanyName(user.companyName || user.organizationName || "");
+      if ((user as any).phone) setPhone((user as any).phone);
     }
 
     // Load full settings
@@ -102,6 +111,12 @@ export default function SettingsPage() {
           ...res.notifications,
         }));
       }
+      if (res?.preferences) {
+        setPreferences((prev) => ({
+          ...prev,
+          ...res.preferences,
+        }));
+      }
     }).catch((err) => {
       console.warn("Could not load remote settings:", err);
     });
@@ -110,14 +125,28 @@ export default function SettingsPage() {
   const handleSaveProfile = async () => {
     setLoading(true);
     try {
-      await apiClient.user.updateProfile({ name: fullName });
+      await apiClient.user.updateProfile({ name: fullName, companyName, phone, jobTitle });
       await apiClient.settings.updateCompany({
         companyName,
         phone,
+        jobTitle,
       });
+      await refreshProfile();
       toast.success("Profile and company details updated successfully!");
     } catch (err: any) {
       toast.error(err.message || "Failed to update profile");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSavePreferences = async () => {
+    setLoading(true);
+    try {
+      await apiClient.settings.updatePreferences(preferences);
+      toast.success("App preferences saved successfully!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save preferences");
     } finally {
       setLoading(false);
     }
@@ -588,7 +617,11 @@ export default function SettingsPage() {
               <div className="space-y-5 max-w-md text-xs">
                 <div className="space-y-1.5">
                   <label className="font-semibold text-zinc-700 dark:text-zinc-300">Default Results Per Page</label>
-                  <select className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 focus:outline-hidden bg-white dark:bg-zinc-900">
+                  <select
+                    value={preferences.resultsPerPage}
+                    onChange={(e) => setPreferences((p) => ({ ...p, resultsPerPage: e.target.value }))}
+                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 focus:outline-hidden bg-white dark:bg-zinc-900"
+                  >
                     <option>10 results</option>
                     <option>25 results</option>
                     <option>50 results</option>
@@ -598,7 +631,11 @@ export default function SettingsPage() {
 
                 <div className="space-y-1.5">
                   <label className="font-semibold text-zinc-700 dark:text-zinc-300">Default View</label>
-                  <select className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 focus:outline-hidden bg-white dark:bg-zinc-900">
+                  <select
+                    value={preferences.defaultView}
+                    onChange={(e) => setPreferences((p) => ({ ...p, defaultView: e.target.value }))}
+                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 focus:outline-hidden bg-white dark:bg-zinc-900"
+                  >
                     <option>Table View</option>
                     <option>Grid View</option>
                   </select>
@@ -606,7 +643,11 @@ export default function SettingsPage() {
 
                 <div className="space-y-1.5">
                   <label className="font-semibold text-zinc-700 dark:text-zinc-300">Timezone</label>
-                  <select className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 focus:outline-hidden bg-white dark:bg-zinc-900">
+                  <select
+                    value={preferences.timezone}
+                    onChange={(e) => setPreferences((p) => ({ ...p, timezone: e.target.value }))}
+                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 focus:outline-hidden bg-white dark:bg-zinc-900"
+                  >
                     <option>India Standard Time (IST) - New Delhi, Kolkata</option>
                     <option>Pacific Time (PT) - US & Canada</option>
                     <option>Mountain Time (MT) - US & Canada</option>
@@ -618,7 +659,11 @@ export default function SettingsPage() {
 
                 <div className="space-y-1.5">
                   <label className="font-semibold text-zinc-700 dark:text-zinc-300">Date Format</label>
-                  <select className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 focus:outline-hidden bg-white dark:bg-zinc-900">
+                  <select
+                    value={preferences.dateFormat}
+                    onChange={(e) => setPreferences((p) => ({ ...p, dateFormat: e.target.value }))}
+                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:ring-1 focus:ring-zinc-900 dark:focus:ring-zinc-100 focus:outline-hidden bg-white dark:bg-zinc-900"
+                  >
                     <option>DD/MM/YYYY</option>
                     <option>MM/DD/YYYY</option>
                     <option>YYYY-MM-DD</option>
@@ -627,7 +672,12 @@ export default function SettingsPage() {
               </div>
 
               <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
-                <button className="bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-5 py-2 rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer">
+                <button
+                  onClick={handleSavePreferences}
+                  disabled={loading}
+                  className="bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-5 py-2 rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer flex items-center gap-2"
+                >
+                  {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   Save Preferences
                 </button>
               </div>
