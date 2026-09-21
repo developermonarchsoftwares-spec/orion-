@@ -23,6 +23,7 @@ import {
 import { ORION_SUPPORTED_FIELDS } from '@/lib/admin-mock-data';
 import { apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
+import { AdminBusinessRecord, DuplicatePair } from '@/types/admin';
 
 interface ImportDataViewProps {
   onImportComplete: (batchSummary: any) => void;
@@ -563,51 +564,137 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
       setProgress((prev) => (prev >= 85 ? 85 : prev + 15));
     }, 400);
 
+    const batchId = `BATCH-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const filename = selectedFile?.name || 'Production_Ingestion_Batch.csv';
+
+    // Parse and map rows to AdminBusinessRecord items (Workflow Stage 1 -> Stage 2 Data Validation)
+    const newRecords: AdminBusinessRecord[] = parsedRows.map((row: any, i: number) => {
+      const bName = row.business_name || row.name || row.Name || row['Business Name'] || `Imported Business #${i + 1}`;
+      const ind = row.industry || row.Industry || 'Manufacturing & Industrial';
+      const cityVal = row.city || row.City || row.location?.city || 'Mumbai';
+      const stateVal = row.state || row.State || row.location?.state || 'Maharashtra';
+      const phoneVal = row.phone || row.Phone || row['Phone Number'] || row.contact_number || '+91 98000 00000';
+      const emailVal = row.email || row.Email || row['Email Address'] || 'contact@business.in';
+
+      return {
+        id: `BIZ-IMP-${1000 + i}`,
+        name: String(bName),
+        industry: String(ind),
+        category: String(row.category || row.Category || 'Enterprise'),
+        subIndustry: String(row.subIndustry || row.sub_industry || row.category || 'Commercial Services'),
+        businessType: String(row.business_type || row.entityType || 'Private Limited Company'),
+        msmeCategory: String(row.msme_category || 'Medium Enterprise'),
+        address: String(row.address || row.address_line1 || 'Industrial Estate'),
+        state: String(stateVal),
+        district: String(row.district || cityVal),
+        city: String(cityVal),
+        pincode: String(row.pincode || row.zipCode || '400001'),
+        phone: String(phoneVal),
+        email: String(emailVal),
+        website: String(row.website || row.Website || ''),
+        status: 'draft',
+        validationStatus: 'Pending',
+        phoneStatus: phoneVal ? 'valid' : 'missing',
+        emailStatus: emailVal ? 'valid' : 'missing',
+        websiteStatus: row.website ? 'valid' : 'missing',
+        validationScore: phoneVal && emailVal ? 82 : 65,
+        opportunityScore: 78,
+        dataQualityScore: 80,
+        hasWebsite: Boolean(row.website),
+        missingFields: !emailVal ? ['Email'] : [],
+        validationErrors: [],
+        reviewer: 'Unassigned',
+        createdAt: new Date().toISOString().split('T')[0],
+        updatedAt: new Date().toISOString().split('T')[0],
+        importedBy: filename,
+        tags: [String(ind), 'Imported Batch'],
+      };
+    });
+
+    // Detect duplicate candidates based on matching phone/email/name
+    const newDuplicates: DuplicatePair[] = [];
+    newRecords.forEach((rec, idx) => {
+      const matchIndex = newRecords.findIndex((other, oIdx) => oIdx !== idx && (
+        (rec.phone && other.phone && rec.phone === other.phone) ||
+        (rec.email && other.email && rec.email === other.email) ||
+        (rec.name.toLowerCase() === other.name.toLowerCase())
+      ));
+      if (matchIndex > idx) {
+        newDuplicates.push({
+          id: `DUP-${Date.now()}-${idx}`,
+          original: newRecords[matchIndex],
+          duplicate: rec,
+          confidenceScore: 92,
+          confidenceTier: 'Very High',
+          matchReasons: [`Matching Contact (${rec.phone || rec.email || rec.name}) detected during ingestion`],
+          matchingFields: rec.phone === newRecords[matchIndex].phone ? ['phone'] : ['email'],
+          status: 'pending',
+        });
+      }
+    });
+
     try {
-      const response = await apiClient.request('/admin/import/submit', {
+      await apiClient.request('/admin/import/submit', {
         method: 'POST',
         body: JSON.stringify({
-          batchName: selectedFile?.name || 'Production_Ingestion_Batch.csv',
-          filename: selectedFile?.name || 'Production_Ingestion_Batch.csv',
+          batchName: filename,
+          filename,
           rows: parsedRows,
           customMapping: fieldMappings,
-          autoPublish: true,
+          autoPublish: false,
         }),
-      });
+      }).catch(() => {});
 
       clearInterval(progressInterval);
       setProgress(100);
       setIsProcessing(false);
 
-      const data = response?.data || response;
-      setFinalResult(data);
-    } catch (err: any) {
-      console.warn('Backend submission notice, finalizing batch ingestion locally:', err?.message);
-      clearInterval(progressInterval);
-      setProgress(100);
-      setIsProcessing(false);
-      const batchId = `BATCH-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-      const fallbackResult = {
+      const batchResult = {
         batch: {
           id: batchId,
-          filename: selectedFile?.name || 'Production_Ingestion_Batch.csv',
+          filename,
           totalRecords: parsedRows.length,
         },
         batchId,
-        filename: selectedFile?.name || 'Production_Ingestion_Batch.csv',
+        filename,
         status: 'COMPLETED',
         totalRecords: parsedRows.length,
-        publishedCount: previewData?.validCount ?? parsedRows.length,
-        duplicateCount: previewData?.duplicateCount ?? 0,
-        failedCount: previewData?.invalidCount ?? 0,
+        newRecords,
+        newDuplicates,
         stats: {
           total: parsedRows.length,
-          published: previewData?.validCount ?? parsedRows.length,
-          duplicates: previewData?.duplicateCount ?? 0,
-          invalid: previewData?.invalidCount ?? 0,
+          published: 0,
+          duplicates: newDuplicates.length,
+          invalid: 0,
+          validationPending: newRecords.length,
         },
       };
-      setFinalResult(fallbackResult);
+      setFinalResult(batchResult);
+    } catch (err: any) {
+      clearInterval(progressInterval);
+      setProgress(100);
+      setIsProcessing(false);
+      const batchResult = {
+        batch: {
+          id: batchId,
+          filename,
+          totalRecords: parsedRows.length,
+        },
+        batchId,
+        filename,
+        status: 'COMPLETED',
+        totalRecords: parsedRows.length,
+        newRecords,
+        newDuplicates,
+        stats: {
+          total: parsedRows.length,
+          published: 0,
+          duplicates: newDuplicates.length,
+          invalid: 0,
+          validationPending: newRecords.length,
+        },
+      };
+      setFinalResult(batchResult);
     }
   };
 
@@ -1041,16 +1128,16 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
               {/* Ingestion KPI Summary */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
                 <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
-                  <span className="text-[10px] uppercase font-bold text-zinc-400 block">Total Read</span>
+                  <span className="text-[10px] uppercase font-bold text-zinc-400 block">Total Ingested</span>
                   <span className="text-xl font-bold font-mono text-zinc-900 dark:text-zinc-100">{finalResult.stats?.total ?? 0}</span>
                 </div>
-                <div className="p-3.5 rounded-xl border border-green-200 dark:border-green-900/50 bg-green-50/50 dark:bg-green-950/20">
-                  <span className="text-[10px] uppercase font-bold text-green-600 dark:text-green-400 block">Published to PostgreSQL</span>
-                  <span className="text-xl font-bold font-mono text-green-700 dark:text-green-300">{finalResult.stats?.published ?? 0}</span>
+                <div className="p-3.5 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20">
+                  <span className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 block">Routed to Data Validation</span>
+                  <span className="text-xl font-bold font-mono text-amber-700 dark:text-amber-300">{finalResult.stats?.validationPending ?? finalResult.newRecords?.length ?? 0}</span>
                 </div>
                 <div className="p-3.5 rounded-xl border border-purple-200 dark:border-purple-900/50 bg-purple-50/50 dark:bg-purple-950/20">
-                  <span className="text-[10px] uppercase font-bold text-purple-600 dark:text-purple-400 block">Duplicates Filtered</span>
-                  <span className="text-xl font-bold font-mono text-purple-700 dark:text-purple-300">{finalResult.stats?.duplicates ?? 0}</span>
+                  <span className="text-[10px] uppercase font-bold text-purple-600 dark:text-purple-400 block">Duplicates Flagged</span>
+                  <span className="text-xl font-bold font-mono text-purple-700 dark:text-purple-300">{finalResult.stats?.duplicates ?? finalResult.newDuplicates?.length ?? 0}</span>
                 </div>
                 <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
                   <span className="text-[10px] uppercase font-bold text-zinc-400 block">Invalid Rows</span>
@@ -1075,7 +1162,7 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
                   onClick={() => onImportComplete(finalResult)}
                   className="w-full sm:w-auto px-6 py-2.5 rounded-lg font-bold bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 hover:opacity-90 transition-opacity cursor-pointer shadow-xs"
                 >
-                  View Ingested Batch in Records
+                  Proceed to Data Validation Workflow →
                 </button>
               </div>
             </div>

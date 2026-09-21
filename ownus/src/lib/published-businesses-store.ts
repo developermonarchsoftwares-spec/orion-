@@ -234,12 +234,10 @@ export function savePublishedBusinessesToStorage(businesses: Business[]) {
 
 export function syncAdminRecordsToPublishedStore(adminRecords: AdminBusinessRecord[]) {
   const publishedOnly = adminRecords
-    .filter((r) => r.status === 'published' || r.status === 'approved')
+    .filter((r) => r.status === 'published')
     .map(mapAdminRecordToCustomerBusiness);
 
-  if (publishedOnly.length > 0) {
-    savePublishedBusinessesToStorage(publishedOnly);
-  }
+  savePublishedBusinessesToStorage(publishedOnly);
 }
 
 export function usePublishedBusinesses() {

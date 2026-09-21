@@ -94,6 +94,14 @@ import { BusinessValidationModal } from '@/components/admin/modals/business-vali
 import { MergePreviewModal } from '@/components/admin/modals/merge-preview-modal';
 import { GlobalAdminSearchModal } from '@/components/admin/modals/global-admin-search-modal';
 
+import { 
+  loadAdminRecordsFromStorage, 
+  saveAdminRecordsToStorage, 
+  loadImportBatchesFromStorage, 
+  saveImportBatchesToStorage, 
+  loadDuplicatePairsFromStorage, 
+  saveDuplicatePairsToStorage 
+} from '@/lib/admin-data-store';
 import { syncAdminRecordsToPublishedStore } from '@/lib/published-businesses-store';
 
 export default function AdminPortalPage() {
@@ -115,15 +123,24 @@ export default function AdminPortalPage() {
   // Independent Admin Theme State (completely isolated from Customer Portal theme)
   const { isDark, toggleAdminTheme } = useAdminTheme();
 
-  // Core Data Stores
-  const [records, setRecords] = useState<AdminBusinessRecord[]>(INITIAL_ADMIN_BUSINESSES);
+  // Core Data Stores with Full Workflow Persistence
+  const [records, setRecords] = useState<AdminBusinessRecord[]>(loadAdminRecordsFromStorage);
+  const [batches, setBatches] = useState<ImportBatch[]>(loadImportBatchesFromStorage);
+  const [duplicatePairs, setDuplicatePairs] = useState<DuplicatePair[]>(loadDuplicatePairsFromStorage);
 
-  // Automatically sync published records to real-time store & API backend whenever records state updates
+  // Automatically persist admin records & published store whenever records update
   useEffect(() => {
+    saveAdminRecordsToStorage(records);
     syncAdminRecordsToPublishedStore(records);
   }, [records]);
-  const [batches, setBatches] = useState<ImportBatch[]>(INITIAL_IMPORT_BATCHES);
-  const [duplicatePairs, setDuplicatePairs] = useState<DuplicatePair[]>(INITIAL_DUPLICATES);
+
+  useEffect(() => {
+    saveImportBatchesToStorage(batches);
+  }, [batches]);
+
+  useEffect(() => {
+    saveDuplicatePairsToStorage(duplicatePairs);
+  }, [duplicatePairs]);
   const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>(INITIAL_VALIDATION_ISSUES);
   const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>(INITIAL_ACTIVITY_LOGS);
   const [customerUsers, setCustomerUsers] = useState<CustomerUser[]>(INITIAL_CUSTOMER_USERS);
@@ -526,13 +543,14 @@ export default function AdminPortalPage() {
     showToast('Internal operator note added.');
   };
 
-  const handleCompleteImport = (batchSummary: any) => {
-    const batchId = batchSummary?.batch?.id || batchSummary?.id || `IMP-${Math.floor(1000 + Math.random() * 9000)}`;
-    const fileName = batchSummary?.batch?.batchName || batchSummary?.fileName || 'Ingested_Data_File.csv';
-    const total = batchSummary?.stats?.total ?? batchSummary?.total ?? 0;
-    const published = batchSummary?.stats?.published ?? batchSummary?.stats?.saved ?? batchSummary?.success ?? 0;
-    const duplicates = batchSummary?.stats?.duplicates ?? batchSummary?.duplicates ?? 0;
-    const failed = batchSummary?.stats?.invalid ?? batchSummary?.failed ?? 0;
+  const handleCompleteImport = (result: any) => {
+    const newRecords: AdminBusinessRecord[] = result?.newRecords || [];
+    const newDuplicates: DuplicatePair[] = result?.newDuplicates || [];
+    const batchSummary = result?.batch || result;
+
+    const batchId = batchSummary?.id || `IMP-${Math.floor(1000 + Math.random() * 9000)}`;
+    const fileName = batchSummary?.fileName || batchSummary?.batchName || 'Ingested_Data_File.csv';
+    const total = result?.stats?.total ?? newRecords.length ?? 0;
 
     const newBatch: ImportBatch = {
       id: batchId,
@@ -540,14 +558,22 @@ export default function AdminPortalPage() {
       uploadedBy: adminEmail || 'Administrator (Super Admin)',
       uploadedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
       totalRecords: total,
-      successCount: published,
-      failedCount: failed,
-      duplicateCount: duplicates,
+      successCount: newRecords.length,
+      failedCount: result?.stats?.invalid ?? 0,
+      duplicateCount: newDuplicates.length,
       status: 'Completed',
       fileSize: 'Live Pipeline Ingestion',
     };
 
-    setBatches(prev => [newBatch, ...prev]);
+    setBatches((prev) => [newBatch, ...prev]);
+
+    if (newRecords.length > 0) {
+      setRecords((prev) => [...newRecords, ...prev]);
+    }
+
+    if (newDuplicates.length > 0) {
+      setDuplicatePairs((prev) => [...newDuplicates, ...prev]);
+    }
 
     const newLog: ActivityLogEntry = {
       id: `act-${Date.now()}`,
@@ -556,14 +582,14 @@ export default function AdminPortalPage() {
       entityType: 'Batch',
       entityId: newBatch.id,
       entityName: newBatch.fileName,
-      details: `Batch ingestion completed: ${newBatch.totalRecords} total records (${newBatch.successCount} published, ${newBatch.duplicateCount} duplicates, ${newBatch.failedCount} errors).`,
+      details: `Imported ${total} records into Data Validation workflow (${newDuplicates.length} duplicates flagged).`,
       ipAddress: '127.0.0.1',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     };
-    setActivityLogs(prev => [newLog, ...prev]);
+    setActivityLogs((prev) => [newLog, ...prev]);
 
-    showToast(`Successfully ingested and published batch: ${newBatch.fileName}`);
-    setActiveTab('history');
+    showToast(`Batch "${fileName}" imported. Proceeding to Data Validation & Duplicate Manager.`);
+    setActiveTab('validation');
   };
 
   // Duplicates Handlers
