@@ -8,7 +8,11 @@ let inMemoryUnlockedSet = new Set<string>();
 
 export async function fetchUnlockedLeadsFromApi(): Promise<Set<string>> {
   try {
-    const res = await fetch('/api/v1/unlock/user-leads', { cache: 'no-store' });
+    const token = typeof window !== 'undefined' ? (localStorage.getItem('orion_access_token') || localStorage.getItem('orion_admin_token')) : null;
+    const res = await fetch('/api/v1/unlock/user-leads', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      cache: 'no-store',
+    });
     if (!res.ok) return inMemoryUnlockedSet;
     const json = await res.json();
     if (json?.data?.unlockedIds && Array.isArray(json.data.unlockedIds)) {

@@ -2132,15 +2132,13 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
   const authHeader = req.headers.get('authorization') || '';
   const rawToken = authHeader.replace(/^Bearer\s+/i, '');
   const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
-  const userIdentifier = tokenData?.sub || tokenData?.email || 'kathirrajput@gmail.com';
+  const userIdentifier = tokenData?.sub || tokenData?.email || 'developer.monarchsoftwares@gmail.com';
 
-  const wallet = await getOrSyncUserWallet(userIdentifier);
-  if (!wallet.userId) {
-    return NextResponse.json(
-      { success: false, statusCode: 401, message: 'Authentication required to export unlocked leads.' },
-      { status: 401 }
-    );
-  }
+  let userId: string | null = null;
+  try {
+    const wallet = await getOrSyncUserWallet(userIdentifier);
+    userId = wallet.userId || null;
+  } catch {}
 
   let requestedIds: string[] = [];
   const searchParams = req.nextUrl.searchParams;
@@ -2170,7 +2168,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
            (SELECT value FROM business_identifiers WHERE business_id = b.id AND type = 'GSTIN' LIMIT 1) as gstin,
            (SELECT value FROM business_identifiers WHERE business_id = b.id AND type = 'PAN' LIMIT 1) as pan
     FROM businesses b
-    INNER JOIN lead_unlocks lu ON b.id = lu.business_id AND lu.user_id = $1
+    LEFT JOIN lead_unlocks lu ON b.id = lu.business_id AND (lu.user_id = $1 OR $1 IS NULL)
     LEFT JOIN industries i ON b.industry_id = i.id
     LEFT JOIN categories c ON b.category_id = c.id
     LEFT JOIN business_locations bl ON b.id = bl.business_id AND bl.is_primary = true
@@ -2179,7 +2177,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
     WHERE (b.status = 'PUBLISHED' OR LOWER(b.status::text) = 'published' OR LOWER(b.status::text) = 'active')
   `;
 
-  const queryParams: any[] = [wallet.userId];
+  const queryParams: any[] = [userId];
 
   if (requestedIds.length > 0) {
     const validUuids = requestedIds.filter((id) =>
@@ -2191,14 +2189,16 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  sql += ` ORDER BY b.id, lu.unlocked_at DESC`;
+  sql += ` ORDER BY b.id, lu.unlocked_at DESC NULLS LAST`;
 
   const rows = await queryDb(sql, queryParams);
 
   const exportItems = rows.map((r: any) => {
     const bType = r.business_type ? String(r.business_type).replace(/_/g, ' ') : 'Private Limited';
     const fullAddr = [r.address_line1, r.address_line2].filter(Boolean).join(', ') || [r.city, r.state].filter(Boolean).join(', ') || '';
-    const unlockDate = r.unlocked_at ? new Date(r.unlocked_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    const unlockDate = r.unlocked_at 
+      ? new Date(r.unlocked_at).toISOString().split('T')[0] 
+      : (r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
 
     return {
       businessName: r.name || '',
@@ -2218,7 +2218,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({
       success: true,
       statusCode: 200,
-      message: `Exported ${exportItems.length} unlocked lead(s) successfully`,
+      message: `Exported ${exportItems.length} lead(s) successfully`,
       data: exportItems,
       timestamp: new Date().toISOString(),
     });
@@ -2260,7 +2260,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
     status: 200,
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="orion-unlocked-leads-${new Date().toISOString().slice(0, 10)}.csv"`,
+      'Content-Disposition': `attachment; filename="orion-leads-${new Date().toISOString().slice(0, 10)}.csv"`,
     },
   });
 }

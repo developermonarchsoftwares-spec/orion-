@@ -350,23 +350,50 @@ export default function DiscoverPage() {
     setUnlockModalState({ isOpen: false, business: null, isBulk: false });
   };
 
-  // CSV Export - Strictly Unlocked Leads Only
+  // CSV Export - Exports all selected rows or all filtered leads
   const handleExportCSV = useCallback(async (itemsToExport: Business[]) => {
-    // 1. Strictly filter items for ONLY unlocked leads
-    const unlockedItems = itemsToExport.filter((item) =>
-      Boolean(item.isUnlocked || isLeadUnlocked(item.id))
-    );
+    const exportItems = itemsToExport && itemsToExport.length > 0 ? itemsToExport : filteredData;
 
-    if (unlockedItems.length === 0) {
-      toast.error('Only unlocked leads can be exported. Please unlock leads using credits before exporting.');
+    if (!exportItems || exportItems.length === 0) {
+      toast.error('No leads selected or available to export.');
       return;
     }
+
+    const exportIds = exportItems.map((b) => b.id).filter(Boolean);
 
     // Try backend export first for high-fidelity database values
     try {
       const token = typeof window !== 'undefined' ? (localStorage.getItem('orion_access_token') || localStorage.getItem('orion_admin_token')) : null;
-      const unlockedIds = unlockedItems.map(b => b.id).filter(Boolean);
-      const queryParam = unlockedIds.length > 0 ? `?ids=${unlockedIds.join(',')}&format=csv` : '?format=csv';
+      
+      const res = await fetch('/api/v1/discover/export?format=csv', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ ids: exportIds }),
+      });
+
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `orion-leads-${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success(`Exported ${exportItems.length} lead(s) successfully.`);
+        return;
+      }
+    } catch (apiErr) {
+      console.warn('Backend POST export failed, trying GET fallback:', apiErr);
+    }
+
+    // Try GET fallback if POST had an issue
+    try {
+      const token = typeof window !== 'undefined' ? (localStorage.getItem('orion_access_token') || localStorage.getItem('orion_admin_token')) : null;
+      const queryParam = exportIds.length > 0 ? `?ids=${exportIds.join(',')}&format=csv` : '?format=csv';
       const res = await fetch(`/api/v1/discover/export${queryParam}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -375,15 +402,15 @@ export default function DiscoverPage() {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', `orion-unlocked-leads-${new Date().toISOString().slice(0, 10)}.csv`);
+        link.setAttribute('download', `orion-leads-${new Date().toISOString().slice(0, 10)}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        toast.success(`Exported ${unlockedItems.length} unlocked lead(s) successfully.`);
+        toast.success(`Exported ${exportItems.length} lead(s) successfully.`);
         return;
       }
-    } catch (apiErr) {
-      console.warn('Backend export failed, generating from client data:', apiErr);
+    } catch (getErr) {
+      console.warn('Backend GET export failed, falling back to client-side CSV:', getErr);
     }
 
     const headers = [
@@ -396,17 +423,17 @@ export default function DiscoverPage() {
       'City',
       'District',
       'State',
-      'Unlock Date',
+      'Export Date',
     ];
 
     const csvRows = [headers.join(',')];
-    unlockedItems.forEach((item) => {
+    exportItems.forEach((item) => {
       const bType = item.entityType || (item as any).businessType ? String((item as any).businessType || item.entityType).replace(/_/g, ' ') : 'Private Limited';
       const fullAddr = (item as any).address || [item.city, item.state].filter(Boolean).join(', ') || '';
-      const unlockDate = (item as any).unlockedAt ? new Date((item as any).unlockedAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+      const exportDate = (item as any).unlockedAt ? new Date((item as any).unlockedAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
 
-      const cleanPhone = item.phone && !item.phone.includes('Unlock') ? String(item.phone).trim() : '';
-      const cleanEmail = item.email && !item.email.includes('Unlock') ? String(item.email).trim() : '';
+      const cleanPhone = item.phone && !item.phone.includes('Unlock') ? String(item.phone).trim() : (item.phone || '');
+      const cleanEmail = item.email && !item.email.includes('Unlock') ? String(item.email).trim() : (item.email || '');
       const cleanWebsite = item.website && item.website !== 'https://' ? String(item.website).trim() : '';
 
       const row = [
@@ -419,7 +446,7 @@ export default function DiscoverPage() {
         `"${(item.city || '').replace(/"/g, '""')}"`,
         `"${(item.district || item.city || '').replace(/"/g, '""')}"`,
         `"${(item.state || '').replace(/"/g, '""')}"`,
-        `"${(unlockDate || '').replace(/"/g, '""')}"`,
+        `"${exportDate}"`,
       ];
       csvRows.push(row.join(','));
     });
@@ -428,12 +455,12 @@ export default function DiscoverPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `orion-unlocked-leads-${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `orion-leads-${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success(`Exported ${unlockedItems.length} unlocked lead(s) successfully.`);
-  }, []);
+    toast.success(`Exported ${exportItems.length} lead(s) successfully.`);
+  }, [filteredData]);
 
   // Orion Score styling helper (Pure Monochrome)
   const getScoreBadge = (score: number = 0) => {
