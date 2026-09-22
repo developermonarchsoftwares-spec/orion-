@@ -28,6 +28,7 @@ import {
   PaymentStatus, 
   CustomerPlan 
 } from '@/types/admin';
+import { generateInvoicePdf } from '@/lib/invoice-generator';
 
 interface CreditsTransactionsViewProps {
   transactions: TransactionRecord[];
@@ -107,34 +108,7 @@ export const CreditsTransactionsView: React.FC<CreditsTransactionsViewProps> = (
   };
 
   const handleDownloadInvoice = (tx: TransactionRecord) => {
-    const invoiceContent = JSON.stringify({
-      title: 'TAX INVOICE / RECEIPT',
-      receiptNumber: tx.receiptNumber,
-      transactionId: tx.id,
-      date: tx.date,
-      customer: {
-        name: tx.customerName,
-        company: tx.company,
-        email: tx.customerEmail
-      },
-      payment: {
-        method: tx.paymentMethod,
-        status: tx.paymentStatus,
-        credits: tx.creditsPurchased,
-        amount: `₹${tx.amount.toLocaleString()}`,
-        gstIncluded: '18% IGST'
-      }
-    }, null, 2);
-
-    const blob = new Blob([invoiceContent], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Invoice_${tx.receiptNumber}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    generateInvoicePdf(tx);
   };
 
   const handleExportCSV = () => {
