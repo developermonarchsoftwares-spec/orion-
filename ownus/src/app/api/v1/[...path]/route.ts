@@ -1154,10 +1154,10 @@ async function getOrSyncUserWallet(userIdentifier?: string) {
 
     if (identifier) {
       if (identifier.includes('@')) {
-        const rows = await queryDb(`SELECT id, email, first_name, last_name, role, status FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`, [identifier]);
+        const rows = await queryDb(`SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`, [identifier]);
         userRow = rows[0];
       } else {
-        const rows = await queryDb(`SELECT id, email, first_name, last_name, role, status FROM users WHERE id = $1 LIMIT 1`, [identifier]);
+        const rows = await queryDb(`SELECT * FROM users WHERE id = $1 LIMIT 1`, [identifier]);
         userRow = rows[0];
       }
     }
@@ -1168,7 +1168,7 @@ async function getOrSyncUserWallet(userIdentifier?: string) {
         `INSERT INTO users (email, first_name, last_name, role, status)
          VALUES (LOWER($1), $2, '', 'USER', 'ACTIVE')
          ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
-         RETURNING id, email, first_name, last_name, role, status`,
+         RETURNING *`,
         [identifier, identifier.split('@')[0]]
       );
       userRow = insertUser[0];
