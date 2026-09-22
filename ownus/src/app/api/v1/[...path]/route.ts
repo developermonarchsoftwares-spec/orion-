@@ -2254,7 +2254,8 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
            b.business_type, b.msme_category, b.is_verified, b.incorporation_date, b.founding_year,
            i.name as industry, c.name as category,
            bl.address_line1, bl.address_line2, bl.city, bl.state, bl.district, bl.pincode, bl.country,
-           bc.full_name as contact_person, bc.title as contact_title, bc.phone, bc.email, bc.linkedin_url,
+           bc.contact_person, bc.contact_title, bc.contact_department, bc.phone, bc.email, bc.linkedin_url,
+           bc.has_direct_dial,
            dp.url as website, b.description,
            lu.unlocked_at,
            (SELECT value FROM business_identifiers WHERE business_id = b.id AND type = 'GSTIN' LIMIT 1) as gstin,
@@ -2264,7 +2265,18 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
     LEFT JOIN industries i ON b.industry_id = i.id
     LEFT JOIN categories c ON b.category_id = c.id
     LEFT JOIN business_locations bl ON b.id = bl.business_id AND bl.is_primary = true
-    LEFT JOIN business_contacts bc ON b.id = bc.business_id
+    LEFT JOIN LATERAL (
+      SELECT
+        string_agg(DISTINCT NULLIF(full_name, ''), ' | ') AS contact_person,
+        string_agg(DISTINCT NULLIF(title, ''), ' | ') AS contact_title,
+        string_agg(DISTINCT NULLIF(department, ''), ' | ') AS contact_department,
+        string_agg(DISTINCT NULLIF(phone, ''), ' | ') AS phone,
+        string_agg(DISTINCT NULLIF(email, ''), ' | ') AS email,
+        string_agg(DISTINCT NULLIF(linkedin_url, ''), ' | ') AS linkedin_url,
+        COALESCE(bool_or(is_direct_dial), false) AS has_direct_dial
+      FROM business_contacts
+      WHERE business_id = b.id
+    ) bc ON TRUE
     LEFT JOIN digital_presences dp ON b.id = dp.business_id AND dp.platform = 'WEBSITE'
     WHERE (b.status = 'PUBLISHED' OR LOWER(b.status::text) = 'published' OR LOWER(b.status::text) = 'active')
       AND lu.business_id IS NOT NULL
@@ -2295,8 +2307,13 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
 
     return {
       businessName: r.name || '',
+      contactNames: r.contact_person ? String(r.contact_person).trim() : '',
+      contactTitles: r.contact_title ? String(r.contact_title).trim() : '',
+      contactDepartments: r.contact_department ? String(r.contact_department).trim() : '',
       phoneNumber: r.phone ? String(r.phone).trim() : '',
       email: r.email ? String(r.email).trim() : '',
+      linkedInUrls: r.linkedin_url ? String(r.linkedin_url).trim() : '',
+      directDialAvailable: r.has_direct_dial ? 'Yes' : 'No',
       website: r.website ? String(r.website).trim() : '',
       businessType: bType,
       address: fullAddr || '',
@@ -2320,8 +2337,13 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
   // Format as CSV
   const csvHeaders = [
     'Business Name',
-    'Phone Number',
-    'Email',
+    'Contact Names',
+    'Contact Titles',
+    'Contact Departments',
+    'Phone Numbers',
+    'Email Addresses',
+    'LinkedIn URLs',
+    'Direct Dial Available',
     'Website',
     'Business Type',
     'Address',
@@ -2335,8 +2357,13 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
   exportItems.forEach((item: any) => {
     const row = [
       `"${String(item.businessName).replace(/"/g, '""')}"`,
+      `"${String(item.contactNames).replace(/"/g, '""')}"`,
+      `"${String(item.contactTitles).replace(/"/g, '""')}"`,
+      `"${String(item.contactDepartments).replace(/"/g, '""')}"`,
       `"${String(item.phoneNumber).replace(/"/g, '""')}"`,
       `"${String(item.email).replace(/"/g, '""')}"`,
+      `"${String(item.linkedInUrls).replace(/"/g, '""')}"`,
+      `"${String(item.directDialAvailable).replace(/"/g, '""')}"`,
       `"${String(item.website).replace(/"/g, '""')}"`,
       `"${String(item.businessType).replace(/"/g, '""')}"`,
       `"${String(item.address).replace(/"/g, '""')}"`,

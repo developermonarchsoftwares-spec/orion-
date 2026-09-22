@@ -423,56 +423,10 @@ export default function DiscoverPage() {
         return;
       }
     } catch (getErr) {
-      console.warn('Backend GET export failed, falling back to client-side CSV:', getErr);
+      console.warn('Backend GET export failed:', getErr);
     }
 
-    const headers = [
-      'Business Name',
-      'Phone Number',
-      'Email',
-      'Website',
-      'Business Type',
-      'Address',
-      'City',
-      'District',
-      'State',
-      'Export Date',
-    ];
-
-    const csvRows = [headers.join(',')];
-    exportItems.forEach((item) => {
-      const bType = item.entityType || (item as any).businessType ? String((item as any).businessType || item.entityType).replace(/_/g, ' ') : 'Private Limited';
-      const fullAddr = (item as any).address || [item.city, item.state].filter(Boolean).join(', ') || '';
-      const exportDate = (item as any).unlockedAt ? new Date((item as any).unlockedAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-
-      const cleanPhone = item.phone && !item.phone.includes('Unlock') ? String(item.phone).trim() : (item.phone || '');
-      const cleanEmail = item.email && !item.email.includes('Unlock') ? String(item.email).trim() : (item.email || '');
-      const cleanWebsite = item.website && item.website !== 'https://' ? String(item.website).trim() : '';
-
-      const row = [
-        `"${(item.name || '').replace(/"/g, '""')}"`,
-        `"${cleanPhone.replace(/"/g, '""')}"`,
-        `"${cleanEmail.replace(/"/g, '""')}"`,
-        `"${cleanWebsite.replace(/"/g, '""')}"`,
-        `"${(bType || '').replace(/"/g, '""')}"`,
-        `"${(fullAddr || '').replace(/"/g, '""')}"`,
-        `"${(item.city || '').replace(/"/g, '""')}"`,
-        `"${(item.district || item.city || '').replace(/"/g, '""')}"`,
-        `"${(item.state || '').replace(/"/g, '""')}"`,
-        `"${exportDate}"`,
-      ];
-      csvRows.push(row.join(','));
-    });
-
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `orion-leads-${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success(`Exported ${exportItems.length} lead(s) successfully.`);
+    toast.error('Unable to generate the complete export. Please try again.');
   }, [filteredData, unlockedIds]);
 
   return (
