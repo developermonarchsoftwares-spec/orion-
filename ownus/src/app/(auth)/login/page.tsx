@@ -54,6 +54,13 @@ function LoginForm() {
 
   const errorParam = searchParams.get("error");
   const emailParam = searchParams.get("email");
+  const resetParam = searchParams.get("reset");
+
+  useEffect(() => {
+    if (resetParam === "success") {
+      toast.success("Password reset successfully! Please log in with your new password.");
+    }
+  }, [resetParam]);
 
   useEffect(() => {
     if (errorParam) {

@@ -359,3 +359,140 @@ export async function sendPreferenceNotificationEmail(params: SendPreferenceEmai
     return { success: false, error: err.message };
   }
 }
+
+export interface SendPasswordResetEmailParams {
+  email: string;
+  name?: string;
+  resetUrl: string;
+  expiresInMinutes?: number;
+}
+
+export function getPasswordResetHtml(resetUrl: string, recipientEmail: string, name?: string, expiresInMinutes: number = 15): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Your Orion Password</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #09090b; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f4f4f5;">
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="min-height: 100vh; background-color: #09090b; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 520px; background-color: #121215; border: 1px solid #27272a; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);">
+          <tr>
+            <td style="padding: 32px 32px 20px 32px; text-align: center; border-bottom: 1px solid #1e1e24;">
+              <div style="display: inline-block; padding: 4px 12px; background-color: #1c1917; border: 1px solid #44403c; border-radius: 9999px; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; color: #a1a1aa; text-transform: uppercase; margin-bottom: 12px;">
+                ORION DATA PLATFORM
+              </div>
+              <h1 style="margin: 0; font-size: 22px; font-weight: 700; color: #ffffff; letter-spacing: -0.02em;">
+                Reset Your Password
+              </h1>
+              <p style="margin: 8px 0 0 0; font-size: 13px; color: #71717a;">
+                Account Security Center
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 32px 32px 24px 32px;">
+              <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #d4d4d8;">
+                Hello ${name || 'Valued User'},
+              </p>
+              <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #a1a1aa;">
+                A request was made to reset the password for your Orion account registered under <span style="color: #ffffff; font-weight: 600;">${recipientEmail}</span>. Click the button below to set a new password:
+              </p>
+
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 28px 0; text-align: center;">
+                <tr>
+                  <td align="center">
+                    <a href="${resetUrl}" target="_blank" style="display: inline-block; background-color: #ffffff; color: #09090b; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 700; text-decoration: none; box-shadow: 0 4px 12px rgba(255, 255, 255, 0.15);">
+                      Reset Password
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 0 0 16px 0; font-size: 12px; line-height: 1.5; color: #71717a;">
+                This link will expire in <strong style="color: #f4f4f5;">${expiresInMinutes} minutes</strong>. If the button doesn't work, copy and paste this URL into your browser:
+              </p>
+              <p style="margin: 0 0 24px 0; font-size: 11px; word-break: break-all; color: #a1a1aa; background-color: #09090b; padding: 10px; border-radius: 6px; border: 1px solid #27272a;">
+                ${resetUrl}
+              </p>
+              <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #71717a;">
+                If you did not request a password reset, you can safely ignore this email. Your password will remain unchanged.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px 32px; background-color: #0d0d10; border-top: 1px solid #1e1e24; text-align: center;">
+              <p style="margin: 0; font-size: 11px; color: #52525b;">
+                &copy; ${new Date().getFullYear()} Monarch Softwares Inc. All rights reserved. &bull; Orion Lead Intelligence Platform
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+export async function sendPasswordResetEmail(params: SendPasswordResetEmailParams): Promise<SendEmailResult> {
+  const { email, name, resetUrl, expiresInMinutes = 15 } = params;
+  const resendApiKey = getResendApiKey();
+
+  if (!resendApiKey) {
+    console.error(
+      `[EMAIL_SERVICE] Cannot send password reset email to ${email}: RESEND_API_KEY is not set in environment variables.`
+    );
+    return {
+      success: false,
+      error: 'Email delivery service is not configured. Please configure RESEND_API_KEY in .env.local or environment variables.',
+    };
+  }
+
+  const fromAddress = getResendSenderAddress();
+  const subject = `Reset Your Password - Orion Data Platform`;
+  const htmlContent = getPasswordResetHtml(resetUrl, email, name, expiresInMinutes);
+  const textContent = `Hello ${name || 'User'},\n\nA request was made to reset your password for Orion Data Platform (${email}).\n\nClick the link below to set a new password:\n${resetUrl}\n\nThis reset link is valid for ${expiresInMinutes} minutes.\n\nIf you did not request this, please ignore this email.`;
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: fromAddress,
+        to: [email],
+        subject,
+        html: htmlContent,
+        text: textContent,
+      }),
+    });
+
+    const resJson = await res.json().catch(() => ({}));
+    if (res.ok && resJson.id) {
+      console.log(`[EMAIL_SERVICE] Password reset email successfully dispatched via Resend to ${email} (ID: ${resJson.id})`);
+      return {
+        success: true,
+        messageId: resJson.id,
+      };
+    }
+
+    const errorMessage = resJson.message || `Resend returned HTTP ${res.status}`;
+    console.error(`[EMAIL_SERVICE] Resend API error for ${email}:`, errorMessage);
+    return {
+      success: false,
+      error: `Email delivery failed: ${errorMessage}`,
+    };
+  } catch (err: any) {
+    console.error(`[EMAIL_SERVICE] Network error connecting to Resend API:`, err.message);
+    return {
+      success: false,
+      error: `Network error delivering email: ${err.message}`,
+    };
+  }
+}

@@ -108,6 +108,76 @@ export default function LeadsPage() {
     }
   };
 
+  const handleExportLeads = async () => {
+    if (data.length === 0) {
+      toast.error("No leads to export.");
+      return;
+    }
+    try {
+      const token = typeof window !== "undefined"
+        ? (localStorage.getItem("orion_access_token") || localStorage.getItem("orion_admin_token"))
+        : null;
+
+      const res = await fetch("/api/v1/discover/export?format=csv", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        // Export all unlocked leads (no ID filter = backend uses user's unlock history)
+        body: JSON.stringify({ ids: [] }),
+      });
+
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", `orion-unlocked-leads-${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        toast.success("Unlocked leads exported to Excel/CSV successfully!");
+        return;
+      }
+    } catch (err) {
+      console.warn("Export API error, falling back to client-side:", err);
+    }
+
+    // Client-side fallback: build CSV from loaded data
+    const isPlaceholder = (val?: string | null) =>
+      !val || val.includes("Unlock") || val === "https://" || val.trim() === "";
+    const esc = (val: string) => `"${String(val ?? "").replace(/"/g, '""')}"`;
+
+    const headers = ["Business Name", "Phone Number", "Email", "Website", "Business Type", "City", "State", "Stage", "Saved Date"];
+    const rows = [headers.join(",")];
+    data.forEach((lead) => {
+      const bName = lead.business?.name || lead.name || "";
+      const phone = isPlaceholder(lead.business?.phone || lead.phone) ? "" : String(lead.business?.phone || lead.phone || "").trim();
+      const email = isPlaceholder(lead.business?.email || lead.email) ? "" : String(lead.business?.email || lead.email || "").trim();
+      const website = isPlaceholder(lead.business?.website || lead.website) ? "" : String(lead.business?.website || lead.website || "").trim();
+      const bType = lead.business?.entityType || lead.entityType || "";
+      const city = lead.business?.city || lead.city || "";
+      const state = lead.business?.state || lead.state || "";
+      const stage = lead.pipelineStage || lead.status || "New";
+      const savedDate = lead.createdAt ? new Date(lead.createdAt).toISOString().split("T")[0] : "";
+      rows.push([esc(bName), esc(phone), esc(email), esc(website), esc(bType), esc(city), esc(state), esc(stage), esc(savedDate)].join(","));
+    });
+
+    const BOM = "\uFEFF";
+    const blob = new Blob([BOM + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `orion-saved-leads-${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("Saved leads exported to CSV.");
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 pt-6 pb-12 text-zinc-900 dark:text-zinc-100">
       {/* Header */}
@@ -148,8 +218,19 @@ export default function LeadsPage() {
             <Plus className="w-4 h-4" />
             Discover Leads
           </Link>
+
+          <button
+            onClick={handleExportLeads}
+            disabled={data.length === 0}
+            title="Export all unlocked leads with phone number and email to Excel"
+            className="flex items-center gap-1.5 px-3 py-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export to Excel
+          </button>
         </div>
       </div>
+
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

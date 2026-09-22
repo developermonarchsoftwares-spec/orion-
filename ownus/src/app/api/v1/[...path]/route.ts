@@ -2,7 +2,7 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { sendAdminOtpEmail, isAuthorizedAdminEmail } from '@/lib/email-service';
+import { sendAdminOtpEmail, isAuthorizedAdminEmail, sendPasswordResetEmail } from '@/lib/email-service';
 import { dispatchUserNotification } from '@/lib/notification-dispatcher';
 import { queryDb } from '@/lib/db';
 import { DEFAULT_FILTER_CONFIG } from '@/lib/filter-options-store';
@@ -1298,6 +1298,146 @@ function verifyPassword(password: string, storedHashStr: string): boolean {
   }
 }
 
+async function handleForgotPassword(req: NextRequest): Promise<NextResponse> {
+  const body = await req.json().catch(() => ({}));
+  const email = String(body?.email || '').trim().toLowerCase();
+  if (!email) {
+    return NextResponse.json(
+      { success: false, statusCode: 400, message: 'Please enter a valid email address.' },
+      { status: 400 }
+    );
+  }
+
+  let user: any = null;
+  try {
+    const rows = await queryDb(
+      `SELECT id, email, first_name, last_name FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+      [email]
+    );
+    if (rows && rows.length > 0) {
+      user = rows[0];
+    }
+  } catch (err: any) {
+    console.error('[Gateway] DB error looking up user for forgot password:', err);
+  }
+
+  if (!user) {
+    return NextResponse.json(
+      {
+        success: false,
+        statusCode: 404,
+        message: 'No account found with this email address. Please check your spelling or register for an account.',
+      },
+      { status: 404 }
+    );
+  }
+
+  const jwtSecret = process.env.JWT_SECRET || 'orion-fallback-secret-2026';
+  const resetToken = signJwt({ sub: user.id, email: user.email, type: 'password_reset' }, jwtSecret, 900);
+
+  const origin = req.headers.get('origin') || req.nextUrl.origin || 'http://localhost:3000';
+  const resetUrl = `${origin}/reset-password?token=${resetToken}`;
+  const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email.split('@')[0];
+
+  const emailResult = await sendPasswordResetEmail({
+    email: user.email,
+    name: userName,
+    resetUrl,
+    expiresInMinutes: 15,
+  });
+
+  if (!emailResult.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        statusCode: 500,
+        message: emailResult.error || 'Failed to send password reset email. Please try again later.',
+      },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({
+    success: true,
+    statusCode: 200,
+    message: 'Password reset link sent successfully to your email address.',
+  });
+}
+
+async function handleResetPassword(req: NextRequest): Promise<NextResponse> {
+  const body = await req.json().catch(() => ({}));
+  const token = String(body?.token || '').trim();
+  const newPassword = String(body?.newPassword || body?.password || '').trim();
+
+  if (!token || !newPassword) {
+    return NextResponse.json(
+      { success: false, statusCode: 400, message: 'Password reset token and new password are required.' },
+      { status: 400 }
+    );
+  }
+
+  if (newPassword.length < 8) {
+    return NextResponse.json(
+      { success: false, statusCode: 400, message: 'Password must be at least 8 characters long.' },
+      { status: 400 }
+    );
+  }
+
+  const tokenData = decodeJwtPayload(token);
+
+  if (!tokenData || tokenData.type !== 'password_reset') {
+    return NextResponse.json(
+      { success: false, statusCode: 400, message: 'Invalid or expired password reset link. Please request a new one.' },
+      { status: 400 }
+    );
+  }
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (tokenData.exp && tokenData.exp < nowSec) {
+    return NextResponse.json(
+      { success: false, statusCode: 400, message: 'Password reset link has expired. Please request a new link.' },
+      { status: 400 }
+    );
+  }
+
+  const userId = tokenData.sub;
+  const email = tokenData.email;
+
+  if (!userId && !email) {
+    return NextResponse.json(
+      { success: false, statusCode: 400, message: 'Invalid password reset token payload.' },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const newPasswordHash = hashPassword(newPassword);
+    if (userId) {
+      await queryDb(`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`, [
+        newPasswordHash,
+        userId,
+      ]);
+    } else if (email) {
+      await queryDb(`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE LOWER(email) = LOWER($2)`, [
+        newPasswordHash,
+        email,
+      ]);
+    }
+
+    return NextResponse.json({
+      success: true,
+      statusCode: 200,
+      message: 'Password updated successfully! You can now log in with your new password.',
+    });
+  } catch (err: any) {
+    console.error('[Gateway] DB error resetting password:', err);
+    return NextResponse.json(
+      { success: false, statusCode: 500, message: 'Failed to update password. Please try again.' },
+      { status: 500 }
+    );
+  }
+}
+
 async function getUserFromRequest(req: NextRequest) {
   const authHeader = req.headers.get('authorization') || '';
   const rawToken = authHeader.replace(/^Bearer\s+/i, '');
@@ -2261,7 +2401,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
            (SELECT value FROM business_identifiers WHERE business_id = b.id AND type = 'GSTIN' LIMIT 1) as gstin,
            (SELECT value FROM business_identifiers WHERE business_id = b.id AND type = 'PAN' LIMIT 1) as pan
     FROM businesses b
-    LEFT JOIN lead_unlocks lu ON b.id = lu.business_id AND (lu.user_id = $1 OR $1 IS NULL)
+    INNER JOIN lead_unlocks lu ON b.id = lu.business_id AND lu.user_id = $1
     LEFT JOIN industries i ON b.industry_id = i.id
     LEFT JOIN categories c ON b.category_id = c.id
     LEFT JOIN business_locations bl ON b.id = bl.business_id AND bl.is_primary = true
@@ -2279,8 +2419,8 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
     ) bc ON TRUE
     LEFT JOIN digital_presences dp ON b.id = dp.business_id AND dp.platform = 'WEBSITE'
     WHERE (b.status = 'PUBLISHED' OR LOWER(b.status::text) = 'published' OR LOWER(b.status::text) = 'active')
-      AND lu.business_id IS NOT NULL
   `;
+
 
   const queryParams: any[] = [userId];
 
@@ -2375,15 +2515,19 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
     csvLines.push(row.join(','));
   });
 
-  const csvContent = csvLines.join('\n');
+  // UTF-8 BOM ensures Excel opens the file with correct encoding and treats text as text (prevents phone numbers from becoming scientific notation)
+  const BOM = '\uFEFF';
+  const csvContent = BOM + csvLines.join('\n');
+  const exportDate = new Date().toISOString().slice(0, 10);
   return new NextResponse(csvContent, {
     status: 200,
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="orion-leads-${new Date().toISOString().slice(0, 10)}.csv"`,
+      'Content-Disposition': `attachment; filename="orion-unlocked-leads-${exportDate}.csv"`,
     },
   });
 }
+
 
   // Discover Export Unlocked Leads API Handler
   if (fullPath === 'discover/export' || fullPath === 'export/unlocked-leads') {
@@ -2692,6 +2836,14 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
       details: typeof r.details === 'object' ? JSON.stringify(r.details) : String(r.details || '')
     }));
     return NextResponse.json({ success: true, statusCode: 200, data: logs, timestamp: new Date().toISOString() });
+  }
+
+  if (fullPath === 'auth/forgot-password' && req.method === 'POST') {
+    return handleForgotPassword(req);
+  }
+
+  if (fullPath === 'auth/reset-password' && req.method === 'POST') {
+    return handleResetPassword(req);
   }
 
   // Google OAuth Initiation

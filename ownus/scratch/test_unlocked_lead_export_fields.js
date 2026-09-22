@@ -32,8 +32,7 @@ async function runTest() {
       SELECT DISTINCT ON (b.id)
              b.id, b.name, b.business_type,
              bl.address_line1, bl.address_line2, bl.city, bl.state, bl.district,
-             bc.full_name as contact_person, bc.title as contact_title, bc.department as contact_department,
-             bc.phone, bc.email, bc.linkedin_url, bc.is_direct_dial, dp.url as website, lu.unlocked_at
+             bc.phone, bc.email, dp.url as website, lu.unlocked_at
       FROM businesses b
       LEFT JOIN lead_unlocks lu ON b.id = lu.business_id
       LEFT JOIN business_locations bl ON b.id = bl.business_id AND bl.is_primary = true
@@ -50,13 +49,8 @@ async function runTest() {
 
     const sample = rows[0] || {
       name: 'Monarch Test Enterprise',
-      contact_person: 'Ava Patel',
-      contact_title: 'Managing Director',
-      contact_department: 'Leadership',
       phone: '+919876543210',
       email: 'contact@monarchtest.com',
-      linkedin_url: 'https://www.linkedin.com/in/ava-patel',
-      is_direct_dial: true,
       website: 'https://monarchtest.com',
       business_type: 'PRIVATE_LIMITED',
       address_line1: '101 Tech Park',
@@ -73,13 +67,8 @@ async function runTest() {
 
     const exportItem = {
       businessName: sample.name || '',
-      contactNames: sample.contact_person || '',
-      contactTitles: sample.contact_title || '',
-      contactDepartments: sample.contact_department || '',
       phoneNumber: sample.phone || '',
       email: sample.email || '',
-      linkedInUrls: sample.linkedin_url || '',
-      directDialAvailable: sample.is_direct_dial ? 'Yes' : 'No',
       website: sample.website || '',
       businessType: bType,
       address: fullAddr,
@@ -91,13 +80,8 @@ async function runTest() {
 
     const expectedHeaders = [
       'Business Name',
-      'Contact Names',
-      'Contact Titles',
-      'Contact Departments',
-      'Phone Numbers',
-      'Email Addresses',
-      'LinkedIn URLs',
-      'Direct Dial Available',
+      'Phone Number',
+      'Email',
       'Website',
       'Business Type',
       'Address',
@@ -109,13 +93,8 @@ async function runTest() {
 
     const rowValues = [
       `"${String(exportItem.businessName).replace(/"/g, '""')}"`,
-      `"${String(exportItem.contactNames).replace(/"/g, '""')}"`,
-      `"${String(exportItem.contactTitles).replace(/"/g, '""')}"`,
-      `"${String(exportItem.contactDepartments).replace(/"/g, '""')}"`,
       `"${String(exportItem.phoneNumber).replace(/"/g, '""')}"`,
       `"${String(exportItem.email).replace(/"/g, '""')}"`,
-      `"${String(exportItem.linkedInUrls).replace(/"/g, '""')}"`,
-      `"${String(exportItem.directDialAvailable).replace(/"/g, '""')}"`,
       `"${String(exportItem.website).replace(/"/g, '""')}"`,
       `"${String(exportItem.businessType).replace(/"/g, '""')}"`,
       `"${String(exportItem.address).replace(/"/g, '""')}"`,
@@ -135,8 +114,8 @@ async function runTest() {
     const actualHeaders = headersLine.split(',');
 
     // 2. Validate exact count and header match
-    if (actualHeaders.length !== 15) {
-      throw new Error(`Expected exactly 15 columns in export, found ${actualHeaders.length}`);
+    if (actualHeaders.length !== 10) {
+      throw new Error(`Expected exactly 10 columns in export, found ${actualHeaders.length}`);
     }
 
     for (let i = 0; i < expectedHeaders.length; i++) {
@@ -154,7 +133,7 @@ async function runTest() {
     }
 
     console.log('\n=======================================================');
-    console.log(' SUCCESS: UNLOCKED LEAD EXPORT INCLUDES ALL AVAILABLE CONTACT FIELDS!');
+    console.log(' SUCCESS: UNLOCKED LEAD EXPORT RESTRICED TO EXACT 10 FIELDS!');
     console.log('=======================================================\n');
 
   } catch (err) {

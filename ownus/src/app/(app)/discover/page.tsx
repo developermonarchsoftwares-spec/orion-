@@ -360,7 +360,7 @@ export default function DiscoverPage() {
     setUnlockModalState({ isOpen: false, business: null, isBulk: false });
   };
 
-  // CSV Export - Only records unlocked by the current user are eligible.
+  // Excel/CSV Export - Only records unlocked by the current user are eligible.
   const handleExportCSV = useCallback(async (itemsToExport: Business[]) => {
     const requestedItems = itemsToExport && itemsToExport.length > 0 ? itemsToExport : filteredData;
     const exportItems = requestedItems.filter(
@@ -373,8 +373,10 @@ export default function DiscoverPage() {
     }
 
     const exportIds = exportItems.map((b) => b.id).filter(Boolean);
+    const exportDate = new Date().toISOString().slice(0, 10);
+    const filename = `orion-unlocked-leads-${exportDate}.csv`;
 
-    // Try backend export first for high-fidelity database values
+    // Try backend export first for high-fidelity database values (includes all contacts aggregated)
     try {
       const token = typeof window !== 'undefined' ? (localStorage.getItem('orion_access_token') || localStorage.getItem('orion_admin_token')) : null;
       
@@ -392,11 +394,12 @@ export default function DiscoverPage() {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', `orion-leads-${new Date().toISOString().slice(0, 10)}.csv`);
+        link.setAttribute('download', filename);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        toast.success(`Exported ${exportItems.length} lead(s) successfully.`);
+        URL.revokeObjectURL(url);
+        toast.success(`Exported ${exportItems.length} unlocked lead(s) to Excel/CSV.`);
         return;
       }
     } catch (apiErr) {
@@ -415,24 +418,83 @@ export default function DiscoverPage() {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', `orion-leads-${new Date().toISOString().slice(0, 10)}.csv`);
+        link.setAttribute('download', filename);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        toast.success(`Exported ${exportItems.length} lead(s) successfully.`);
+        URL.revokeObjectURL(url);
+        toast.success(`Exported ${exportItems.length} unlocked lead(s) to Excel/CSV.`);
         return;
       }
     } catch (getErr) {
-      console.warn('Backend GET export failed:', getErr);
+      console.warn('Backend GET export failed, falling back to client-side CSV:', getErr);
     }
 
-    toast.error('Unable to generate the complete export. Please try again.');
+    // Client-side fallback CSV — uses data already in memory
+    const headers = [
+      'Business Name',
+      'Phone Number',
+      'Email',
+      'Website',
+      'Business Type',
+      'Address',
+      'City',
+      'District',
+      'State',
+      'Export Date',
+    ];
+
+    const isPlaceholder = (val?: string | null) =>
+      !val || val.includes('Unlock') || val === 'https://' || val.trim() === '';
+
+    const esc = (val: string) => `"${String(val ?? '').replace(/"/g, '""')}"`;
+
+    const csvRows = [headers.join(',')];
+    exportItems.forEach((item) => {
+      const bType = item.entityType || (item as any).businessType
+        ? String((item as any).businessType || item.entityType).replace(/_/g, ' ')
+        : 'Private Limited';
+      const fullAddr = (item as any).address || [item.city, item.state].filter(Boolean).join(', ') || '';
+      const unlockDate = (item as any).unlockedAt
+        ? new Date((item as any).unlockedAt).toISOString().split('T')[0]
+        : exportDate;
+
+      const cleanPhone = isPlaceholder(item.phone) ? '' : String(item.phone).trim();
+      const cleanEmail = isPlaceholder(item.email) ? '' : String(item.email).trim();
+      const cleanWebsite = isPlaceholder(item.website) ? '' : String(item.website).trim();
+
+      const row = [
+        esc(item.name || ''),
+        esc(cleanPhone),
+        esc(cleanEmail),
+        esc(cleanWebsite),
+        esc(bType || ''),
+        esc(fullAddr || ''),
+        esc(item.city || ''),
+        esc(item.district || item.city || ''),
+        esc(item.state || ''),
+        esc(unlockDate),
+      ];
+      csvRows.push(row.join(','));
+    });
+
+    // UTF-8 BOM ensures Excel opens the file correctly (correct encoding + text column format)
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${exportItems.length} unlocked lead(s) to Excel/CSV.`);
   }, [filteredData, unlockedIds]);
+
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 flex">
-      
-      {/* 1. Main Left Sidebar = The Discover Filter Panel (Fixed at left-0, top-14, bottom-0) */}
       <aside
         className={`fixed top-14 left-0 bottom-0 z-30 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 transition-all duration-300 flex flex-col ${
           sidebarOpen ? 'w-72 sm:w-80' : 'w-0 -translate-x-full'

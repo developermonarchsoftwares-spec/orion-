@@ -2,16 +2,29 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Mail, ArrowLeft, CheckCircle } from "lucide-react";
+import { Mail, ArrowLeft, CheckCircle, Loader2, AlertCircle } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) {
+    if (!email) return;
+
+    setIsLoading(true);
+    setErrorMsg("");
+
+    try {
+      await apiClient.auth.forgotPassword(email);
       setIsSubmitted(true);
+    } catch (err: any) {
+      setErrorMsg(err?.message || "Failed to send password reset email. Please check your address and try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -36,7 +49,7 @@ export default function ForgotPasswordPage() {
           Didn&apos;t receive the email?{" "}
           <button
             onClick={() => setIsSubmitted(false)}
-            className="font-medium text-gray-900 dark:text-white underline hover:opacity-80"
+            className="font-medium text-gray-900 dark:text-white underline hover:opacity-80 cursor-pointer"
           >
             Resend
           </button>
@@ -65,6 +78,13 @@ export default function ForgotPasswordPage() {
       </div>
 
       <div className="grid gap-6">
+        {errorMsg && (
+          <div className="rounded-md bg-red-50 p-3.5 text-xs text-red-600 dark:bg-red-950/50 dark:text-red-400 flex items-start gap-2 border border-red-200 dark:border-red-900/50">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div className="grid gap-5">
             <div className="grid gap-1.5">
@@ -84,6 +104,7 @@ export default function ForgotPasswordPage() {
                   autoCorrect="off"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  disabled={isLoading}
                   className="flex h-10 w-full rounded-md border border-gray-300 bg-transparent px-3 pl-10 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-50"
                   required
                 />
@@ -92,9 +113,17 @@ export default function ForgotPasswordPage() {
 
             <button
               type="submit"
-              className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-md bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200 px-4 py-2 text-sm font-semibold shadow focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:ring-offset-2 disabled:opacity-50 transition-colors"
+              disabled={isLoading}
+              className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-md bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200 px-4 py-2 text-sm font-semibold shadow focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white focus:ring-offset-2 disabled:opacity-50 transition-colors cursor-pointer"
             >
-              Send Reset Link
+              {isLoading ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Sending email...
+                </span>
+              ) : (
+                "Send Reset Link"
+              )}
             </button>
           </div>
         </form>
