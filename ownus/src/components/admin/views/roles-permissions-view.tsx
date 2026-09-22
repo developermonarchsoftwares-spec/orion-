@@ -29,7 +29,7 @@ interface RolesPermissionsViewProps {
 }
 
 export const RolesPermissionsView: React.FC<RolesPermissionsViewProps> = ({
-  roles,
+  roles = [],
   onUpdateRole,
   onCreateRole,
 }) => {
@@ -46,18 +46,19 @@ export const RolesPermissionsView: React.FC<RolesPermissionsViewProps> = ({
 
   React.useEffect(() => {
     if (currentRole) {
-      setEditedModules(currentRole.modules);
+      setEditedModules(currentRole.modules || []);
     }
   }, [selectedRoleId, currentRole]);
 
   const handleTogglePermission = (moduleKey: string, action: PermissionAction) => {
     setEditedModules(prev => prev.map(mod => {
       if (mod.moduleKey === moduleKey) {
+        const perms = mod.permissions || { read: false, write: false, delete: false, export: false, admin: false };
         return {
           ...mod,
           permissions: {
-            ...mod.permissions,
-            [action]: !mod.permissions[action]
+            ...perms,
+            [action]: !perms[action]
           }
         };
       }
@@ -98,7 +99,7 @@ export const RolesPermissionsView: React.FC<RolesPermissionsViewProps> = ({
     if (!newRoleName.trim()) return;
 
     const baseRole = roles.find(r => r.id === cloneFromRoleId) || roles[0];
-    const clonedModules = JSON.parse(JSON.stringify(baseRole.modules));
+    const clonedModules = baseRole?.modules ? JSON.parse(JSON.stringify(baseRole.modules)) : [];
 
     onCreateRole({
       name: newRoleName.trim(),
@@ -112,6 +113,22 @@ export const RolesPermissionsView: React.FC<RolesPermissionsViewProps> = ({
     setNewRoleDescription('');
     setShowCreateModal(false);
   };
+
+  if (!currentRole) {
+    return (
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center text-zinc-400">
+        <ShieldCheck className="w-8 h-8 text-zinc-500 mx-auto mb-3" />
+        <h2 className="text-lg font-bold text-zinc-200">No Roles Defined</h2>
+        <p className="text-sm text-zinc-400 mt-1 mb-4">No platform role definitions found in system state.</p>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="px-4 py-2 text-sm font-semibold rounded-lg bg-zinc-100 text-zinc-950 hover:bg-white transition"
+        >
+          Create Initial Role
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -231,7 +248,8 @@ export const RolesPermissionsView: React.FC<RolesPermissionsViewProps> = ({
                 </thead>
                 <tbody className="divide-y divide-zinc-800/60 font-mono">
                   {editedModules.map(mod => {
-                    const allChecked = mod.permissions.read && mod.permissions.write && mod.permissions.delete && mod.permissions.export && mod.permissions.admin;
+                    const perms = mod.permissions || { read: false, write: false, delete: false, export: false, admin: false };
+                    const allChecked = Boolean(perms.read && perms.write && perms.delete && perms.export && perms.admin);
                     return (
                       <tr key={mod.moduleKey} className="hover:bg-zinc-900/40 transition">
                         <td className="py-3.5 px-4 font-sans font-semibold text-zinc-200 text-sm">
@@ -242,7 +260,7 @@ export const RolesPermissionsView: React.FC<RolesPermissionsViewProps> = ({
                         <td className="py-3.5 px-4 text-center">
                           <input
                             type="checkbox"
-                            checked={mod.permissions.read}
+                            checked={Boolean(perms.read)}
                             onChange={() => handleTogglePermission(mod.moduleKey, 'read')}
                             className="w-4 h-4 rounded accent-zinc-200 cursor-pointer"
                           />
@@ -252,7 +270,7 @@ export const RolesPermissionsView: React.FC<RolesPermissionsViewProps> = ({
                         <td className="py-3.5 px-4 text-center">
                           <input
                             type="checkbox"
-                            checked={mod.permissions.write}
+                            checked={Boolean(perms.write)}
                             onChange={() => handleTogglePermission(mod.moduleKey, 'write')}
                             className="w-4 h-4 rounded accent-zinc-200 cursor-pointer"
                           />
@@ -262,7 +280,7 @@ export const RolesPermissionsView: React.FC<RolesPermissionsViewProps> = ({
                         <td className="py-3.5 px-4 text-center">
                           <input
                             type="checkbox"
-                            checked={mod.permissions.delete}
+                            checked={Boolean(perms.delete)}
                             onChange={() => handleTogglePermission(mod.moduleKey, 'delete')}
                             className="w-4 h-4 rounded accent-zinc-200 cursor-pointer"
                           />
@@ -272,7 +290,7 @@ export const RolesPermissionsView: React.FC<RolesPermissionsViewProps> = ({
                         <td className="py-3.5 px-4 text-center">
                           <input
                             type="checkbox"
-                            checked={mod.permissions.export}
+                            checked={Boolean(perms.export)}
                             onChange={() => handleTogglePermission(mod.moduleKey, 'export')}
                             className="w-4 h-4 rounded accent-zinc-200 cursor-pointer"
                           />
@@ -282,7 +300,7 @@ export const RolesPermissionsView: React.FC<RolesPermissionsViewProps> = ({
                         <td className="py-3.5 px-4 text-center">
                           <input
                             type="checkbox"
-                            checked={mod.permissions.admin}
+                            checked={Boolean(perms.admin)}
                             onChange={() => handleTogglePermission(mod.moduleKey, 'admin')}
                             className="w-4 h-4 rounded accent-zinc-200 cursor-pointer"
                           />

@@ -33,7 +33,7 @@ export class UpdateNotificationPreferencesDto {
   @ApiPropertyOptional({ default: true })
   @IsOptional()
   @IsBoolean()
-  emailOnLeadUnlock?: boolean;
+  emailNewBusinesses?: boolean;
 
   @ApiPropertyOptional({ default: true })
   @IsOptional()
@@ -43,7 +43,27 @@ export class UpdateNotificationPreferencesDto {
   @ApiPropertyOptional({ default: true })
   @IsOptional()
   @IsBoolean()
+  creditLowWarning?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
   weeklyDigest?: boolean;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  productUpdates?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  marketingEmails?: boolean;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  emailOnLeadUnlock?: boolean;
 
   @ApiPropertyOptional({ default: false })
   @IsOptional()

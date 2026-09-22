@@ -279,3 +279,83 @@ export async function sendAdminOtpEmail(params: SendOtpEmailParams): Promise<Sen
     };
   }
 }
+
+export interface SendPreferenceEmailParams {
+  email: string;
+  name: string;
+  title: string;
+  message: string;
+  type: string;
+  link?: string;
+}
+
+export async function sendPreferenceNotificationEmail(params: SendPreferenceEmailParams): Promise<SendEmailResult> {
+  const { email, name, title, message, type, link } = params;
+  const resendApiKey = getResendApiKey();
+
+  if (!resendApiKey) {
+    console.log(`[EMAIL_SERVICE] Notification '${title}' for ${email} generated (Simulated - RESEND_API_KEY not configured)`);
+    return {
+      success: true,
+      messageId: `sim_${Date.now()}`,
+    };
+  }
+
+  const fromAddress = getResendSenderAddress();
+  const subject = `[Orion Notification] ${title}`;
+  const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>${title}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #09090b; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #f4f4f5;">
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 520px; background-color: #121215; border: 1px solid #27272a; border-radius: 16px; padding: 32px;">
+          <tr>
+            <td>
+              <h2 style="margin: 0 0 12px 0; color: #ffffff; font-size: 20px;">${title}</h2>
+              <p style="margin: 0 0 16px 0; color: #a1a1aa; font-size: 14px; line-height: 1.6;">Hello ${name},</p>
+              <p style="margin: 0 0 24px 0; color: #d4d4d8; font-size: 14px; line-height: 1.6;">${message}</p>
+              ${
+                link
+                  ? `<a href="http://localhost:3000${link}" style="display: inline-block; background-color: #ffffff; color: #09090b; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 13px; text-decoration: none;">View in Orion</a>`
+                  : ''
+              }
+              <p style="margin: 24px 0 0 0; color: #71717a; font-size: 11px;">You received this automated notification because your '${type}' preference is enabled in Orion Settings.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: fromAddress,
+        to: [email],
+        subject,
+        html: htmlContent,
+      }),
+    });
+
+    const resJson = await res.json().catch(() => ({}));
+    if (res.ok && resJson.id) {
+      console.log(`[EMAIL_SERVICE] Notification email successfully dispatched via Resend to ${email} (ID: ${resJson.id})`);
+      return { success: true, messageId: resJson.id };
+    }
+    return { success: false, error: resJson.message || `HTTP ${res.status}` };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { sendAdminOtpEmail, isAuthorizedAdminEmail } from '@/lib/email-service';
+import { dispatchUserNotification } from '@/lib/notification-dispatcher';
 import { queryDb } from '@/lib/db';
 import { DEFAULT_FILTER_CONFIG } from '@/lib/filter-options-store';
 
@@ -3407,6 +3408,20 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
             businessId,
           ]
         );
+
+        if (newBalance < 50 && wallet.userId) {
+          try {
+            await dispatchUserNotification({
+              userId: wallet.userId,
+              type: 'creditLowWarning',
+              title: 'Credit Low Warning',
+              message: `Your credit balance is now ${newBalance}. Replenish your credits to ensure uninterrupted lead intelligence searches.`,
+              link: '/credits',
+            });
+          } catch (notifErr) {
+            console.warn('[Unlock Gateway] Notice on creditLowWarning notification dispatch:', (notifErr as any)?.message);
+          }
+        }
       }
 
       return NextResponse.json({

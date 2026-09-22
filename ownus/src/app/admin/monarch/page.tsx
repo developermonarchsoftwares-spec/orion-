@@ -116,37 +116,28 @@ export default function AdminPortalPage() {
   const { isDark, toggleAdminTheme } = useAdminTheme();
 
   // Core Data Stores with Full Workflow Persistence via Neon PostgreSQL
-  const [records, setRecords] = useState<AdminBusinessRecord[]>([]);
-  const [batches, setBatches] = useState<ImportBatch[]>([]);
-  const [duplicatePairs, setDuplicatePairs] = useState<DuplicatePair[]>([]);
+  const [records, setRecords] = useState<AdminBusinessRecord[]>(INITIAL_ADMIN_BUSINESSES);
+  const [batches, setBatches] = useState<ImportBatch[]>(INITIAL_IMPORT_BATCHES);
+  const [duplicatePairs, setDuplicatePairs] = useState<DuplicatePair[]>(INITIAL_DUPLICATES);
 
   // Automatically sync strictly published records to customer store when records change
   useEffect(() => {
     syncAdminRecordsToPublishedStore(records);
   }, [records]);
-  const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
-  const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
-  const [customerUsers, setCustomerUsers] = useState<CustomerUser[]>([]);
-  const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
-  const [roles, setRoles] = useState<RoleDefinition[]>([]);
-  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>(INITIAL_VALIDATION_ISSUES);
+  const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>(INITIAL_ACTIVITY_LOGS);
+  const [customerUsers, setCustomerUsers] = useState<CustomerUser[]>(INITIAL_CUSTOMER_USERS);
+  const [transactions, setTransactions] = useState<TransactionRecord[]>(INITIAL_PLATFORM_TRANSACTIONS);
+  const [roles, setRoles] = useState<RoleDefinition[]>(INITIAL_ROLES_PERMISSIONS);
+  const [tickets, setTickets] = useState<SupportTicket[]>(INITIAL_SUPPORT_TICKETS);
 
   // Module 4 Data Stores: Data Intelligence & Automation
-  const [dataSources, setDataSources] = useState<DataSourceRecord[]>([]);
-  const [enrichmentJobs, setEnrichmentJobs] = useState<EnrichmentJob[]>([]);
-  const [aiPipelines, setAiPipelines] = useState<AiPipelineDefinition[]>([]);
-  const [automationRules, setAutomationRules] = useState<AutomationRule[]>([]);
-  const [systemServices, setSystemServices] = useState<SystemServiceHealth[]>([]);
-  const [searchIndexStatus, setSearchIndexStatus] = useState<SearchIndexStatus>({
-    indexedBusinesses: 0,
-    pendingIndex: 0,
-    failedIndex: 0,
-    clusterHealth: 'Green',
-    shardsCount: 1,
-    indexSizeBytes: '0 MB',
-    lastOptimized: 'Never',
-    avgQueryLatencyMs: 0,
-  });
+  const [dataSources, setDataSources] = useState<DataSourceRecord[]>(INITIAL_DATA_SOURCES);
+  const [enrichmentJobs, setEnrichmentJobs] = useState<EnrichmentJob[]>(INITIAL_ENRICHMENT_JOBS);
+  const [aiPipelines, setAiPipelines] = useState<AiPipelineDefinition[]>(INITIAL_AI_PIPELINES);
+  const [automationRules, setAutomationRules] = useState<AutomationRule[]>(INITIAL_AUTOMATION_RULES);
+  const [systemServices, setSystemServices] = useState<SystemServiceHealth[]>(INITIAL_SYSTEM_SERVICES);
+  const [searchIndexStatus, setSearchIndexStatus] = useState<SearchIndexStatus>(INITIAL_SEARCH_INDEX_STATUS);
 
   // Modal / Drawer States
   const [selectedRecordForDetail, setSelectedRecordForDetail] = useState<AdminBusinessRecord | null>(null);

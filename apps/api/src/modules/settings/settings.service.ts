@@ -50,9 +50,13 @@ export class SettingsService {
         gstin: metadata.companyDetails?.gstin || '',
       },
       notifications: {
-        emailOnLeadUnlock: metadata.notifications?.emailOnLeadUnlock ?? true,
+        emailNewBusinesses: metadata.notifications?.emailNewBusinesses ?? true,
         savedSearchAlerts: metadata.notifications?.savedSearchAlerts ?? true,
-        weeklyDigest: metadata.notifications?.weeklyDigest ?? true,
+        creditLowWarning: metadata.notifications?.creditLowWarning ?? true,
+        weeklyDigest: metadata.notifications?.weeklyDigest ?? false,
+        productUpdates: metadata.notifications?.productUpdates ?? true,
+        marketingEmails: metadata.notifications?.marketingEmails ?? false,
+        emailOnLeadUnlock: metadata.notifications?.emailOnLeadUnlock ?? true,
         marketingUpdates: metadata.notifications?.marketingUpdates ?? false,
       },
       billing: {
