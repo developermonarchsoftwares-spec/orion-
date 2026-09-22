@@ -134,8 +134,15 @@ export class ApiClient {
 
       const payload = await res.json();
       const tokenData = payload.data || payload;
-      this.setTokens(tokenData.accessToken, tokenData.refreshToken);
-      return true;
+      const accessToken = tokenData?.accessToken || tokenData?.tokens?.accessToken;
+      const refreshToken = tokenData?.refreshToken || tokenData?.tokens?.refreshToken || this.refreshToken;
+      
+      if (accessToken && refreshToken) {
+        this.setTokens(accessToken, refreshToken);
+        return true;
+      }
+      this.clearTokens();
+      return false;
     } catch {
       this.clearTokens();
       return false;

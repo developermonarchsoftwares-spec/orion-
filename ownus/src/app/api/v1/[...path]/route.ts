@@ -1288,7 +1288,19 @@ function hashPassword(password: string): string {
 }
 
 function verifyPassword(password: string, storedHashStr: string): boolean {
-  if (!storedHashStr || !storedHashStr.includes(':')) return false;
+  if (!storedHashStr) return false;
+
+  // Support bcrypt hashes ($2a$, $2b$, $2y$)
+  if (storedHashStr.startsWith('$2')) {
+    try {
+      const bcrypt = require('bcrypt');
+      return bcrypt.compareSync(password, storedHashStr);
+    } catch {
+      // Fallback if bcrypt isn't available
+    }
+  }
+
+  if (!storedHashStr.includes(':')) return false;
   const [salt, hash] = storedHashStr.split(':');
   const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
   try {
@@ -1296,6 +1308,345 @@ function verifyPassword(password: string, storedHashStr: string): boolean {
   } catch {
     return false;
   }
+}
+
+async function handleLogin(req: NextRequest): Promise<NextResponse> {
+  const body = await req.json().catch(() => ({}));
+  const email = String(body?.email || '').trim().toLowerCase();
+  const password = String(body?.password || '').trim();
+
+  if (!email || !password) {
+    return NextResponse.json(
+      { success: false, statusCode: 400, message: 'Email and password are required.' },
+      { status: 400 }
+    );
+  }
+
+  let dbUser: any = null;
+  try {
+    const rows = await queryDb(
+      `SELECT id, email, password_hash, first_name, last_name, display_name, role, status, organization_name, phone_number, avatar_url, metadata FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+      [email]
+    );
+    if (rows && rows.length > 0) {
+      dbUser = rows[0];
+    }
+  } catch (err: any) {
+    console.error('[Gateway] DB error looking up user for login:', err);
+  }
+
+  if (!dbUser || !dbUser.password_hash) {
+    return NextResponse.json(
+      { success: false, statusCode: 401, message: 'Invalid email or password.' },
+      { status: 401 }
+    );
+  }
+
+  const isPasswordValid = verifyPassword(password, dbUser.password_hash);
+  if (!isPasswordValid) {
+    return NextResponse.json(
+      { success: false, statusCode: 401, message: 'Invalid email or password.' },
+      { status: 401 }
+    );
+  }
+
+  if (dbUser.status === 'SUSPENDED' || dbUser.status === 'INACTIVE') {
+    return NextResponse.json(
+      { success: false, statusCode: 403, message: 'Your account has been deactivated. Please contact support.' },
+      { status: 403 }
+    );
+  }
+
+  // Single-Device Login Enforcement: assign a unique sessionId
+  const sessionId = crypto.randomUUID();
+  const meta = typeof dbUser.metadata === 'object' && dbUser.metadata ? dbUser.metadata : {};
+  const updatedMeta = { ...meta, activeSessionId: sessionId };
+
+  try {
+    await queryDb(
+      `UPDATE users SET metadata = $1::jsonb, last_login_at = NOW(), updated_at = NOW() WHERE id = $2`,
+      [JSON.stringify(updatedMeta), dbUser.id]
+    );
+  } catch (err) {
+    console.error('[Gateway] Failed to update active session ID in user metadata:', err);
+  }
+
+  const accessSecret = sanitizeEnvValue(process.env.JWT_ACCESS_SECRET) || process.env.JWT_SECRET || 'orion-jwt-access-secret-production-fallback';
+  const refreshSecret = sanitizeEnvValue(process.env.JWT_REFRESH_SECRET) || process.env.JWT_SECRET || 'orion-jwt-refresh-secret-production-fallback';
+
+  const firstName = dbUser.first_name || '';
+  const lastName = dbUser.last_name || '';
+  const fullName = dbUser.display_name || (firstName ? `${firstName} ${lastName}`.trim() : email.split('@')[0]);
+
+  const userPayload = {
+    sub: dbUser.id,
+    email: dbUser.email,
+    firstName,
+    lastName,
+    name: fullName,
+    displayName: fullName,
+    avatarUrl: dbUser.avatar_url || null,
+    role: dbUser.role || 'USER',
+    status: dbUser.status || 'ACTIVE',
+    organizationId: dbUser.organization_name || null,
+    provider: 'EMAIL',
+    sessionId,
+  };
+
+  const accessToken = signJwt(userPayload, accessSecret, 24 * 3600);
+  const refreshToken = signJwt({ sub: dbUser.id, email: dbUser.email, type: 'refresh', sessionId }, refreshSecret, 7 * 24 * 3600);
+
+  const walletData = await getOrSyncUserWallet(dbUser.id);
+
+  const responseData = {
+    accessToken,
+    refreshToken,
+    tokens: {
+      accessToken,
+      refreshToken,
+    },
+    user: {
+      id: dbUser.id,
+      email: dbUser.email,
+      firstName,
+      lastName,
+      name: fullName,
+      displayName: fullName,
+      avatarUrl: dbUser.avatar_url || null,
+      role: dbUser.role || 'USER',
+      status: dbUser.status || 'ACTIVE',
+      organizationName: dbUser.organization_name || null,
+      companyName: dbUser.organization_name || null,
+      phone: dbUser.phone_number || null,
+      phoneNumber: dbUser.phone_number || null,
+      isEmailVerified: true,
+      provider: 'EMAIL',
+      googleLinked: false,
+      microsoftLinked: false,
+      hasPassword: true,
+      wallet: {
+        dailyCredits: walletData.dailyCredits,
+        purchasedCredits: walletData.purchasedCredits,
+        balance: walletData.balance,
+        lifetimePurchased: walletData.lifetimePurchased,
+        lifetimeUsed: walletData.lifetimeUsed,
+        lastDailyCreditDate: walletData.lastDailyCreditDate,
+      },
+      metadata: updatedMeta,
+    },
+  };
+
+  const res = NextResponse.json({
+    success: true,
+    statusCode: 200,
+    message: 'User authenticated successfully',
+    data: responseData,
+    timestamp: new Date().toISOString(),
+  });
+
+  const isLocal = (req.headers.get('host') || '').includes('localhost');
+  res.cookies.set('orion_access_token', accessToken, {
+    path: '/',
+    httpOnly: false,
+    secure: !isLocal,
+    sameSite: 'lax',
+    maxAge: 24 * 3600,
+  });
+
+  return res;
+}
+
+async function handleRegister(req: NextRequest): Promise<NextResponse> {
+  const body = await req.json().catch(() => ({}));
+  const email = String(body?.email || '').trim().toLowerCase();
+  const password = String(body?.password || '').trim();
+  const firstName = String(body?.firstName || body?.name?.split(' ')[0] || '').trim();
+  const lastName = String(body?.lastName || body?.name?.split(' ').slice(1).join(' ') || '').trim();
+  const companyName = String(body?.companyName || body?.organizationName || '').trim();
+  const phone = String(body?.phone || body?.phoneNumber || '').trim();
+
+  if (!email || !password) {
+    return NextResponse.json(
+      { success: false, statusCode: 400, message: 'Email and password are required for registration.' },
+      { status: 400 }
+    );
+  }
+
+  if (password.length < 8) {
+    return NextResponse.json(
+      { success: false, statusCode: 400, message: 'Password must be at least 8 characters long.' },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const existing = await queryDb(`SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`, [email]);
+    if (existing && existing.length > 0) {
+      return NextResponse.json(
+        { success: false, statusCode: 400, message: 'An account with this email address already exists. Please sign in.' },
+        { status: 400 }
+      );
+    }
+  } catch (err: any) {
+    console.error('[Gateway] DB error checking existing user on registration:', err);
+  }
+
+  const userId = crypto.randomUUID();
+  const passwordHash = hashPassword(password);
+  const fullName = `${firstName} ${lastName}`.trim() || email.split('@')[0];
+  const sessionId = crypto.randomUUID();
+  const metadata = { activeSessionId: sessionId };
+
+  try {
+    await queryDb(
+      `INSERT INTO users (id, email, password_hash, first_name, last_name, display_name, organization_name, phone_number, role, status, provider, metadata, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'USER', 'ACTIVE', 'EMAIL', $9::jsonb, NOW(), NOW())`,
+      [userId, email, passwordHash, firstName || null, lastName || null, fullName, companyName || null, phone || null, JSON.stringify(metadata)]
+    );
+  } catch (err: any) {
+    console.error('[Gateway] DB error inserting new user:', err);
+    return NextResponse.json(
+      { success: false, statusCode: 500, message: 'Failed to create user account. Please try again.' },
+      { status: 500 }
+    );
+  }
+
+  const walletData = await getOrSyncUserWallet(userId);
+
+  const accessSecret = sanitizeEnvValue(process.env.JWT_ACCESS_SECRET) || process.env.JWT_SECRET || 'orion-jwt-access-secret-production-fallback';
+  const refreshSecret = sanitizeEnvValue(process.env.JWT_REFRESH_SECRET) || process.env.JWT_SECRET || 'orion-jwt-refresh-secret-production-fallback';
+
+  const userPayload = {
+    sub: userId,
+    email,
+    firstName,
+    lastName,
+    name: fullName,
+    displayName: fullName,
+    role: 'USER',
+    status: 'ACTIVE',
+    organizationId: companyName || null,
+    provider: 'EMAIL',
+    sessionId,
+  };
+
+  const accessToken = signJwt(userPayload, accessSecret, 24 * 3600);
+  const refreshToken = signJwt({ sub: userId, email, type: 'refresh', sessionId }, refreshSecret, 7 * 24 * 3600);
+
+  const res = NextResponse.json(
+    {
+      success: true,
+      statusCode: 201,
+      message: 'User registered successfully',
+      data: {
+        accessToken,
+        refreshToken,
+        tokens: {
+          accessToken,
+          refreshToken,
+        },
+        user: {
+          id: userId,
+          email,
+          firstName,
+          lastName,
+          name: fullName,
+          displayName: fullName,
+          avatarUrl: null,
+          role: 'USER',
+          status: 'ACTIVE',
+          organizationName: companyName || null,
+          companyName: companyName || null,
+          phone: phone || null,
+          phoneNumber: phone || null,
+          isEmailVerified: true,
+          provider: 'EMAIL',
+          googleLinked: false,
+          microsoftLinked: false,
+          hasPassword: true,
+          wallet: {
+            dailyCredits: walletData.dailyCredits,
+            purchasedCredits: walletData.purchasedCredits,
+            balance: walletData.balance,
+            lifetimePurchased: walletData.lifetimePurchased,
+            lifetimeUsed: walletData.lifetimeUsed,
+            lastDailyCreditDate: walletData.lastDailyCreditDate,
+          },
+          metadata,
+        },
+      },
+      timestamp: new Date().toISOString(),
+    },
+    { status: 201 }
+  );
+
+  const isLocal = (req.headers.get('host') || '').includes('localhost');
+  res.cookies.set('orion_access_token', accessToken, {
+    path: '/',
+    httpOnly: false,
+    secure: !isLocal,
+    sameSite: 'lax',
+    maxAge: 24 * 3600,
+  });
+
+  return res;
+}
+
+async function handleRefresh(req: NextRequest): Promise<NextResponse> {
+  const body = await req.json().catch(() => ({}));
+  const refreshToken = String(body?.refreshToken || '').trim();
+
+  if (!refreshToken) {
+    return NextResponse.json(
+      { success: false, statusCode: 400, message: 'Refresh token is required.' },
+      { status: 400 }
+    );
+  }
+
+  const refreshSecret = sanitizeEnvValue(process.env.JWT_REFRESH_SECRET) || process.env.JWT_SECRET || 'orion-jwt-refresh-secret-production-fallback';
+  const accessSecret = sanitizeEnvValue(process.env.JWT_ACCESS_SECRET) || process.env.JWT_SECRET || 'orion-jwt-access-secret-production-fallback';
+  const tokenData = decodeJwtPayload(refreshToken);
+
+  if (!tokenData || tokenData.type !== 'refresh' || !tokenData.sub) {
+    return NextResponse.json(
+      { success: false, statusCode: 401, message: 'Invalid refresh token.' },
+      { status: 401 }
+    );
+  }
+
+  const walletData = await getOrSyncUserWallet(tokenData.sub);
+  const dbUser = walletData.user;
+
+  const sessionId = tokenData.sessionId || crypto.randomUUID();
+  const firstName = dbUser?.first_name || '';
+  const lastName = dbUser?.last_name || '';
+  const fullName = dbUser?.display_name || (firstName ? `${firstName} ${lastName}`.trim() : tokenData.email?.split('@')[0] || 'User');
+
+  const userPayload = {
+    sub: tokenData.sub,
+    email: tokenData.email || dbUser?.email,
+    firstName,
+    lastName,
+    name: fullName,
+    displayName: fullName,
+    role: dbUser?.role || 'USER',
+    status: dbUser?.status || 'ACTIVE',
+    provider: dbUser?.provider || 'EMAIL',
+    sessionId,
+  };
+
+  const newAccessToken = signJwt(userPayload, accessSecret, 24 * 3600);
+  const newRefreshToken = signJwt({ sub: tokenData.sub, email: tokenData.email, type: 'refresh', sessionId }, refreshSecret, 7 * 24 * 3600);
+
+  return NextResponse.json({
+    success: true,
+    statusCode: 200,
+    data: {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    },
+    timestamp: new Date().toISOString(),
+  });
 }
 
 async function handleForgotPassword(req: NextRequest): Promise<NextResponse> {
@@ -2838,6 +3189,75 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ success: true, statusCode: 200, data: logs, timestamp: new Date().toISOString() });
   }
 
+  if ((fullPath === 'auth/login' || fullPath === 'auth/jwt/login') && req.method === 'POST') {
+    if (
+      process.env.BACKEND_API_URL &&
+      !process.env.BACKEND_API_URL.includes('127.0.0.1') &&
+      !process.env.BACKEND_API_URL.includes('localhost')
+    ) {
+      try {
+        const backendBase = getBackendUrl();
+        const targetUrl = new URL(`${backendBase}/${fullPath}${req.nextUrl.search}`);
+        const bodyBuffer = await req.clone().arrayBuffer().catch(() => undefined);
+        const upstreamRes = await fetch(targetUrl.toString(), {
+          method: req.method,
+          headers: req.headers,
+          body: bodyBuffer,
+        });
+        if (upstreamRes.ok) return upstreamRes as any;
+      } catch {
+        // Fall back to native handler
+      }
+    }
+    return handleLogin(req);
+  }
+
+  if (fullPath === 'auth/register' && req.method === 'POST') {
+    if (
+      process.env.BACKEND_API_URL &&
+      !process.env.BACKEND_API_URL.includes('127.0.0.1') &&
+      !process.env.BACKEND_API_URL.includes('localhost')
+    ) {
+      try {
+        const backendBase = getBackendUrl();
+        const targetUrl = new URL(`${backendBase}/${fullPath}${req.nextUrl.search}`);
+        const bodyBuffer = await req.clone().arrayBuffer().catch(() => undefined);
+        const upstreamRes = await fetch(targetUrl.toString(), {
+          method: req.method,
+          headers: req.headers,
+          body: bodyBuffer,
+        });
+        if (upstreamRes.ok) return upstreamRes as any;
+      } catch {
+        // Fall back to native handler
+      }
+    }
+    return handleRegister(req);
+  }
+
+  if (fullPath === 'auth/refresh' && req.method === 'POST') {
+    if (
+      process.env.BACKEND_API_URL &&
+      !process.env.BACKEND_API_URL.includes('127.0.0.1') &&
+      !process.env.BACKEND_API_URL.includes('localhost')
+    ) {
+      try {
+        const backendBase = getBackendUrl();
+        const targetUrl = new URL(`${backendBase}/${fullPath}${req.nextUrl.search}`);
+        const bodyBuffer = await req.clone().arrayBuffer().catch(() => undefined);
+        const upstreamRes = await fetch(targetUrl.toString(), {
+          method: req.method,
+          headers: req.headers,
+          body: bodyBuffer,
+        });
+        if (upstreamRes.ok) return upstreamRes as any;
+      } catch {
+        // Fall back to native handler
+      }
+    }
+    return handleRefresh(req);
+  }
+
   if (fullPath === 'auth/forgot-password' && req.method === 'POST') {
     return handleForgotPassword(req);
   }
@@ -3042,6 +3462,18 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
     );
 
     // If upstream is unavailable, provide graceful fallbacks for critical session endpoints
+    if (fullPath === 'auth/login' || fullPath === 'auth/jwt/login') {
+      return handleLogin(req);
+    }
+
+    if (fullPath === 'auth/register') {
+      return handleRegister(req);
+    }
+
+    if (fullPath === 'auth/refresh') {
+      return handleRefresh(req);
+    }
+
     if (fullPath === 'auth/me' || fullPath === 'user/profile') {
       const authHeader = req.headers.get('authorization') || '';
       const rawToken = authHeader.replace(/^Bearer\s+/i, '');

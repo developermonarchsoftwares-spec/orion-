@@ -190,9 +190,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const res = await apiClient.auth.login({ email, password });
-      apiClient.setTokens(res.tokens.accessToken, res.tokens.refreshToken);
-      setUser(res.user);
+      const res: any = await apiClient.auth.login({ email, password });
+      const accessToken = res?.accessToken || res?.tokens?.accessToken || res?.data?.accessToken || res?.data?.tokens?.accessToken;
+      const refreshToken = res?.refreshToken || res?.tokens?.refreshToken || res?.data?.refreshToken || res?.data?.tokens?.refreshToken;
+      
+      if (accessToken && refreshToken) {
+        apiClient.setTokens(accessToken, refreshToken);
+      } else {
+        console.warn('[AuthContext] Login payload missing accessToken or refreshToken:', res);
+      }
+
+      const userData = res?.user || res?.data?.user;
+      if (userData) {
+        setUser(userData);
+      }
       await refreshProfile();
     } finally {
       setIsLoading(false);
@@ -202,9 +213,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = useCallback(async (data: any) => {
     setIsLoading(true);
     try {
-      const res = await apiClient.auth.register(data);
-      apiClient.setTokens(res.tokens.accessToken, res.tokens.refreshToken);
-      setUser(res.user);
+      const res: any = await apiClient.auth.register(data);
+      const accessToken = res?.accessToken || res?.tokens?.accessToken || res?.data?.accessToken || res?.data?.tokens?.accessToken;
+      const refreshToken = res?.refreshToken || res?.tokens?.refreshToken || res?.data?.refreshToken || res?.data?.tokens?.refreshToken;
+      
+      if (accessToken && refreshToken) {
+        apiClient.setTokens(accessToken, refreshToken);
+      } else {
+        console.warn('[AuthContext] Register payload missing accessToken or refreshToken:', res);
+      }
+
+      const userData = res?.user || res?.data?.user;
+      if (userData) {
+        setUser(userData);
+      }
       await refreshProfile();
     } finally {
       setIsLoading(false);
