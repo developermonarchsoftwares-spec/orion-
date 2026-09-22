@@ -2224,7 +2224,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
   const authHeader = req.headers.get('authorization') || '';
   const rawToken = authHeader.replace(/^Bearer\s+/i, '');
   const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
-  const userIdentifier = tokenData?.sub || tokenData?.email || 'developer.monarchsoftwares@gmail.com';
+  const userIdentifier = tokenData?.sub || tokenData?.email || 'kathirrajput@gmail.com';
 
   let userId: string | null = null;
   try {
@@ -2267,6 +2267,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
     LEFT JOIN business_contacts bc ON b.id = bc.business_id
     LEFT JOIN digital_presences dp ON b.id = dp.business_id AND dp.platform = 'WEBSITE'
     WHERE (b.status = 'PUBLISHED' OR LOWER(b.status::text) = 'published' OR LOWER(b.status::text) = 'active')
+      AND lu.business_id IS NOT NULL
   `;
 
   const queryParams: any[] = [userId];

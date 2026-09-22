@@ -296,6 +296,16 @@ export default function DiscoverPage() {
     return data.filter((b) => selectedIds.has(b.id));
   }, [data, selectedIds]);
 
+  const unlockedFilteredData = useMemo(
+    () => filteredData.filter((business) => business.isUnlocked || unlockedIds.has(String(business.id))),
+    [filteredData, unlockedIds]
+  );
+
+  const selectedUnlockedRows = useMemo(
+    () => selectedRows.filter((business) => business.isUnlocked || unlockedIds.has(String(business.id))),
+    [selectedRows, unlockedIds]
+  );
+
   // Unlock handlers
   const handleOpenUnlock = (business: Business) => {
     setUnlockModalState({
@@ -350,12 +360,15 @@ export default function DiscoverPage() {
     setUnlockModalState({ isOpen: false, business: null, isBulk: false });
   };
 
-  // CSV Export - Exports all selected rows or all filtered leads
+  // CSV Export - Only records unlocked by the current user are eligible.
   const handleExportCSV = useCallback(async (itemsToExport: Business[]) => {
-    const exportItems = itemsToExport && itemsToExport.length > 0 ? itemsToExport : filteredData;
+    const requestedItems = itemsToExport && itemsToExport.length > 0 ? itemsToExport : filteredData;
+    const exportItems = requestedItems.filter(
+      (business) => business.isUnlocked || unlockedIds.has(String(business.id))
+    );
 
     if (!exportItems || exportItems.length === 0) {
-      toast.error('No leads selected or available to export.');
+      toast.error('Only unlocked business records can be exported.');
       return;
     }
 
@@ -460,24 +473,7 @@ export default function DiscoverPage() {
     link.click();
     document.body.removeChild(link);
     toast.success(`Exported ${exportItems.length} lead(s) successfully.`);
-  }, [filteredData]);
-
-  // Orion Score styling helper (Pure Monochrome)
-  const getScoreBadge = (score: number = 0) => {
-    return (
-      <div className="flex items-center gap-2">
-        <div className="px-2 py-0.5 rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-xs font-bold font-mono">
-          {score}
-        </div>
-        <div className="w-12 h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden border border-zinc-200/50 dark:border-zinc-700/50">
-          <div
-            className="h-full bg-zinc-900 dark:bg-zinc-100"
-            style={{ width: `${score}%` }}
-          />
-        </div>
-      </div>
-    );
-  };
+  }, [filteredData, unlockedIds]);
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 flex">
@@ -557,13 +553,14 @@ export default function DiscoverPage() {
                 Save Alert
               </button>
 
-              {/* Export All Filtered CSV */}
+              {/* Export Unlocked Filtered CSV */}
               <button
-                onClick={() => handleExportCSV(filteredData)}
-                className="px-3 py-1.5 text-xs font-medium bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:opacity-90 rounded-lg shadow-2xs transition-opacity flex items-center gap-1.5 cursor-pointer"
+                onClick={() => handleExportCSV(unlockedFilteredData)}
+                disabled={unlockedFilteredData.length === 0}
+                className="px-3 py-1.5 text-xs font-medium bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:opacity-90 rounded-lg shadow-2xs transition-opacity flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Download className="w-3.5 h-3.5" />
-                Export ({totalRecords})
+                Export Unlocked ({unlockedFilteredData.length})
               </button>
             </div>
 
@@ -750,9 +747,6 @@ export default function DiscoverPage() {
                     {/* Digital Status */}
                     <th className="py-3 px-3.5">Digital Footprint</th>
 
-                    {/* Orion Score */}
-                    <th className="py-3 px-3.5">Orion Score</th>
-
                     {/* Actions */}
                     <th className="py-3 px-3.5 text-right">Action</th>
                   </tr>
@@ -877,11 +871,6 @@ export default function DiscoverPage() {
                                 </span>
                               )}
                             </div>
-                          </td>
-
-                          {/* Orion Score */}
-                          <td className="py-3 px-3.5">
-                            {getScoreBadge(item.opportunityScore ?? 0)}
                           </td>
 
                           {/* Action */}
@@ -1060,11 +1049,12 @@ export default function DiscoverPage() {
 
           {/* Bulk Export */}
           <button
-            onClick={() => handleExportCSV(selectedRows)}
-            className="px-3 py-1.5 bg-zinc-800 dark:bg-zinc-100 hover:bg-zinc-700 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 font-semibold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+            onClick={() => handleExportCSV(selectedUnlockedRows)}
+            disabled={selectedUnlockedRows.length === 0}
+            className="px-3 py-1.5 bg-zinc-800 dark:bg-zinc-100 hover:bg-zinc-700 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 font-semibold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download className="w-3.5 h-3.5" />
-            Export Selected CSV
+            Export Unlocked CSV ({selectedUnlockedRows.length})
           </button>
 
           {/* Deselect All */}
