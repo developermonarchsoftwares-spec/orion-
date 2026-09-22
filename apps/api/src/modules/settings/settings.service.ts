@@ -3,6 +3,7 @@ import {
   UpdateCompanyDetailsDto,
   UpdateNotificationPreferencesDto,
   UpdateBillingPreferencesDto,
+  UpdateAppPreferencesDto,
 } from './dto/settings.dto';
 import { UserRepository } from '../user/user.repository';
 import { BusinessException } from '../../common/errors/business.exception';
@@ -58,6 +59,12 @@ export class SettingsService {
         marketingEmails: metadata.notifications?.marketingEmails ?? false,
         emailOnLeadUnlock: metadata.notifications?.emailOnLeadUnlock ?? true,
         marketingUpdates: metadata.notifications?.marketingUpdates ?? false,
+      },
+      preferences: {
+        resultsPerPage: metadata.preferences?.resultsPerPage || '25 results',
+        defaultView: metadata.preferences?.defaultView || 'Table View',
+        timezone: metadata.preferences?.timezone || 'India Standard Time (IST) - New Delhi, Kolkata',
+        dateFormat: metadata.preferences?.dateFormat || 'DD/MM/YYYY',
       },
       billing: {
         currency: metadata.billing?.currency || 'INR',
@@ -125,6 +132,32 @@ export class SettingsService {
   }
 
   /**
+   * Updates app interface preferences
+   */
+  async updatePreferences(userId: string, dto: UpdateAppPreferencesDto) {
+    const user = await this.userRepo.findById(userId);
+    if (!user) {
+      throw new BusinessException('User not found', 'USER_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    const metadata = (user.metadata as Record<string, any>) || {};
+    const updatedMetadata = {
+      ...metadata,
+      preferences: {
+        ...metadata.preferences,
+        ...dto,
+      },
+    };
+
+    await this.userRepo.updateById(userId, {
+      metadata: updatedMetadata,
+      updatedAt: new Date(),
+    });
+
+    return { success: true, message: 'App preferences saved', preferences: updatedMetadata.preferences };
+  }
+
+  /**
    * Updates billing preferences
    */
   async updateBilling(userId: string, dto: UpdateBillingPreferencesDto) {
@@ -150,3 +183,4 @@ export class SettingsService {
     return { success: true, message: 'Billing preferences saved', billing: updatedMetadata.billing };
   }
 }
+

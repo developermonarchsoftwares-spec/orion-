@@ -17,6 +17,7 @@ import {
   UpdateCompanyDetailsDto,
   UpdateNotificationPreferencesDto,
   UpdateBillingPreferencesDto,
+  UpdateAppPreferencesDto,
 } from './dto/settings.dto';
 import { CreateApiKeyDto } from './dto/api-key.dto';
 import { CurrentUser } from '../../auth/decorators';
@@ -60,6 +61,16 @@ export class SettingsController {
     return this.settingsService.updateNotifications(user.sub, dto);
   }
 
+  @Patch('preferences')
+  @ApiOperation({ summary: 'Update app interface preferences' })
+  @ApiResponse({ status: 200, description: 'App preferences updated' })
+  async updatePreferences(
+    @CurrentUser() user: IJwtPayload,
+    @Body() dto: UpdateAppPreferencesDto,
+  ) {
+    return this.settingsService.updatePreferences(user.sub, dto);
+  }
+
   @Patch('billing')
   @ApiOperation({ summary: 'Update billing preferences and currency' })
   @ApiResponse({ status: 200, description: 'Billing settings updated' })
@@ -69,6 +80,7 @@ export class SettingsController {
   ) {
     return this.settingsService.updateBilling(user.sub, dto);
   }
+
 
   // ================= API KEY MANAGEMENT (REQUIREMENT 30) =================
 

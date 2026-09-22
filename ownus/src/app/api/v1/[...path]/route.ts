@@ -231,6 +231,15 @@ async function handleGoogleCallback(req: NextRequest): Promise<NextResponse> {
     const userId = dbUser?.id || email;
     await getOrSyncUserWallet(email);
 
+    const sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    const currentMeta = (dbUser?.metadata as any) || {};
+    const updatedMeta = { ...currentMeta, activeSessionId: sessionId };
+
+    await queryDb(
+      `UPDATE users SET metadata = $1::jsonb, updated_at = NOW() WHERE LOWER(email) = LOWER($2)`,
+      [JSON.stringify(updatedMeta), email]
+    );
+
     const accessSecret = sanitizeEnvValue(process.env.JWT_ACCESS_SECRET) || 'orion-jwt-access-secret-production-fallback';
     const refreshSecret = sanitizeEnvValue(process.env.JWT_REFRESH_SECRET) || 'orion-jwt-refresh-secret-production-fallback';
 
@@ -246,6 +255,7 @@ async function handleGoogleCallback(req: NextRequest): Promise<NextResponse> {
       status: dbUser?.status || 'ACTIVE',
       organizationId: dbUser?.organization_name || null,
       provider: 'google',
+      sessionId,
     };
 
     const accessToken = signJwt(userPayload, accessSecret, 24 * 3600);
@@ -1322,11 +1332,31 @@ async function getUserFromRequest(req: NextRequest) {
     }
   }
 
-  return { dbUser, walletData, tokenData, userIdentifier };
+  let isSessionSuperseded = false;
+  if (dbUser && tokenData?.sessionId) {
+    const dbActiveSessionId = (dbUser.metadata as any)?.activeSessionId;
+    if (dbActiveSessionId && tokenData.sessionId !== dbActiveSessionId) {
+      isSessionSuperseded = true;
+    }
+  }
+
+  return { dbUser, walletData, tokenData, userIdentifier, isSessionSuperseded };
 }
 
 async function handleGetUserProfile(req: NextRequest): Promise<NextResponse> {
-  const { dbUser, walletData, tokenData } = await getUserFromRequest(req);
+  const { dbUser, walletData, tokenData, isSessionSuperseded } = await getUserFromRequest(req);
+
+  if (isSessionSuperseded) {
+    return NextResponse.json(
+      {
+        success: false,
+        statusCode: 401,
+        code: 'SESSION_SUPERSEDED',
+        message: 'Your account has been logged in on another device. Please log in again.',
+      },
+      { status: 401 }
+    );
+  }
 
   const email = dbUser?.email || tokenData?.email || 'user@example.com';
   const firstName = dbUser?.first_name || tokenData?.firstName || '';

@@ -30,6 +30,7 @@ export class AuthTokenService {
     role: UserRole;
     status: UserStatus;
     organizationId?: string | null;
+    sessionId?: string;
   }): Promise<string> {
     const jwtPayload: IJwtPayload = {
       sub: payload.userId,
@@ -37,6 +38,7 @@ export class AuthTokenService {
       role: payload.role,
       status: payload.status,
       organizationId: payload.organizationId,
+      sessionId: payload.sessionId,
     };
 
     const secret = this.configService.get<string>('jwt.accessSecret');
@@ -92,6 +94,7 @@ export class AuthTokenService {
     role: UserRole;
     status: UserStatus;
     organizationId?: string | null;
+    sessionId?: string;
   }): Promise<ITokenPair> {
     const accessToken = await this.generateAccessToken({
       userId: user.id,
@@ -99,6 +102,7 @@ export class AuthTokenService {
       role: user.role,
       status: user.status,
       organizationId: user.organizationId,
+      sessionId: user.sessionId,
     });
 
     const { token: refreshToken } = await this.generateRefreshToken(user.id);

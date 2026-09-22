@@ -117,12 +117,18 @@ export class AuthService {
       return user;
     });
 
+    const sessionId = `sess_${Date.now()}_${CryptoUtil.sha256(Math.random().toString()).slice(0, 12)}`;
+    const regMetadata = (newUser.metadata as Record<string, any>) || {};
+    const updatedRegMeta = { ...regMetadata, activeSessionId: sessionId };
+    await this.userRepo.updateById(newUser.id, { metadata: updatedRegMeta });
+
     const tokens = await this.tokenService.generateTokenPair({
       id: newUser.id,
       email: newUser.email,
       role: newUser.role as UserRole,
       status: newUser.status as UserStatus,
       organizationId: newUser.organizationId,
+      sessionId,
     });
 
     // Store refresh token
@@ -156,7 +162,7 @@ export class AuthService {
   }
 
   /**
-   * Logs in an existing user with password verification
+   * Logs in an existing user with password verification (Enforcing Netflix-style Single Device Session)
    */
   async login(
     dto: LoginDto,
@@ -196,13 +202,28 @@ export class AuthService {
       );
     }
 
-    // Generate tokens
+    // Single-Device Login Enforcement: Revoke previous refresh tokens for this user
+    await this.userRepo.revokeAllUserRefreshTokens(user.id);
+
+    // Generate fresh single-device active session ID
+    const sessionId = `sess_${Date.now()}_${CryptoUtil.sha256(Math.random().toString()).slice(0, 12)}`;
+    const currentMeta = (user.metadata as Record<string, any>) || {};
+    const updatedMeta = { ...currentMeta, activeSessionId: sessionId };
+
+    // Save activeSessionId to user metadata and update last login
+    await this.userRepo.updateById(user.id, {
+      lastLoginAt: new Date(),
+      metadata: updatedMeta,
+    });
+
+    // Generate tokens containing single-device sessionId
     const tokens = await this.tokenService.generateTokenPair({
       id: user.id,
       email: user.email,
       role: user.role as UserRole,
       status: user.status as UserStatus,
       organizationId: user.organizationId,
+      sessionId,
     });
 
     // Save refresh token
@@ -274,6 +295,10 @@ export class AuthService {
     // Revoke used token
     await this.userRepo.revokeRefreshToken(storedToken.id);
 
+    // Maintain activeSessionId for single-device enforcement
+    const userMeta = (user.metadata as Record<string, any>) || {};
+    const sessionId = userMeta.activeSessionId;
+
     // Issue new pair
     const tokens = await this.tokenService.generateTokenPair({
       id: user.id,
@@ -281,6 +306,7 @@ export class AuthService {
       role: user.role as UserRole,
       status: user.status as UserStatus,
       organizationId: user.organizationId,
+      sessionId,
     });
 
     const newHash = CryptoUtil.sha256(tokens.refreshToken);

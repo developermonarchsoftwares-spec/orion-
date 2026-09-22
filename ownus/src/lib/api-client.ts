@@ -154,8 +154,23 @@ export class ApiClient {
 
     if (!response.ok) {
       const errorMsg = body?.message || body?.error || `HTTP ${response.status} - Request failed`;
+      const errorCode = body?.code || body?.details?.code;
+      const isSessionSuperseded = response.status === 401 && (
+        errorCode === 'SESSION_SUPERSEDED' ||
+        String(errorMsg).toLowerCase().includes('another device') ||
+        String(errorMsg).includes('SESSION_SUPERSEDED')
+      );
+
+      if (isSessionSuperseded) {
+        this.clearTokens();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('session_superseded', { detail: { message: errorMsg } }));
+        }
+      }
+
       const error = new Error(Array.isArray(errorMsg) ? errorMsg.join(', ') : errorMsg);
       (error as any).statusCode = response.status;
+      (error as any).code = errorCode;
       (error as any).details = body;
       throw error;
     }

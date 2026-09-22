@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { apiClient } from './api-client';
+import { toast } from 'sonner';
 
 export interface User {
   id: string;
@@ -150,6 +151,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refreshProfile();
+
+    const handleSessionSuperseded = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const message = customEvent?.detail?.message || 'Your session was ended because your account was logged in on another device.';
+      
+      setUser(null);
+      setWallet(null);
+      apiClient.clearTokens();
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('orion_wallet');
+        toast.error(message, { duration: 6000 });
+        window.location.href = '/login?reason=session_superseded';
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('session_superseded', handleSessionSuperseded);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('session_superseded', handleSessionSuperseded);
+      }
+    };
   }, [refreshProfile]);
 
   const handleOAuthTokens = useCallback(async (accessToken: string, refreshToken: string) => {

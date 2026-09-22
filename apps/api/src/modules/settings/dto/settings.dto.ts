@@ -87,3 +87,26 @@ export class UpdateBillingPreferencesDto {
   @IsString()
   billingAddress?: string;
 }
+
+export class UpdateAppPreferencesDto {
+  @ApiPropertyOptional({ example: '25 results' })
+  @IsOptional()
+  @IsString()
+  resultsPerPage?: string;
+
+  @ApiPropertyOptional({ example: 'Table View' })
+  @IsOptional()
+  @IsString()
+  defaultView?: string;
+
+  @ApiPropertyOptional({ example: 'India Standard Time (IST) - New Delhi, Kolkata' })
+  @IsOptional()
+  @IsString()
+  timezone?: string;
+
+  @ApiPropertyOptional({ example: 'DD/MM/YYYY' })
+  @IsOptional()
+  @IsString()
+  dateFormat?: string;
+}
+

@@ -39,6 +39,7 @@ export interface IJwtPayload {
   role: UserRole;
   status: UserStatus;
   organizationId?: string | null;
+  sessionId?: string;
   iat?: number;
   exp?: number;
 }
