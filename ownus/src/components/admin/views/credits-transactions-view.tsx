@@ -29,6 +29,7 @@ import {
   CustomerPlan 
 } from '@/types/admin';
 import { generateInvoicePdf } from '@/lib/invoice-generator';
+import { apiClient } from '@/lib/api-client';
 
 interface CreditsTransactionsViewProps {
   transactions: TransactionRecord[];
@@ -107,8 +108,13 @@ export const CreditsTransactionsView: React.FC<CreditsTransactionsViewProps> = (
     onUpdateTransactionStatus(tx.id, 'Cancelled', 'Cancelled by administrator');
   };
 
-  const handleDownloadInvoice = (tx: TransactionRecord) => {
-    generateInvoicePdf(tx);
+  const handleDownloadInvoice = async (tx: TransactionRecord) => {
+    try {
+      await apiClient.payments.downloadInvoice(tx);
+    } catch (err) {
+      console.warn('Backend API invoice download failed, using local PDF generator fallback:', err);
+      generateInvoicePdf(tx);
+    }
   };
 
   const handleExportCSV = () => {

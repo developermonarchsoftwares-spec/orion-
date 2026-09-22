@@ -1,9 +1,13 @@
+export const runtime = 'nodejs';
+
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { sendAdminOtpEmail, isAuthorizedAdminEmail } from '@/lib/email-service';
 import { dispatchUserNotification } from '@/lib/notification-dispatcher';
 import { queryDb } from '@/lib/db';
 import { DEFAULT_FILTER_CONFIG } from '@/lib/filter-options-store';
+import { generateInvoicePdfBuffer } from '@/lib/invoice-generator';
+import { TransactionRecord } from '@/types/admin';
 
 /**
  * Orion Production Gateway Proxy
@@ -3102,6 +3106,57 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
           totalPages: 1,
         },
         timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (
+      fullPath === 'payments/invoice/download' ||
+      fullPath === 'invoices/download' ||
+      fullPath === 'admin/invoices/download' ||
+      fullPath.startsWith('payments/invoice') ||
+      fullPath.startsWith('invoices/') ||
+      fullPath.startsWith('admin/invoices/')
+    ) {
+      const url = req.nextUrl;
+      const idParam = url.searchParams.get('id') || url.searchParams.get('txId') || '46c835ab-2c4b-4ca0-85c4-de66dd01a61d';
+      const receiptNo = url.searchParams.get('receiptNumber') || url.searchParams.get('receipt') || `RCP-${idParam.slice(0, 6).toUpperCase()}`;
+      const customerName = url.searchParams.get('customerName') || url.searchParams.get('name') || 'Kathir Rajput';
+      const customerEmail = url.searchParams.get('customerEmail') || url.searchParams.get('email') || 'google.mock.test@gmail.com';
+      const company = url.searchParams.get('company') || 'Monarch Softwares';
+      const plan = url.searchParams.get('plan') || 'Starter';
+      const amount = Number(url.searchParams.get('amount')) || 99;
+      const creditsPurchased = Number(url.searchParams.get('creditsPurchased')) || Number(url.searchParams.get('credits')) || 100;
+      const paymentMethod = url.searchParams.get('paymentMethod') || 'Razorpay UPI';
+      const date = url.searchParams.get('date') || new Date().toISOString().split('T')[0];
+
+      const tx: TransactionRecord = {
+        id: idParam,
+        receiptNumber: receiptNo,
+        customerId: 'CUST-001',
+        customerName,
+        customerEmail,
+        company,
+        plan: (plan as any) || 'Starter',
+        creditsPurchased,
+        creditsUsed: 0,
+        amount,
+        paymentMethod: (paymentMethod as any) || 'Razorpay UPI',
+        paymentStatus: 'Success',
+        date,
+        invoiceUrl: `/api/v1/invoices/download?id=${idParam}`,
+      };
+
+      const pdfBytes = generateInvoicePdfBuffer(tx);
+
+      return new NextResponse(Buffer.from(pdfBytes) as any, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="Invoice_${receiptNo}.pdf"`,
+          'Content-Length': String(pdfBytes.byteLength),
+          'Cache-Control': 'no-store, max-age=0, must-revalidate',
+          'Pragma': 'no-cache',
+        },
       });
     }
 

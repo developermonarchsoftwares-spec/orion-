@@ -1,224 +1,231 @@
 import jsPDF from 'jspdf';
 import { TransactionRecord } from '@/types/admin';
 
+export function createInvoiceJsPdfDoc(tx: TransactionRecord): jsPDF {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const primaryColor = [15, 23, 42]; // dark slate #0f172a
+  const textColor = [51, 65, 85]; // slate #334155
+  const lightBg = [248, 250, 252]; // slate-50
+
+  // Top Header Banner
+  doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.rect(0, 0, 210, 32, 'F');
+
+  // Title / Brand Name in Header
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(20);
+  doc.text('ORION DATA PLATFORM', 14, 18);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(203, 213, 225);
+  doc.text('Monarch Softwares Product Labs • GSTIN: 29AABCU9603R1ZM', 14, 25);
+
+  // TAX INVOICE Header Label
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.text('TAX INVOICE / RECEIPT', 140, 18, { align: 'left' });
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(203, 213, 225);
+  doc.text(`ORIGINAL FOR RECIPIENT`, 140, 25);
+
+  // Metadata Section Box
+  let y = 42;
+
+  doc.setFillColor(lightBg[0], lightBg[1], lightBg[2]);
+  doc.roundedRect(14, y, 182, 35, 2, 2, 'F');
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(14, y, 182, 35, 2, 2, 'D');
+
+  // Left Box: Billed To
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.text('BILLED TO:', 18, y + 8);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text(tx.customerName || 'Valued Customer', 18, y + 15);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+  doc.text(`Company: ${tx.company || 'N/A'}`, 18, y + 21);
+  doc.text(`Email: ${tx.customerEmail || 'N/A'}`, 18, y + 27);
+
+  // Right Box: Invoice Meta Details
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
+  doc.text('INVOICE NO:', 120, y + 8);
+  doc.text('DATE & TIME:', 120, y + 14);
+  doc.text('TRANSACTION ID:', 120, y + 20);
+  doc.text('PAYMENT METHOD:', 120, y + 26);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(tx.receiptNumber || `RCP-${tx.id.slice(0, 6)}`, 155, y + 8);
+  doc.setFont('helvetica', 'normal');
+  doc.text(tx.date || new Date().toISOString().split('T')[0], 155, y + 14);
+  doc.text(tx.id || 'TXN-999', 155, y + 20);
+  doc.text(tx.paymentMethod || 'Razorpay UPI', 155, y + 26);
+
+  // Itemized Table Header
+  y = 86;
+  doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.rect(14, y, 182, 9, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.text('ITEM DESCRIPTION', 18, y + 6);
+  doc.text('QTY / CREDITS', 110, y + 6, { align: 'center' });
+  doc.text('SAC / HSN', 145, y + 6, { align: 'center' });
+  doc.text('AMOUNT (INR)', 190, y + 6, { align: 'right' });
+
+  // Table Content Row 1
+  y = 95;
+  doc.setFillColor(255, 255, 255);
+  doc.rect(14, y, 182, 14, 'F');
+  doc.setDrawColor(226, 232, 240);
+  doc.line(14, y + 14, 196, y + 14);
+
+  const totalAmount = tx.amount || 0;
+  const baseAmount = Math.round((totalAmount / 1.18) * 100) / 100;
+  const gstAmount = Math.round((totalAmount - baseAmount) * 100) / 100;
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.text(`Orion Platform ${tx.plan || 'Starter'} Plan - Credits Package`, 18, y + 6);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Includes ${tx.creditsPurchased.toLocaleString()} B2B Lead Unlock Credits`, 18, y + 11);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(9.5);
+  doc.text(`+${tx.creditsPurchased.toLocaleString()}`, 110, y + 8, { align: 'center' });
+  doc.text('998313', 145, y + 8, { align: 'center' });
+  doc.text(`Rs. ${baseAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 190, y + 8, { align: 'right' });
+
+  // Calculation Summary Table
+  y = 118;
+
+  doc.setFillColor(lightBg[0], lightBg[1], lightBg[2]);
+  doc.roundedRect(110, y, 86, 42, 2, 2, 'F');
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(110, y, 86, 42, 2, 2, 'D');
+
+  let sumY = y + 8;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(71, 85, 105);
+  doc.text('Subtotal (Base Value):', 114, sumY);
+  doc.text(`Rs. ${baseAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 192, sumY, { align: 'right' });
+
+  sumY += 7;
+  doc.text('IGST @ 18%:', 114, sumY);
+  doc.text(`Rs. ${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 192, sumY, { align: 'right' });
+
+  sumY += 7;
+  doc.setDrawColor(203, 213, 225);
+  doc.line(114, sumY - 2, 192, sumY - 2);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text('TOTAL AMOUNT PAID:', 114, sumY + 5);
+  doc.setTextColor(37, 99, 235);
+  doc.text(`Rs. ${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 192, sumY + 5, { align: 'right' });
+
+  // Payment Status Stamp Box
+  y = 118;
+  doc.setFillColor(240, 253, 244); // light green bg
+  doc.roundedRect(14, y, 88, 42, 2, 2, 'F');
+  doc.setDrawColor(187, 247, 208);
+  doc.roundedRect(14, y, 88, 42, 2, 2, 'D');
+
+  doc.setTextColor(22, 101, 52); // green-800
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text('PAYMENT STATUS: COMPLETED', 18, y + 10);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Verified via ${tx.paymentMethod}`, 18, y + 17);
+  doc.text(`Transaction Reference: ${tx.id}`, 18, y + 23);
+  doc.text('Thank you for subscribing to Orion Data Platform.', 18, y + 33);
+
+  // Terms & Declaration Section
+  y = 170;
+  doc.setDrawColor(226, 232, 240);
+  doc.line(14, y, 196, y);
+
+  y += 6;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(71, 85, 105);
+  doc.text('TERMS & CONDITIONS & STATUTORY NOTES:', 14, y);
+
+  y += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text('1. All platform credits purchased are non-transferable and subject to Orion Terms of Service.', 14, y);
+  doc.text('2. This document is a computer-generated Tax Invoice and requires no physical signature under Indian IT Act 2000.', 14, y + 4);
+  doc.text('3. For billing support, GST invoicing queries, or Enterprise tax compliance, email sales@monarchsoftwares.com.', 14, y + 8);
+
+  // Authorized Signatory Stamp Box
+  doc.setDrawColor(203, 213, 225);
+  doc.line(145, y + 22, 192, y + 22);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text('For MONARCH SOFTWARES LTD', 145, y + 26);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text('Authorized Finance Signatory', 145, y + 30);
+
+  // Footer Copyright
+  doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.rect(0, 280, 210, 17, 'F');
+
+  doc.setTextColor(203, 213, 225);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text('Orion Lead Intelligence Platform • Monarch Softwares Product Labs', 105, 288, { align: 'center' });
+  doc.text('Support & Queries: sales@monarchsoftwares.com • Website: https://orion.ai', 105, 292, { align: 'center' });
+
+  return doc;
+}
+
+export function generateInvoicePdfBuffer(tx: TransactionRecord): Uint8Array {
+  const doc = createInvoiceJsPdfDoc(tx);
+  return new Uint8Array(doc.output('arraybuffer'));
+}
+
 export function generateInvoicePdf(tx: TransactionRecord) {
   try {
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4',
-    });
-
-    const primaryColor = [15, 23, 42]; // dark slate #0f172a
-    const accentColor = [59, 130, 246]; // blue #3b82f6
-    const textColor = [51, 65, 85]; // slate #334155
-    const lightBg = [248, 250, 252]; // slate-50
-
-    // Top Header Banner
-    doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.rect(0, 0, 210, 32, 'F');
-
-    // Title / Brand Name in Header
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(20);
-    doc.text('ORION DATA PLATFORM', 14, 18);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(203, 213, 225);
-    doc.text('Monarch Softwares Product Labs • GSTIN: 29AABCU9603R1ZM', 14, 25);
-
-    // TAX INVOICE Header Label
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.text('TAX INVOICE / RECEIPT', 140, 18, { align: 'left' });
-
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(203, 213, 225);
-    doc.text(`ORIGINAL FOR RECIPIENT`, 140, 25);
-
-    // Metadata Section Box
-    let y = 42;
-
-    doc.setFillColor(lightBg[0], lightBg[1], lightBg[2]);
-    doc.roundedRect(14, y, 182, 35, 2, 2, 'F');
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(14, y, 182, 35, 2, 2, 'D');
-
-    // Left Box: Billed To
-    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text('BILLED TO:', 18, y + 8);
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(15, 23, 42);
-    doc.text(tx.customerName || 'Valued Customer', 18, y + 15);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
-    doc.text(`Company: ${tx.company || 'N/A'}`, 18, y + 21);
-    doc.text(`Email: ${tx.customerEmail || 'N/A'}`, 18, y + 27);
-
-    // Right Box: Invoice Meta Details
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(100, 116, 139);
-    doc.text('INVOICE NO:', 120, y + 8);
-    doc.text('DATE & TIME:', 120, y + 14);
-    doc.text('TRANSACTION ID:', 120, y + 20);
-    doc.text('PAYMENT METHOD:', 120, y + 26);
-
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(15, 23, 42);
-    doc.text(tx.receiptNumber || `RCP-${tx.id.slice(0, 6)}`, 155, y + 8);
-    doc.setFont('helvetica', 'normal');
-    doc.text(tx.date || new Date().toISOString().split('T')[0], 155, y + 14);
-    doc.text(tx.id || 'TXN-999', 155, y + 20);
-    doc.text(tx.paymentMethod || 'Razorpay UPI', 155, y + 26);
-
-    // Itemized Table Header
-    y = 86;
-    doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.rect(14, y, 182, 9, 'F');
-
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text('ITEM DESCRIPTION', 18, y + 6);
-    doc.text('QTY / CREDITS', 110, y + 6, { align: 'center' });
-    doc.text('SAC / HSN', 145, y + 6, { align: 'center' });
-    doc.text('AMOUNT (INR)', 190, y + 6, { align: 'right' });
-
-    // Table Content Row 1
-    y = 95;
-    doc.setFillColor(255, 255, 255);
-    doc.rect(14, y, 182, 14, 'F');
-    doc.setDrawColor(226, 232, 240);
-    doc.line(14, y + 14, 196, y + 14);
-
-    const totalAmount = tx.amount || 0;
-    const baseAmount = Math.round((totalAmount / 1.18) * 100) / 100;
-    const gstAmount = Math.round((totalAmount - baseAmount) * 100) / 100;
-
-    doc.setTextColor(15, 23, 42);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text(`Orion Platform ${tx.plan || 'Starter'} Plan - Credits Package`, 18, y + 6);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text(`Includes ${tx.creditsPurchased.toLocaleString()} B2B Lead Unlock Credits`, 18, y + 11);
-
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(15, 23, 42);
-    doc.setFontSize(9.5);
-    doc.text(`+${tx.creditsPurchased.toLocaleString()}`, 110, y + 8, { align: 'center' });
-    doc.text('998313', 145, y + 8, { align: 'center' });
-    doc.text(`Rs. ${baseAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 190, y + 8, { align: 'right' });
-
-    // Calculation Summary Table
-    y = 118;
-
-    doc.setFillColor(lightBg[0], lightBg[1], lightBg[2]);
-    doc.roundedRect(110, y, 86, 42, 2, 2, 'F');
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(110, y, 86, 42, 2, 2, 'D');
-
-    let sumY = y + 8;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(71, 85, 105);
-    doc.text('Subtotal (Base Value):', 114, sumY);
-    doc.text(`Rs. ${baseAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 192, sumY, { align: 'right' });
-
-    sumY += 7;
-    doc.text('IGST @ 18%:', 114, sumY);
-    doc.text(`Rs. ${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 192, sumY, { align: 'right' });
-
-    sumY += 7;
-    doc.setDrawColor(203, 213, 225);
-    doc.line(114, sumY - 2, 192, sumY - 2);
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(15, 23, 42);
-    doc.text('TOTAL AMOUNT PAID:', 114, sumY + 5);
-    doc.setTextColor(37, 99, 235);
-    doc.text(`Rs. ${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 192, sumY + 5, { align: 'right' });
-
-    // Payment Status Stamp Box
-    y = 118;
-    doc.setFillColor(240, 253, 244); // light green bg
-    doc.roundedRect(14, y, 88, 42, 2, 2, 'F');
-    doc.setDrawColor(187, 247, 208);
-    doc.roundedRect(14, y, 88, 42, 2, 2, 'D');
-
-    doc.setTextColor(22, 101, 52); // green-800
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.text('PAYMENT STATUS: COMPLETED', 18, y + 10);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(71, 85, 105);
-    doc.text(`Verified via ${tx.paymentMethod}`, 18, y + 17);
-    doc.text(`Transaction Reference: ${tx.id}`, 18, y + 23);
-    doc.text('Thank you for subscribing to Orion Data Platform.', 18, y + 33);
-
-    // Terms & Declaration Section
-    y = 170;
-    doc.setDrawColor(226, 232, 240);
-    doc.line(14, y, 196, y);
-
-    y += 6;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(71, 85, 105);
-    doc.text('TERMS & CONDITIONS & STATUTORY NOTES:', 14, y);
-
-    y += 5;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(100, 116, 139);
-    doc.text('1. All platform credits purchased are non-transferable and subject to Orion Terms of Service.', 14, y);
-    doc.text('2. This document is a computer-generated Tax Invoice and requires no physical signature under Indian IT Act 2000.', 14, y + 4);
-    doc.text('3. For billing support, GST invoicing queries, or Enterprise tax compliance, email sales@monarchsoftwares.com.', 14, y + 8);
-
-    // Authorized Signatory Stamp Box
-    doc.setDrawColor(203, 213, 225);
-    doc.line(145, y + 22, 192, y + 22);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(15, 23, 42);
-    doc.text('For MONARCH SOFTWARES LTD', 145, y + 26);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text('Authorized Finance Signatory', 145, y + 30);
-
-    // Footer Copyright
-    doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.rect(0, 280, 210, 17, 'F');
-
-    doc.setTextColor(203, 213, 225);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.text('Orion Lead Intelligence Platform • Monarch Softwares Product Labs', 105, 288, { align: 'center' });
-    doc.text('Support & Queries: sales@monarchsoftwares.com • Website: https://orion.ai', 105, 292, { align: 'center' });
-
-    // Save PDF
+    const doc = createInvoiceJsPdfDoc(tx);
     const filename = `Invoice_${tx.receiptNumber || tx.id}.pdf`;
     doc.save(filename);
   } catch (err) {
     console.error('Failed to generate PDF invoice with jsPDF:', err);
-    // Fallback: Formatted Printable HTML Window
     openPrintableInvoiceWindow(tx);
   }
 }

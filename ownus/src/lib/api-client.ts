@@ -310,6 +310,53 @@ export class ApiClient {
     createOrder: (dto: any) => this.request('/payments/create-order', { method: 'POST', body: JSON.stringify(dto) }),
     verify: (dto: any) => this.request('/payments/verify', { method: 'POST', body: JSON.stringify(dto) }),
     getHistory: () => this.request('/payments/history'),
+    downloadInvoice: async (tx: any) => {
+      const baseUrl = getApiBaseUrl();
+      const params = new URLSearchParams({
+        id: tx.id || 'TXN-999',
+        receiptNumber: tx.receiptNumber || tx.receipt || `RCP-${(tx.id || '999').slice(0, 6)}`,
+        customerName: tx.customerName || 'Valued Customer',
+        customerEmail: tx.customerEmail || 'customer@example.com',
+        company: tx.company || 'N/A',
+        plan: tx.plan || 'Starter',
+        amount: String(tx.amount || 0),
+        creditsPurchased: String(tx.creditsPurchased || tx.credits || 100),
+        paymentMethod: tx.paymentMethod || 'Razorpay UPI',
+        date: tx.date || new Date().toISOString().split('T')[0],
+      });
+
+      const url = `${baseUrl}/invoices/download?${params.toString()}`;
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'application/pdf',
+          ...(this.getAccessToken() ? { 'Authorization': `Bearer ${this.getAccessToken()}` } : {}),
+        },
+      });
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok || contentType.includes('application/json')) {
+        let errorMsg = 'Failed to download invoice PDF';
+        try {
+          const json = await response.json();
+          errorMsg = json.message || json.error || errorMsg;
+        } catch {
+          // Ignore
+        }
+        throw new Error(errorMsg);
+      }
+
+      const blob = await response.blob();
+      const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `Invoice_${tx.receiptNumber || tx.receipt || tx.id || 'RECEIPT'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      return true;
+    },
   };
 
   dashboard = {

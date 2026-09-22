@@ -691,7 +691,25 @@ export default function CreditsPage() {
                             </td>
                             <td className="px-6 py-3.5 text-right">
                               <button
-                                onClick={() => toast.success(`Downloaded invoice INV-2026-${String(i + 1).padStart(3, "0")}`)}
+                                onClick={async () => {
+                                  try {
+                                    await apiClient.payments.downloadInvoice({
+                                      id: inv.id || `inv_${i + 1}`,
+                                      receiptNumber: `INV-2026-${String(i + 1).padStart(3, "0")}`,
+                                      customerName: "Valued Customer",
+                                      customerEmail: "user@example.com",
+                                      company: "Orion Customer",
+                                      plan: inv.description?.includes("Growth") ? "Growth" : inv.description?.includes("Agency") ? "Agency" : "Starter",
+                                      amount: inv.amount || 99,
+                                      creditsPurchased: inv.credits || 100,
+                                      paymentMethod: "Razorpay UPI",
+                                      date: inv.date || new Date().toISOString().split("T")[0],
+                                    });
+                                    toast.success(`Downloaded invoice INV-2026-${String(i + 1).padStart(3, "0")}`);
+                                  } catch (err: any) {
+                                    toast.error(err?.message || "Failed to download invoice");
+                                  }
+                                }}
                                 className="text-zinc-900 dark:text-zinc-100 hover:underline inline-flex items-center gap-1 text-xs font-semibold cursor-pointer"
                               >
                                 <Download className="w-3.5 h-3.5" />
