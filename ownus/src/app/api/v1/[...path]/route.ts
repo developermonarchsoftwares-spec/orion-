@@ -1342,11 +1342,12 @@ async function handleGetUserProfile(req: NextRequest): Promise<NextResponse> {
       lastName,
       name: fullName,
       displayName: fullName,
-      avatarUrl: dbUser?.avatar_url || null,
+      avatarUrl: dbUser?.avatar_url || dbUser?.profile_picture || null,
       role: dbUser?.role || 'USER',
       status: dbUser?.status || 'ACTIVE',
       organizationName: dbUser?.organization_name || null,
       companyName: dbUser?.organization_name || null,
+      jobTitle: (dbUser?.metadata as any)?.jobTitle || null,
       phone: dbUser?.phone_number || null,
       phoneNumber: dbUser?.phone_number || null,
       isEmailVerified: dbUser?.is_email_verified ?? true,
@@ -1433,6 +1434,7 @@ async function handleUpdateUserProfile(req: NextRequest): Promise<NextResponse> 
   const organizationName = body.companyName || body.organizationName;
   const phone = body.phone || body.phoneNumber;
   const jobTitle = body.jobTitle;
+  const avatarUrl = body.avatarUrl || body.avatar_url;
 
   const currentMeta = (dbUser?.metadata as any) || {};
   let updatedMeta = { ...currentMeta };
@@ -1447,9 +1449,11 @@ async function handleUpdateUserProfile(req: NextRequest): Promise<NextResponse> 
          display_name = COALESCE($3, display_name),
          organization_name = COALESCE($4, organization_name),
          phone_number = COALESCE($5, phone_number),
-         metadata = $6::jsonb,
+         avatar_url = COALESCE($6, avatar_url),
+         profile_picture = COALESCE($6, profile_picture),
+         metadata = $7::jsonb,
          updated_at = NOW()
-     WHERE id = $7 OR (email IS NOT NULL AND LOWER(email) = LOWER($8))
+     WHERE id = $8 OR (email IS NOT NULL AND LOWER(email) = LOWER($9))
      RETURNING *`,
     [
       firstName || null,
@@ -1457,6 +1461,7 @@ async function handleUpdateUserProfile(req: NextRequest): Promise<NextResponse> 
       displayName || null,
       organizationName || null,
       phone || null,
+      avatarUrl || null,
       JSON.stringify(updatedMeta),
       userId || '00000000-0000-0000-0000-000000000000',
       email || '',
@@ -1476,11 +1481,59 @@ async function handleUpdateUserProfile(req: NextRequest): Promise<NextResponse> 
       lastName: updatedUser.last_name,
       name: updatedUser.display_name || `${updatedUser.first_name || ''} ${updatedUser.last_name || ''}`.trim(),
       displayName: updatedUser.display_name,
+      avatarUrl: updatedUser.avatar_url || updatedUser.profile_picture || null,
       organizationName: updatedUser.organization_name,
       companyName: updatedUser.organization_name,
+      jobTitle: (updatedUser.metadata as any)?.jobTitle || null,
       phone: updatedUser.phone_number,
       phoneNumber: updatedUser.phone_number,
       metadata: updatedUser.metadata,
+    },
+    timestamp: new Date().toISOString(),
+  });
+}
+
+async function handleUploadUserAvatar(req: NextRequest): Promise<NextResponse> {
+  const { dbUser, walletData } = await getUserFromRequest(req);
+  const userId = dbUser?.id || walletData.userId;
+  const email = dbUser?.email;
+
+  if (!userId && !email) {
+    return NextResponse.json({ success: false, statusCode: 401, message: 'Unauthorized' }, { status: 401 });
+  }
+
+  let body: any = {};
+  try {
+    body = await req.json();
+  } catch {}
+
+  const image = body.image || body.avatarUrl || body.avatar_url || body.data;
+  if (!image || typeof image !== 'string') {
+    return NextResponse.json({ success: false, statusCode: 400, message: 'Image data is required' }, { status: 400 });
+  }
+
+  const rows = await queryDb(
+    `UPDATE users
+     SET avatar_url = $1,
+         profile_picture = $1,
+         updated_at = NOW()
+     WHERE id = $2 OR (email IS NOT NULL AND LOWER(email) = LOWER($3))
+     RETURNING *`,
+    [image, userId || '00000000-0000-0000-0000-000000000000', email || '']
+  );
+
+  const updatedUser = rows[0] || dbUser;
+  const newAvatarUrl = updatedUser?.avatar_url || image;
+
+  return NextResponse.json({
+    success: true,
+    statusCode: 200,
+    message: 'Profile photo updated successfully in database',
+    data: {
+      avatarUrl: newAvatarUrl,
+      profilePicture: newAvatarUrl,
+      id: updatedUser?.id,
+      email: updatedUser?.email,
     },
     timestamp: new Date().toISOString(),
   });
@@ -1716,6 +1769,10 @@ async function proxyRequest(
     } else if (req.method === 'PATCH' || req.method === 'PUT' || req.method === 'POST') {
       return await handleUpdateUserProfile(req);
     }
+  }
+
+  if (fullPath === 'user/avatar' || fullPath === 'user/upload-avatar') {
+    return await handleUploadUserAvatar(req);
   }
 
   if (fullPath === 'settings') {

@@ -10,11 +10,14 @@ export interface User {
   lastName?: string;
   name?: string;
   displayName?: string;
-  avatarUrl?: string;
+  avatarUrl?: string | null;
   role: string;
   status: string;
   organizationName?: string | null;
   companyName?: string | null;
+  jobTitle?: string | null;
+  phone?: string | null;
+  phoneNumber?: string | null;
   isEmailVerified: boolean;
   provider?: string;
   googleLinked?: boolean;
@@ -83,10 +86,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           lastName: profile.lastName,
           name: profile.name || profile.displayName || (profile.firstName ? `${profile.firstName} ${profile.lastName || ''}`.trim() : undefined),
           displayName: profile.displayName || (profile.firstName ? `${profile.firstName} ${profile.lastName || ''}`.trim() : undefined),
-          avatarUrl: profile.avatarUrl,
+          avatarUrl: profile.avatarUrl || null,
           role: profile.role,
           status: profile.status,
-          organizationName: profile.organizationName,
+          organizationName: profile.organizationName || profile.companyName || null,
+          companyName: profile.companyName || profile.organizationName || null,
+          jobTitle: profile.jobTitle || (profile.metadata as any)?.jobTitle || null,
+          phone: profile.phone || profile.phoneNumber || null,
+          phoneNumber: profile.phoneNumber || profile.phone || null,
           isEmailVerified: profile.isEmailVerified,
           provider: profile.provider,
           googleLinked: profile.googleLinked,

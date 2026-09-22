@@ -404,9 +404,13 @@ export function Topbar() {
               setDropdownOpen(!dropdownOpen);
               setNotificationsOpen(false);
             }}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-900 dark:bg-white text-xs font-bold text-white dark:text-zinc-900 hover:opacity-90 transition-opacity cursor-pointer"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-900 dark:bg-white text-xs font-bold text-white dark:text-zinc-900 hover:opacity-90 transition-opacity cursor-pointer overflow-hidden"
           >
-            {initials}
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt={displayName} className="h-full w-full object-cover" />
+            ) : (
+              initials
+            )}
           </button>
 
           {dropdownOpen && (

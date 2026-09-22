@@ -45,8 +45,19 @@ export class UserService {
     }
 
     const { passwordHash, twoFactorSecret, ...sanitized } = user;
+    const metadata = (user.metadata as Record<string, any>) || {};
+    const name = user.displayName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email.split('@')[0];
+
     return {
       ...sanitized,
+      name,
+      displayName: user.displayName || name,
+      companyName: user.organizationName || metadata.companyName || null,
+      organizationName: user.organizationName || metadata.companyName || null,
+      jobTitle: metadata.jobTitle || null,
+      phone: user.phoneNumber || null,
+      phoneNumber: user.phoneNumber || null,
+      avatarUrl: user.avatarUrl || user.profilePicture || null,
       googleLinked: !!user.googleId,
       microsoftLinked: !!user.microsoftId,
       hasPassword: passwordHash !== null && passwordHash !== '',
@@ -71,19 +82,61 @@ export class UserService {
       throw new BusinessException('User not found', 'USER_NOT_FOUND', HttpStatus.NOT_FOUND);
     }
 
-    const [updated] = await this.db
+    const rawName = dto.name || dto.displayName;
+    let firstName = dto.firstName;
+    let lastName = dto.lastName;
+    if (rawName && (firstName === undefined || lastName === undefined)) {
+      const parts = rawName.split(' ');
+      firstName = parts[0] || '';
+      lastName = parts.slice(1).join(' ') || '';
+    }
+
+    const displayName = dto.displayName || dto.name || (firstName ? `${firstName} ${lastName || ''}`.trim() : user.displayName);
+    const organizationName = dto.organizationName !== undefined ? dto.organizationName : (dto.companyName !== undefined ? dto.companyName : user.organizationName);
+    const phoneNumber = dto.phoneNumber !== undefined ? dto.phoneNumber : (dto.phone !== undefined ? dto.phone : user.phoneNumber);
+    const avatarUrl = dto.avatarUrl !== undefined ? dto.avatarUrl : (dto.profilePicture !== undefined ? dto.profilePicture : user.avatarUrl);
+
+    const currentMeta = (user.metadata as Record<string, any>) || {};
+    let updatedMeta = { ...currentMeta };
+    if (dto.jobTitle !== undefined) {
+      updatedMeta.jobTitle = dto.jobTitle;
+    }
+
+    await this.db
       .update(schema.users)
       .set({
-        firstName: dto.firstName !== undefined ? dto.firstName : user.firstName,
-        lastName: dto.lastName !== undefined ? dto.lastName : user.lastName,
-        displayName: dto.displayName !== undefined ? dto.displayName : user.displayName,
-        phoneNumber: dto.phoneNumber !== undefined ? dto.phoneNumber : user.phoneNumber,
-        organizationName: dto.organizationName !== undefined ? dto.organizationName : user.organizationName,
-        avatarUrl: dto.avatarUrl !== undefined ? dto.avatarUrl : user.avatarUrl,
+        firstName: firstName !== undefined ? firstName : user.firstName,
+        lastName: lastName !== undefined ? lastName : user.lastName,
+        displayName: displayName !== undefined ? displayName : user.displayName,
+        phoneNumber: phoneNumber !== undefined ? phoneNumber : user.phoneNumber,
+        organizationName: organizationName !== undefined ? organizationName : user.organizationName,
+        avatarUrl: avatarUrl !== undefined ? avatarUrl : user.avatarUrl,
+        profilePicture: avatarUrl !== undefined ? avatarUrl : user.profilePicture,
+        metadata: updatedMeta,
         updatedAt: new Date(),
       })
-      .where(eq(schema.users.id, userId))
-      .returning();
+      .where(eq(schema.users.id, userId));
+
+    return this.getProfile(userId);
+  }
+
+  /**
+   * Uploads or updates profile photo avatar
+   */
+  async uploadAvatar(userId: string, image: string) {
+    const user = await this.userRepo.findById(userId);
+    if (!user) {
+      throw new BusinessException('User not found', 'USER_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    await this.db
+      .update(schema.users)
+      .set({
+        avatarUrl: image,
+        profilePicture: image,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.users.id, userId));
 
     return this.getProfile(userId);
   }

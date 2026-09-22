@@ -194,6 +194,28 @@ export class ApiClient {
   user = {
     getProfile: () => this.request('/user/profile'),
     updateProfile: (dto: any) => this.request('/user/profile', { method: 'PATCH', body: JSON.stringify(dto) }),
+    uploadAvatar: async (file: File | string) => {
+      if (typeof file === 'string') {
+        return this.request('/user/avatar', { method: 'POST', body: JSON.stringify({ image: file }) });
+      }
+      return new Promise<any>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const base64Data = reader.result as string;
+            const res = await this.request('/user/avatar', {
+              method: 'POST',
+              body: JSON.stringify({ image: base64Data, mimeType: file.type, fileName: file.name }),
+            });
+            resolve(res);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = () => reject(new Error('Failed to read image file'));
+        reader.readAsDataURL(file);
+      });
+    },
     changePassword: (dto: any) => this.request('/user/change-password', { method: 'POST', body: JSON.stringify(dto) }),
     updateSettings: (dto: any) => this.request('/user/settings', { method: 'PATCH', body: JSON.stringify(dto) }),
   };

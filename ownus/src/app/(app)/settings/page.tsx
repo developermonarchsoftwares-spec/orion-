@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { User, Lock, Bell, CreditCard, Settings2, Palette, Code, Check, Copy, RefreshCw, Loader2 } from "lucide-react";
@@ -58,7 +58,9 @@ export default function SettingsPage() {
   const { user, refreshProfile } = useAuth();
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [unlinkingProvider, setUnlinkingProvider] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Profile Form State
   const [fullName, setFullName] = useState("");
@@ -66,6 +68,7 @@ export default function SettingsPage() {
   const [companyName, setCompanyName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [phone, setPhone] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   // Password Form State
   const [currentPassword, setCurrentPassword] = useState("");
@@ -92,13 +95,15 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (user) {
-      setFullName(user.name || "");
+      setFullName(user.name || user.displayName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || "");
       setEmail(user.email || "");
       setCompanyName(user.companyName || user.organizationName || "");
-      if ((user as any).phone) setPhone((user as any).phone);
+      if (user.jobTitle) setJobTitle(user.jobTitle);
+      if (user.phone || user.phoneNumber) setPhone(user.phone || user.phoneNumber || "");
+      if (user.avatarUrl) setAvatarUrl(user.avatarUrl);
     }
 
-    // Load full settings
+    // Load full settings from single source of truth
     apiClient.settings.getSettings().then((res) => {
       if (res?.company) {
         if (res.company.companyName) setCompanyName(res.company.companyName);
@@ -122,17 +127,59 @@ export default function SettingsPage() {
     });
   }, [user]);
 
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error("Please select a valid image file (JPG, PNG, GIF, WebP).");
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image file size exceeds 2MB limit.");
+      return;
+    }
+
+    setUploadingPhoto(true);
+    try {
+      const res = await apiClient.user.uploadAvatar(file);
+      const newUrl = res?.avatarUrl || res?.data?.avatarUrl || res?.url;
+      if (newUrl) {
+        setAvatarUrl(newUrl);
+        await refreshProfile();
+        toast.success("Profile photo updated successfully!");
+      } else {
+        throw new Error("Invalid response from server when uploading image");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload profile photo");
+    } finally {
+      setUploadingPhoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   const handleSaveProfile = async () => {
     setLoading(true);
     try {
-      await apiClient.user.updateProfile({ name: fullName, companyName, phone, jobTitle });
+      await apiClient.user.updateProfile({ 
+        name: fullName, 
+        displayName: fullName,
+        companyName, 
+        organizationName: companyName,
+        phone, 
+        phoneNumber: phone,
+        jobTitle,
+        avatarUrl: avatarUrl || undefined,
+      });
       await apiClient.settings.updateCompany({
         companyName,
         phone,
         jobTitle,
       });
       await refreshProfile();
-      toast.success("Profile and company details updated successfully!");
+      toast.success("Profile details updated successfully!");
     } catch (err: any) {
       toast.error(err.message || "Failed to update profile");
     } finally {
@@ -263,14 +310,31 @@ export default function SettingsPage() {
               <div>
                 <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100 mb-4">Profile Information</h2>
                 <div className="flex items-center gap-6">
-                  <div className="w-16 h-16 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center text-xl font-bold shadow-xs">
-                    {getInitials(fullName || user?.name || "Orion User")}
+                  <div className="w-16 h-16 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center text-xl font-bold shadow-xs overflow-hidden">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      getInitials(fullName || user?.name || "Orion User")
+                    )}
                   </div>
                   <div>
-                    <button className="px-3.5 py-1.5 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors cursor-pointer">
-                      Change Photo
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handlePhotoSelect}
+                      accept="image/png, image/jpeg, image/gif, image/webp"
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingPhoto}
+                      className="px-3.5 py-1.5 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {uploadingPhoto && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      {uploadingPhoto ? "Uploading..." : "Change Photo"}
                     </button>
-                    <p className="text-[11px] text-zinc-500 mt-1.5">JPG, GIF or PNG. Max size of 2MB.</p>
+                    <p className="text-[11px] text-zinc-500 mt-1.5">JPG, GIF, PNG or WebP. Max size of 2MB.</p>
                   </div>
                 </div>
               </div>

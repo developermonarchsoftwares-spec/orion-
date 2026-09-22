@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { UserService } from './user.service';
-import { UpdateProfileDto, ChangePasswordDto, UpdateUserSettingsDto } from './dto/user.dto';
+import { UpdateProfileDto, UploadAvatarDto, ChangePasswordDto, UpdateUserSettingsDto } from './dto/user.dto';
 import { CurrentUser } from '../../auth/decorators';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { IJwtPayload } from '@orion/shared';
@@ -44,6 +44,17 @@ export class UserController {
     @Body() dto: UpdateProfileDto,
   ) {
     return this.userService.updateProfile(user.sub, dto);
+  }
+
+  @Post('avatar')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Upload profile photo avatar' })
+  @ApiResponse({ status: 200, description: 'Avatar updated successfully' })
+  async uploadAvatar(
+    @CurrentUser() user: IJwtPayload,
+    @Body() dto: UploadAvatarDto,
+  ) {
+    return this.userService.uploadAvatar(user.sub, dto.image);
   }
 
   @Post('change-password')
