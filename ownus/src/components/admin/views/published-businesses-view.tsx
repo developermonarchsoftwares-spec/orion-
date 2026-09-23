@@ -1,4 +1,5 @@
 'use client';
+import { Linkedin } from '@/components/ui/linkedin-icon';
 
 import React, { useState, useMemo } from 'react';
 import { 
@@ -380,6 +381,19 @@ export const PublishedBusinessesView: React.FC<PublishedBusinessesViewProps> = (
                             <div className="text-[10px] text-zinc-500 flex items-center gap-1 truncate max-w-[180px]">
                               <Mail className="w-3 h-3 text-zinc-400" />
                               {record.email}
+                            </div>
+                          )}
+                          {(record.linkedin || record.linkedin_url || (record as any).linkedInUrl) && (
+                            <div className="text-[10px] text-[#0A66C2] flex items-center gap-1 truncate max-w-[180px] mt-0.5">
+                              <Linkedin className="w-3 h-3" />
+                              <a
+                                href={String(record.linkedin || record.linkedin_url || (record as any).linkedInUrl).startsWith('http') ? String(record.linkedin || record.linkedin_url || (record as any).linkedInUrl) : `https://${record.linkedin || record.linkedin_url || (record as any).linkedInUrl}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="hover:underline truncate"
+                              >
+                                LinkedIn
+                              </a>
                             </div>
                           )}
                         </td>

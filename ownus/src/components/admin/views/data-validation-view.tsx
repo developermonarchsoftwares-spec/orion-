@@ -1,4 +1,5 @@
 'use client';
+import { Linkedin } from '@/components/ui/linkedin-icon';
 
 import React, { useState, useMemo } from 'react';
 import { 
@@ -456,6 +457,7 @@ export function DataValidationView({
                 <th className="px-4 py-3.5 text-center">Phone Status</th>
                 <th className="px-4 py-3.5 text-center">Email Status</th>
                 <th className="px-4 py-3.5 text-center">Website Status</th>
+                <th className="px-4 py-3.5 text-center">LinkedIn Status</th>
                 <th className="px-4 py-3.5 text-center">Validation Score</th>
                 <th className="px-4 py-3.5 text-center">Validation Status</th>
                 <th className="px-4 py-3.5">Imported Date</th>
@@ -465,7 +467,7 @@ export function DataValidationView({
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800 font-sans">
               {paginatedRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-12 text-center text-zinc-500">
+                  <td colSpan={12} className="py-12 text-center text-zinc-500">
                     <ShieldAlert className="w-8 h-8 mx-auto mb-2 text-zinc-400" />
                     No business records match the current validation criteria.
                   </td>
@@ -525,6 +527,10 @@ export function DataValidationView({
 
                       <td className="px-4 py-3 text-center">
                         {renderFieldPill(record.websiteStatus, record.website)}
+                      </td>
+
+                      <td className="px-4 py-3 text-center">
+                        {renderFieldPill((record.linkedin || (record as any).linkedin_url || (record as any).linkedInUrl) ? 'valid' : 'missing', record.linkedin || (record as any).linkedin_url || (record as any).linkedInUrl)}
                       </td>
 
                       <td className="px-4 py-3 text-center">

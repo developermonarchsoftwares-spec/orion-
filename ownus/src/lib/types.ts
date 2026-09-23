@@ -17,9 +17,13 @@ export interface Business {
   website?: string | null;
   phone?: string | null;
   email?: string | null;
+  linkedin?: string | null;
+  linkedInUrl?: string | null;
   hasWhatsApp?: boolean;
+  hasLinkedIn?: boolean;
   phoneStatus?: "available" | "not_available";
   emailStatus?: "available" | "not_available";
+  linkedinStatus?: "available" | "not_available";
   websiteStatus?: "available" | "no_website" | "has_website";
   googleBusinessProfile?: boolean;
   socialMediaPresence?: boolean;

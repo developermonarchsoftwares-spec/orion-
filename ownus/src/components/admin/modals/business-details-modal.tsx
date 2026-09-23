@@ -1,4 +1,5 @@
 'use client';
+import { Linkedin } from '@/components/ui/linkedin-icon';
 
 import React, { useState } from 'react';
 import { AdminBusinessRecord, BusinessStatus } from '@/types/admin';
@@ -277,6 +278,21 @@ export function BusinessDetailsModal({
                   </a>
                 ) : (
                   <p className="text-sm text-zinc-400 italic">No website discovered (High digital upgrade lead)</p>
+                )}
+              </div>
+
+              <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 space-y-1">
+                <div className="flex items-center justify-between text-zinc-400">
+                  <span className="flex items-center gap-1.5"><Linkedin className="w-3.5 h-3.5 text-[#0A66C2]" /> LinkedIn Profile / Company</span>
+                  <span className="text-[10px] text-zinc-500">{(business.linkedin || (business as any).linkedin_url || (business as any).linkedInUrl) ? 'Profile Verified' : 'Missing'}</span>
+                </div>
+                {(business.linkedin || (business as any).linkedin_url || (business as any).linkedInUrl) ? (
+                  <a href={String(business.linkedin || (business as any).linkedin_url || (business as any).linkedInUrl).startsWith('http') ? String(business.linkedin || (business as any).linkedin_url || (business as any).linkedInUrl) : `https://${business.linkedin || (business as any).linkedin_url || (business as any).linkedInUrl}`} target="_blank" rel="noreferrer" className="text-sm font-mono text-zinc-900 dark:text-zinc-100 hover:underline flex items-center gap-1">
+                    <span>{business.linkedin || (business as any).linkedin_url || (business as any).linkedInUrl}</span>
+                    <ExternalLink className="w-3 h-3 text-zinc-400" />
+                  </a>
+                ) : (
+                  <p className="text-sm text-zinc-400 italic">No LinkedIn profile recorded</p>
                 )}
               </div>
             </div>

@@ -267,6 +267,7 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
     if (clean.includes('pan') || clean.includes('panno') || clean.includes('pannumber')) return 'pan';
     if (clean.includes('phone') || clean.includes('mobile') || clean.includes('contactno') || clean.includes('contactnumber') || clean.includes('telephone') || clean.includes('tel') || clean.includes('whatsapp') || clean.includes('cell')) return 'phone';
     if (clean.includes('email') || clean.includes('mail') || clean.includes('emailid')) return 'email';
+    if (clean.includes('linkedin') || clean === 'linkedinurl' || clean === 'linkedin_url' || clean === 'linkedinprofile') return 'linkedin_url';
     if (clean.includes('website') || clean.includes('web') || clean.includes('site') || clean.includes('url') || clean.includes('domain')) return 'website';
     if (clean === 'state' || clean.includes('statename') || clean.includes('province') || clean.includes('region')) return 'state';
     if (clean === 'city' || clean.includes('cityname') || clean.includes('town') || clean.includes('hub')) return 'city';
@@ -285,6 +286,7 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
     // 2. Content-Type Fallback Heuristic Auto-Detection if Header is Unknown / Unrecognized
     if (sampleVal) {
       const valTrim = sampleVal.trim();
+      if (/linkedin\.com/i.test(valTrim)) return 'linkedin_url';
       if (/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(valTrim)) return 'gstin';
       if (/^[LU][0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}$/i.test(valTrim)) return 'cin';
       if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i.test(valTrim)) return 'pan';

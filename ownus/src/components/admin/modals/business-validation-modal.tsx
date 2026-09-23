@@ -1,4 +1,5 @@
 'use client';
+import { Linkedin } from '@/components/ui/linkedin-icon';
 
 import React, { useState } from 'react';
 import { AdminBusinessRecord, ValidationStatus, BusinessStatus } from '@/types/admin';
@@ -72,6 +73,7 @@ export function BusinessValidationModal({
         { rule: 'Phone Format', field: 'phone', status: business.phoneStatus === 'valid' ? 'passed' : business.phoneStatus === 'warning' ? 'warning' : 'failed', message: 'Valid Indian +91 format with verified carrier prefix.', currentValue: business.phone },
         { rule: 'Email Syntax & MX', field: 'email', status: business.emailStatus === 'valid' ? 'passed' : business.emailStatus === 'warning' ? 'warning' : 'failed', message: 'Syntax verified against standard RFC 5322.', currentValue: business.email || 'None' },
         { rule: 'Website URL & Reachability', field: 'website', status: business.websiteStatus === 'valid' ? 'passed' : business.websiteStatus === 'missing' ? 'warning' : 'failed', message: business.website ? 'Valid HTTPS URL structure.' : 'Website missing (lead opportunity).', currentValue: business.website || 'None' },
+        { rule: 'LinkedIn Profile Availability', field: 'linkedin_url', status: (business.linkedin || (business as any).linkedin_url || (business as any).linkedInUrl) ? 'passed' : 'warning', message: (business.linkedin || (business as any).linkedin_url || (business as any).linkedInUrl) ? 'Valid LinkedIn URL recorded.' : 'LinkedIn profile missing.', currentValue: business.linkedin || (business as any).linkedin_url || (business as any).linkedInUrl || 'None' },
         { rule: 'Pincode 6 Digits', field: 'pincode', status: business.pincode && business.pincode.length === 6 ? 'passed' : 'failed', message: 'Must be exact 6 numeric digits matching India Post master.', currentValue: business.pincode },
         { rule: 'State & District Hierarchy', field: 'state', status: 'passed', message: `${business.district} belongs to ${business.state}.`, currentValue: `${business.district}, ${business.state}` },
         { rule: 'Industry Taxonomy Match', field: 'industry', status: 'passed', message: 'Matches recognized Orion master taxonomy.', currentValue: business.industry },
@@ -376,6 +378,18 @@ export function BusinessValidationModal({
                 </div>
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase bg-zinc-900 text-white dark:bg-white dark:text-zinc-900">
                   {business.emailStatus}
+                </span>
+              </div>
+
+              <div className="p-4 border border-zinc-200 dark:border-zinc-800 rounded-xl bg-zinc-50/50 dark:bg-zinc-900/30 flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] font-bold text-zinc-400 uppercase flex items-center gap-1.5"><Linkedin className="w-3.5 h-3.5 text-[#0A66C2]" /> LinkedIn Profile</span>
+                  <div className="text-sm font-bold font-mono text-zinc-900 dark:text-zinc-100 mt-1">
+                    {(business.linkedin || (business as any).linkedin_url || (business as any).linkedInUrl) || 'Not Provided'}
+                  </div>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase bg-zinc-900 text-white dark:bg-white dark:text-zinc-900">
+                  {(business.linkedin || (business as any).linkedin_url || (business as any).linkedInUrl) ? 'Available' : 'Missing'}
                 </span>
               </div>
             </div>

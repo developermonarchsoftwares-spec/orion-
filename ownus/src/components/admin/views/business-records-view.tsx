@@ -1,4 +1,5 @@
 'use client';
+import { Linkedin } from '@/components/ui/linkedin-icon';
 
 import React, { useState, useMemo } from 'react';
 import { AdminBusinessRecord, BusinessStatus, ValidationStatus } from '@/types/admin';
@@ -517,9 +518,15 @@ export function BusinessRecordsView({
                             <div className="text-[10px] font-mono text-zinc-400">{b.pincode}</div>
                           </td>
 
-                          {/* Phone */}
+                          {/* Phone & Contacts */}
                           <td className="p-3 font-mono font-medium text-zinc-700 dark:text-zinc-300">
-                            {b.phone || <span className="text-zinc-400 italic">No Phone</span>}
+                            <div>{b.phone || <span className="text-zinc-400 italic">No Phone</span>}</div>
+                            {(b.linkedin || (b as any).linkedin_url || (b as any).linkedInUrl) && (
+                              <div className="text-[10px] text-[#0A66C2] flex items-center gap-1 truncate max-w-[120px] mt-0.5 font-sans">
+                                <Linkedin className="w-3 h-3" />
+                                <span>LinkedIn</span>
+                              </div>
+                            )}
                           </td>
 
                           {/* Website */}

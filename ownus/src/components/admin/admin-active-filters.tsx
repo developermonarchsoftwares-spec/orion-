@@ -1,5 +1,4 @@
 'use client';
-
 import React from 'react';
 import { X, RotateCcw } from 'lucide-react';
 import { DiscoverFilterState, initialFilterState } from '@/components/discover/discover-filters';
@@ -233,6 +232,17 @@ export function AdminActiveFilters({
         onFiltersChange({
           ...filters,
           contactAvailability: { ...filters.contactAvailability, hasWhatsApp: false },
+        }),
+    });
+  }
+  if (filters.contactAvailability.hasLinkedIn || (filters as any).hasLinkedIn) {
+    badges.push({
+      id: 'contact-hasLinkedIn',
+      label: 'Has LinkedIn',
+      onRemove: () =>
+        onFiltersChange({
+          ...filters,
+          contactAvailability: { ...filters.contactAvailability, hasLinkedIn: false },
         }),
     });
   }

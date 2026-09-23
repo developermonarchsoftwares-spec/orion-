@@ -1064,12 +1064,13 @@ async function handleAdminImportSubmit(req: NextRequest): Promise<NextResponse> 
       );
 
       await queryDb(`DELETE FROM business_contacts WHERE business_id = $1`, [bId]);
-      if (phoneVal || emailVal) {
+      const linkedinVal = String(mappedRow.linkedin_url || mappedRow.linkedin || mappedRow.linkedInUrl || rawRow['LinkedIn URL'] || rawRow['linkedin'] || '').trim();
+      if (phoneVal || emailVal || linkedinVal) {
         const contactName = String(mappedRow.contact_person || mappedRow.full_name || mappedRow.contact_name || rawRow['Contact Person'] || `${bName} Contact`);
         await queryDb(
-          `INSERT INTO business_contacts (business_id, full_name, phone, email, is_primary, is_decision_maker, is_phone_verified, is_email_verified)
-           VALUES ($1, $2, $3, $4, true, true, true, true)`,
-          [bId, contactName, phoneVal, emailVal]
+          `INSERT INTO business_contacts (business_id, full_name, phone, email, linkedin_url, is_primary, is_decision_maker, is_phone_verified, is_email_verified)
+           VALUES ($1, $2, $3, $4, $5, true, true, true, true)`,
+          [bId, contactName, phoneVal, emailVal, linkedinVal || null]
         );
       }
 
@@ -1080,6 +1081,15 @@ async function handleAdminImportSubmit(req: NextRequest): Promise<NextResponse> 
           `INSERT INTO digital_presences (business_id, platform, url, domain, is_verified, is_active)
            VALUES ($1, 'WEBSITE', $2, $3, true, true)`,
           [bId, websiteVal.startsWith('http') ? websiteVal : `https://${websiteVal}`, cleanDomain]
+        );
+      }
+
+      await queryDb(`DELETE FROM digital_presences WHERE business_id = $1 AND platform = 'LINKEDIN'`, [bId]);
+      if (linkedinVal) {
+        await queryDb(
+          `INSERT INTO digital_presences (business_id, platform, url, is_verified, is_active)
+           VALUES ($1, 'LINKEDIN', $2, true, true)`,
+          [bId, linkedinVal.startsWith('http') ? linkedinVal : `https://${linkedinVal}`]
         );
       }
 
@@ -1100,6 +1110,9 @@ async function handleAdminImportSubmit(req: NextRequest): Promise<NextResponse> 
         phone: phoneVal,
         email: emailVal,
         website: websiteVal,
+        linkedin: linkedinVal || null,
+        linkedInUrl: linkedinVal || null,
+        hasLinkedIn: Boolean(linkedinVal),
         status: 'draft',
         createdAt: new Date().toISOString().split('T')[0],
         updatedAt: new Date().toISOString().split('T')[0],
@@ -2449,6 +2462,7 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
   const hasPhone = searchParams.get('hasPhone');
   const hasEmail = searchParams.get('hasEmail');
   const hasWhatsApp = searchParams.get('hasWhatsApp');
+  const hasLinkedIn = searchParams.get('hasLinkedIn');
   const verified = searchParams.get('verified');
 
   const sort = searchParams.get('sort') || searchParams.get('sortOption') || 'highest_orion_score';
@@ -2567,6 +2581,10 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
     whereClauses.push(`bc.email IS NOT NULL AND bc.email != ''`);
   }
 
+  if (hasLinkedIn === 'true') {
+    whereClauses.push(`bc.linkedin_url IS NOT NULL AND bc.linkedin_url != ''`);
+  }
+
   if (verified === 'true') {
     whereClauses.push(`b.is_verified = true`);
   }
@@ -2619,7 +2637,7 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
              b.business_type, b.msme_category, b.is_verified, b.incorporation_date,
              i.name as industry, c.name as category,
              bl.city, bl.state, bl.district, bl.pincode, bl.address_line1 as address,
-             bc.phone, bc.email, dp.url as website, b.description
+             bc.phone, bc.email, bc.linkedin_url as linkedin_url, dp.url as website, b.description
       FROM businesses b
       LEFT JOIN industries i ON b.industry_id = i.id
       LEFT JOIN categories c ON b.category_id = c.id
@@ -2656,6 +2674,10 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
       phone: r.phone || null,
       email: r.email || null,
       website: r.website || null,
+      linkedin: r.linkedin_url || null,
+      linkedInUrl: r.linkedin_url || null,
+      hasLinkedIn: Boolean(r.linkedin_url),
+      linkedinStatus: r.linkedin_url ? 'available' : 'not_available',
       phoneStatus: r.phone ? 'available' : 'not_available',
       emailStatus: r.email ? 'available' : 'not_available',
       hasWhatsApp: Boolean(r.phone),

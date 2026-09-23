@@ -1,4 +1,5 @@
 'use client';
+import { Linkedin } from '@/components/ui/linkedin-icon';
 
 import React, { useState, useMemo } from 'react';
 import { 
@@ -65,6 +66,7 @@ export interface DiscoverFilterState {
     hasEmail: boolean;
     hasPhone: boolean;
     hasWhatsApp: boolean;
+    hasLinkedIn: boolean;
   };
 
   // Digital Presence (Descriptive)
@@ -114,6 +116,7 @@ export const initialFilterState: DiscoverFilterState = {
     hasEmail: false,
     hasPhone: false,
     hasWhatsApp: false,
+    hasLinkedIn: false,
   },
 
   digitalPresence: {
@@ -1092,6 +1095,24 @@ export function DiscoverFilters({
                     onChange({
                       ...filters,
                       contactAvailability: { ...filters.contactAvailability, hasWhatsApp: e.target.checked },
+                    })
+                  }
+                  className="rounded border-zinc-300 dark:border-zinc-700 w-3.5 h-3.5"
+                />
+              </label>
+
+              <label className="flex items-center justify-between px-2 py-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-900 cursor-pointer border border-zinc-200/60 dark:border-zinc-800/60">
+                <span className="text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
+                  <Linkedin className="w-3.5 h-3.5 text-[#0A66C2]" />
+                  Has LinkedIn
+                </span>
+                <input
+                  type="checkbox"
+                  checked={filters.contactAvailability.hasLinkedIn}
+                  onChange={(e) =>
+                    onChange({
+                      ...filters,
+                      contactAvailability: { ...filters.contactAvailability, hasLinkedIn: e.target.checked },
                     })
                   }
                   className="rounded border-zinc-300 dark:border-zinc-700 w-3.5 h-3.5"

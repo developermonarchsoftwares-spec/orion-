@@ -161,12 +161,19 @@ export function filterAdminBusinessRecord(
   const hasValidEmail = Boolean(record.email && record.email.includes('@'));
   const hasValidPhone = Boolean(record.phone && record.phone.trim() !== '' && record.phone !== 'N/A');
   const hasValidWhatsApp = Boolean(record.whatsapp || hasValidPhone);
+  const hasValidLinkedIn = Boolean(
+    (record.linkedin && record.linkedin.trim() !== '' && record.linkedin !== 'N/A') ||
+    (record.linkedin_url && record.linkedin_url.trim() !== '' && record.linkedin_url !== 'N/A') ||
+    (record.linkedInUrl && record.linkedInUrl.trim() !== '' && record.linkedInUrl !== 'N/A') ||
+    (record as any).hasLinkedIn
+  );
 
   if (filters.contactAvailability.hasWebsite && !hasValidWebsite) return false;
   if (filters.contactAvailability.noWebsite && hasValidWebsite) return false;
   if (filters.contactAvailability.hasEmail && !hasValidEmail) return false;
   if (filters.contactAvailability.hasPhone && !hasValidPhone) return false;
   if (filters.contactAvailability.hasWhatsApp && !hasValidWhatsApp) return false;
+  if ((filters.contactAvailability.hasLinkedIn || (filters as any).hasLinkedIn) && !hasValidLinkedIn) return false;
 
   // 7. Digital Presence
   if (filters.digitalPresence.googleBusinessProfile !== 'all') {

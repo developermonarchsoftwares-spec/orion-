@@ -346,6 +346,9 @@ export interface AdminBusinessRecord {
   email: string;
   website: string;
   linkedin?: string;
+  linkedin_url?: string;
+  linkedInUrl?: string;
+  hasLinkedIn?: boolean;
   instagram?: string;
   registrationDate?: string;
   latitude?: number;

@@ -1,4 +1,5 @@
 'use client';
+import { Linkedin } from '@/components/ui/linkedin-icon';
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
@@ -140,6 +141,7 @@ export default function DiscoverPage() {
           hasPhone: activeChips.includes('has_phone') || filters.contactAvailability.hasPhone ? true : undefined,
           hasEmail: activeChips.includes('has_email') || filters.contactAvailability.hasEmail ? true : undefined,
           hasWhatsApp: filters.contactAvailability.hasWhatsApp ? true : undefined,
+          hasLinkedIn: filters.contactAvailability.hasLinkedIn ? true : undefined,
           verified: activeChips.includes('verified') || filters.businessStatus.verified ? true : undefined,
           minOrionScore: activeChips.includes('high_orion_score') ? 80 : (filters.orionScoreRange?.[0] || 0),
           maxOrionScore: filters.orionScoreRange?.[1] || 100,
@@ -165,6 +167,9 @@ export default function DiscoverPage() {
             opportunityScore: hit.opportunityScore ?? hit.orionScore ?? 75,
             phone: hit.phone || (hit.contactAvailability?.hasPhone ? 'Contact Available (Unlock to view)' : null),
             email: hit.email || (hit.contactAvailability?.hasEmail ? 'Email Available (Unlock to view)' : null),
+            linkedin: hit.linkedin || hit.linkedInUrl || null,
+            linkedInUrl: hit.linkedin || hit.linkedInUrl || null,
+            hasLinkedIn: Boolean(hit.linkedin || hit.linkedInUrl || hit.hasLinkedIn),
             phoneStatus: (hit.phone || hit.contactAvailability?.hasPhone) ? 'available' : 'not_available',
             emailStatus: (hit.email || hit.contactAvailability?.hasEmail) ? 'available' : 'not_available',
             website: hit.website || (hit.contactAvailability?.hasWebsite ? 'https://' : null),
@@ -220,6 +225,7 @@ export default function DiscoverPage() {
     if (filters.contactAvailability.hasEmail) count += 1;
     if (filters.contactAvailability.hasPhone) count += 1;
     if (filters.contactAvailability.hasWhatsApp) count += 1;
+    if (filters.contactAvailability.hasLinkedIn) count += 1;
 
     // Digital Presence
     if (filters.digitalPresence.googleBusinessProfile !== 'all') count += 1;
@@ -436,6 +442,7 @@ export default function DiscoverPage() {
       'Phone Number',
       'Email',
       'Website',
+      'LinkedIn URL',
       'Business Type',
       'Address',
       'City',
@@ -462,12 +469,14 @@ export default function DiscoverPage() {
       const cleanPhone = isPlaceholder(item.phone) ? '' : String(item.phone).trim();
       const cleanEmail = isPlaceholder(item.email) ? '' : String(item.email).trim();
       const cleanWebsite = isPlaceholder(item.website) ? '' : String(item.website).trim();
+      const cleanLinkedin = isPlaceholder(item.linkedin || item.linkedInUrl) ? '' : String(item.linkedin || item.linkedInUrl).trim();
 
       const row = [
         esc(item.name || ''),
         esc(cleanPhone),
         esc(cleanEmail),
         esc(cleanWebsite),
+        esc(cleanLinkedin),
         esc(bType || ''),
         esc(fullAddr || ''),
         esc(item.city || ''),
@@ -868,6 +877,17 @@ export default function DiscoverPage() {
                                 }`}
                               >
                                 <MessageCircle className="w-3 h-3" />
+                              </div>
+
+                              <div
+                                title={(item.linkedin || item.linkedInUrl || item.hasLinkedIn) ? ((item.isUnlocked || String(item.linkedin || item.linkedInUrl).startsWith('http')) ? `LinkedIn: ${item.linkedin || item.linkedInUrl}` : 'LinkedIn Available') : 'No LinkedIn'}
+                                className={`w-6 h-6 rounded-md flex items-center justify-center border ${
+                                  (item.linkedin || item.linkedInUrl || item.hasLinkedIn)
+                                    ? 'bg-blue-50 dark:bg-blue-950/40 text-[#0A66C2] border-blue-200 dark:border-blue-900/50'
+                                    : 'bg-zinc-50 dark:bg-zinc-900/50 text-zinc-300 dark:text-zinc-700 border-zinc-100 dark:border-zinc-800/40'
+                                }`}
+                              >
+                                <Linkedin className="w-3 h-3" />
                               </div>
                             </div>
                           </td>
