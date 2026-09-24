@@ -19,7 +19,7 @@ const faqs = [
   },
   {
     question: "How often is the business data updated?",
-    answer: "Our system crawls state registries and other public data sources daily, ensuring you get access to the freshest business registrations as soon as they become available.",
+    answer: "Our platform processes and enriches business intelligence daily, ensuring you get access to the freshest company data as soon as it becomes available.",
   },
   {
     question: "Can I integrate Orion with my CRM?",

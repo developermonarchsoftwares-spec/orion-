@@ -24,29 +24,41 @@ function ScoreBar({ score }: { score: number }) {
 export function HeroSection() {
   return (
     <section className="mx-auto max-w-7xl px-4 pt-32 pb-20 sm:pt-40 sm:pb-24 flex flex-col items-center text-center">
+      {/* Badge */}
+      <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/80 mb-6 text-xs font-semibold text-zinc-800 dark:text-zinc-200 shadow-2xs fade-in-up">
+        <span className="flex h-2 w-2 rounded-full bg-zinc-900 dark:bg-white animate-pulse" />
+        Fresh Business Intelligence for India
+      </div>
+
+      {/* Main Heading */}
       <h1 className="max-w-4xl text-4xl font-bold tracking-tight text-black dark:text-white sm:text-6xl fade-in-up">
-        Discover High-Potential Businesses Before Your Competitors
+        Discover Businesses Before Everyone Else.
       </h1>
+
+      {/* Subheading */}
       <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-600 dark:text-zinc-300 fade-in-up animation-delay-100">
-        AI-powered business discovery and lead intelligence platform. Find newly registered businesses, analyze their digital presence, and convert opportunities into clients.
+        Find newly registered and relevant businesses across India, enriched with useful business information, all in one place.
       </p>
       
-      <div className="mt-10 flex items-center justify-center gap-x-6 fade-in-up animation-delay-200">
+      {/* CTAs */}
+      <div className="mt-10 flex flex-wrap items-center justify-center gap-4 fade-in-up animation-delay-200">
         <Link
           href="/register"
           className="rounded-md bg-black text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200 px-8 py-4 text-base font-semibold shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black dark:focus-visible:outline-white transition-colors"
         >
-          Start Free Trial
+          Start Discovering
         </Link>
         <Link
-          href="#demo"
+          href="/discover"
           className="rounded-md bg-white text-zinc-900 ring-1 ring-inset ring-zinc-300 hover:bg-zinc-50 dark:bg-black dark:text-white dark:ring-zinc-800 dark:hover:bg-zinc-900 px-8 py-4 text-base font-semibold shadow-sm transition-colors"
         >
-          Watch Demo
+          Explore Businesses
         </Link>
       </div>
+
+      {/* Supporting Text */}
       <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400 fade-in-up animation-delay-300">
-        No credit card required • 5 daily free credits
+        Search by industry, location, business type and registration age.
       </p>
 
       <div className="mt-16 sm:mt-24 w-full max-w-5xl fade-in-up animation-delay-400">

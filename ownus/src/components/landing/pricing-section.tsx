@@ -143,7 +143,7 @@ export function PricingSection() {
                 isAnnual ? "bg-black text-white dark:bg-white dark:text-black shadow-sm" : "text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white"
               )}
             >
-              Annual Billing <span className="absolute -top-3 -right-2 bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded-full font-bold shadow-sm">Save 20%</span>
+              Annual Billing <span className="absolute -top-3 -right-2 bg-zinc-900 text-white dark:bg-white dark:text-zinc-950 text-[10px] px-2 py-0.5 rounded-full font-bold shadow-sm border border-zinc-700 dark:border-zinc-300">Save 20%</span>
             </button>
           </div>
         </div>
