@@ -161,7 +161,7 @@ export default function AdminPortalPage() {
     const storedEmail = typeof window !== 'undefined' ? localStorage.getItem('orion_admin_email') : null;
     const isAuthEmail = (em: string) => {
       const parts = em.trim().toLowerCase().split('@');
-      return parts.length === 2 && Boolean(parts[0]) && parts[1] === 'monarchsoftwares.com';
+      return parts.length === 2 && Boolean(parts[0]) && (parts[1] === 'monarchsoftwares.com' || parts[1] === 'orion.ai');
     };
 
     if (token && storedEmail && isAuthEmail(storedEmail)) {
@@ -192,10 +192,10 @@ export default function AdminPortalPage() {
     }
 
     const parts = cleanEmail.split('@');
-    const isAuthorized = parts.length === 2 && Boolean(parts[0]) && parts[1] === 'monarchsoftwares.com';
+    const isAuthorized = parts.length === 2 && Boolean(parts[0]) && (parts[1] === 'monarchsoftwares.com' || parts[1] === 'orion.ai');
 
     if (!isAuthorized) {
-      setAuthError('Access Denied: Only @monarchsoftwares.com email addresses are authorized for administrative access.');
+      setAuthError('Access Denied: Only @monarchsoftwares.com or @orion.ai email addresses are authorized for administrative access.');
       return;
     }
 

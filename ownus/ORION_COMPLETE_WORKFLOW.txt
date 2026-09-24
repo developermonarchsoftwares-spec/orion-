@@ -1,0 +1,265 @@
+================================================================================
+                    ORION LEAD INTELLIGENCE PLATFORM
+                     COMPLETE WORKFLOW DOCUMENTATION
+================================================================================
+Document Version : 2.0.0
+Product          : Orion Lead Intelligence Platform / Monarch Softwares Product Labs
+Target Users     : Customer / Candidate Portal Users & Monarch System Administrators
+Last Updated     : September 2026
+
+--------------------------------------------------------------------------------
+TABLE OF CONTENTS
+--------------------------------------------------------------------------------
+1. EXECUTIVE SUMMARY & SYSTEM ARCHITECTURE
+2. USER & AUTHENTICATION WORKFLOWS
+3. BUSINESS DISCOVERY & LEAD ENGINE WORKFLOWS
+4. CREDIT SYSTEM, PAYMENTS & INVOICING WORKFLOWS
+5. MONARCH ADMIN PANEL WORKFLOWS
+6. LINKEDIN & CONTACT INTEGRATION WORKFLOWS
+7. CSV IMPORT / EXPORT & DATA VALIDATION WORKFLOWS
+8. PRODUCTION DEPLOYMENT & FAILSAFE MECHANISMS
+9. DATA SCHEMAS & DICTIONARY
+
+================================================================================
+1. EXECUTIVE SUMMARY & SYSTEM ARCHITECTURE
+================================================================================
+The Orion Lead Intelligence Platform is a full-stack, enterprise-grade business 
+discovery and B2B lead generation engine. It provides seamless lead search, contact 
+unlocks, credit wallet management, and admin data curation with full LinkedIn 
+integration and automated PDF invoice generation.
+
+Architecture Stack:
+- Frontend: Next.js 14+ (App Router), React, TypeScript, Tailwind CSS, Lucide Icons.
+- Client PDF Engine: jsPDF with custom canvas rendering & fallback HTML printer.
+- Backend API Proxy: Next.js API Routes (/api/v1/[...path]) with seamless proxying 
+  to NestJS microservice backend.
+- Database & ORM: PostgreSQL with Prisma ORM & raw SQL fallback query engine.
+- Payment Gateway: Razorpay integration with automated UPI, Card, NetBanking, 
+  and Tax Invoice calculation (GST 18%).
+
+================================================================================
+2. USER & AUTHENTICATION WORKFLOWS
+================================================================================
+2.1 Registration & Onboarding Workflow:
+   - User signs up via /register with email, password, full name, and company name.
+   - On successful signup, system automatically creates:
+     a) User Profile in Database (Role: Customer/Candidate).
+     b) Dedicated Credit Wallet with default 5 daily free credits allocated.
+   - JWT tokens (accessToken and refreshToken) are generated and returned.
+
+2.2 Login & Token Management Workflow:
+   - User authenticates at /login.
+   - Backend validates credentials and returns accessToken, refreshToken, user 
+     profile details, and role (Candidate/Customer or Admin).
+   - Frontend stores tokens in secure state / HTTP cookies.
+   - Token refresh interceptor silently renews expired access tokens before API calls.
+   - Single-device login validation ensures active session integrity.
+
+2.3 Logout Workflow:
+   - User clicks Logout from navigation header.
+   - Client clears tokens, resets local user state, invalidates active session, 
+     and redirects to /login.
+
+================================================================================
+3. BUSINESS DISCOVERY & LEAD ENGINE WORKFLOWS
+================================================================================
+3.1 Search & Filter Workflow (/discover):
+   - Users browse verified business records in the main discovery table.
+   - Advanced Filtering Options:
+     * Industry / Sector filter
+     * Region / Location filter
+     * Employee Headcount range
+     * Revenue scale
+     * Contact Availability filters:
+       - "Has Phone Number"
+       - "Has Email Address"
+       - "Has LinkedIn Profile"
+   - Real-time search by company name, keywords, domain, or key personnel.
+
+3.2 Lead Unlock & Verification Workflow:
+   - Locked business records blur phone numbers, email addresses, and direct 
+     LinkedIn profile URLs.
+   - Single Unlock: User clicks "Unlock Contact" on a specific business row.
+   - Bulk Unlock: User selects multiple business rows via checkboxes and clicks 
+     "Unlock Selected".
+   - Wallet Check: System verifies user has sufficient credits (1 credit per 
+     contact unlock).
+   - Deduct & Reveal: 
+     a) Wallet balance is updated in database and context state.
+     b) Phone, email, and direct LinkedIn profile links are unmasked.
+     c) Lead is stored under "Unlocked Leads" (/leads).
+
+3.3 Saved Leads Workflow (/leads):
+   - Unlocked and bookmarked leads appear in the user's Saved Leads workspace.
+   - Direct action buttons to:
+     * Open LinkedIn profile / company page in a new tab.
+     * Click-to-call / click-to-email.
+     * Export selected or all saved leads to CSV.
+
+================================================================================
+4. CREDIT SYSTEM, PAYMENTS & INVOICING WORKFLOWS
+================================================================================
+4.1 Credit Wallet Structure:
+   - Dual-Credit Ledger System:
+     a) Daily Free Credits (Allocated daily, default: 5, resets at midnight UTC).
+     b) Purchased Credits (Never expire, accumulated via credit package purchases).
+   - Deduct Priority: Daily Free Credits are consumed first; once depleted, 
+     Purchased Credits are consumed.
+
+4.2 Purchase Credit Packages (/credits):
+   - User selects package (Starter: 100 credits @ ₹99, Growth: 500 credits @ ₹399, 
+     Agency: 2000 credits @ ₹1,299, or Enterprise custom).
+   - Payment Workflow:
+     1) Client calls `apiClient.payments.createOrder()` to generate Razorpay Order.
+     2) Razorpay checkout modal opens with order details & GST breakdown.
+     3) User completes payment via UPI, Card, NetBanking, or Bank Wire.
+     4) Client calls `apiClient.payments.verify()` with payment ID and signature.
+     5) Wallet balance is updated instantly in database and UI state.
+     6) Transaction ledger record is generated with unique receipt number (INV-2026-xxx).
+
+4.3 Invoice Generation & Download Workflow:
+   - User opens "/credits" -> "Payments & Invoices" -> "Invoices" tab.
+   - User clicks "Download" button on any transaction item.
+   - Primary Path:
+     - App calls `apiClient.payments.downloadInvoice(tx)`.
+     - Request is sent to Next.js API proxy route `/api/v1/invoices/download`.
+     - Route generates official GST Tax Invoice PDF binary (`generateInvoicePdfBuffer`).
+     - Browser downloads file `Invoice_INV-2026-xxx.pdf`.
+   - Production / Failsafe Path:
+     - If external server is unreachable or returns non-PDF JSON error response, 
+       client-side fallback (`generateInvoicePdf` via jsPDF) executes seamlessly in browser.
+     - PDF includes company GSTIN (29AABCU9603R1ZM), billing address, tax calculations 
+       (18% GST), line items, and statutory compliance note under Indian IT Act 2000.
+
+================================================================================
+5. MONARCH ADMIN PANEL WORKFLOWS (/admin/monarch)
+================================================================================
+5.1 Master Business Management:
+   - Admins view, create, edit, and manage the master database of business entities.
+   - Create / Edit Business Form:
+     * Fields: Name, Industry, Location, Website, Phone, Email, Employee Count, 
+       Revenue, Status (Published/Draft/Archived), and LinkedIn Profile/Company URL.
+     * Live Validation: Validates URL format for LinkedIn (`linkedin.com/in/...` or 
+       `linkedin.com/company/...`), phone format, and email syntax.
+
+5.2 Data Import & Batch Ingestion:
+   - Admin navigates to "Import Data" section.
+   - CSV File Upload with custom template download ("orion_business_import_template.csv").
+   - Column Auto-Mapping & Validation:
+     * Maps CSV columns (Name, Industry, Phone, Email, LinkedIn, Location, Headcount).
+     * Scans incoming candidate records against master database to detect duplicate 
+       phone numbers, emails, or company names.
+     * Import Options: Skip duplicates, Overwrite existing, or Flag for review.
+
+5.3 Data Validation & Cleaning Engine:
+   - Admin runs "Data Validation" scanner.
+   - System audits all records for:
+     * Missing LinkedIn URLs, invalid LinkedIn link formats.
+     * Malformed email addresses or missing phone numbers.
+     * Outdated location data or unformatted headcount strings.
+   - Bulk Auto-Clean & One-Click Fix:
+     * Automatically fixes URL prefixes (`https://linkedin.com/...`).
+     * Standardizes phone numbers with country code (+91).
+     * Generates downloadable CSV Data Validation Report.
+
+5.4 Transactions & Ledger Management:
+   - Admin views all customer transactions, revenue analytics, and credit balances.
+   - Actions:
+     * Download Tax Invoice for any customer transaction.
+     * Issue manual credit adjustments or refunds.
+     * Cancel pending transactions.
+     * Export complete transaction ledger to CSV.
+
+5.5 Users & Access Control Management:
+   - View all registered candidates / customer accounts.
+   - Grant or update user roles (Candidate / Admin).
+   - View active device sessions, IP logs, and last activity timestamps.
+
+================================================================================
+6. LINKEDIN & CONTACT INTEGRATION WORKFLOWS
+================================================================================
+LinkedIn integration is fully embedded across all platform workflows:
+1. Contact Filters: Filter search results by "Has LinkedIn Profile".
+2. Business Table & Detail Cards: Dedicated LinkedIn icon & hyperlinked profile/company 
+   URLs displayed when unlocked or in admin view.
+3. Admin Forms: Business Create/Edit modal includes dedicated "LinkedIn Profile URL" field 
+   with live URL formatting validation.
+4. Ingestion & Storage: Stored under `linkedinUrl` / `linkedin` field in database tables.
+5. Import / Export: Included in all CSV import templates and exported CSV files.
+
+================================================================================
+7. CSV IMPORT / EXPORT & DATA VALIDATION WORKFLOWS
+================================================================================
+7.1 Export Workflows:
+   - Customers export saved/unlocked leads to CSV (`orion-unlocked-leads-YYYY-MM-DD.csv`).
+   - Admins export master business database, transaction ledger, activity audit logs, 
+     and data validation reports.
+   - Export sanitizes CSV fields to prevent formula injection (`=` or `@` prefixes).
+
+7.2 Import Workflows:
+   - Pre-formatted CSV imports with automatic header recognition.
+   - Real-time progress bar and record parsing engine.
+   - Detailed import summary report showing created records, updated records, and skipped duplicates.
+
+================================================================================
+8. PRODUCTION DEPLOYMENT & FAILSAFE MECHANISMS
+================================================================================
+1. API Routing Failsafe:
+   - Frontend utilizes dual-API routing. Next.js API proxy routes seamlessly handle 
+     requests when external API URL is not configured or returning errors.
+2. Resilience in Invoicing:
+   - Invoice download never crashes. Client-side fallback (`jsPDF` + HTML print window) 
+     ensures 100% download success rate regardless of server status.
+3. Token Resilience:
+   - Null-checks on authentication payloads prevent `accessToken` undefined crashes.
+4. Type Safety:
+   - 0 TypeScript compiler errors (`npx tsc --noEmit` verified).
+
+================================================================================
+9. DATA SCHEMAS & DICTIONARY
+================================================================================
+User Profile Schema:
+  - id               : UUID (Primary Key)
+  - email            : String (Unique)
+  - name             : String
+  - company          : String
+  - role             : Enum ('Candidate', 'Customer', 'Admin')
+  - createdAt        : Timestamp
+
+Wallet Schema:
+  - userId           : UUID (Foreign Key -> User)
+  - dailyCredits     : Integer (Default: 5)
+  - purchasedCredits : Integer (Default: 0)
+  - totalBalance     : Integer (Computed: daily + purchased)
+  - lastResetDate    : Date
+
+Business Entity Schema:
+  - id               : UUID (Primary Key)
+  - name             : String
+  - industry         : String
+  - location         : String
+  - phone            : String
+  - email            : String
+  - linkedinUrl      : String (LinkedIn profile or company URL)
+  - employeeCount    : String / Integer
+  - revenue          : String
+  - isUnlocked       : Boolean (Customer view state)
+  - status           : Enum ('Published', 'Draft', 'Archived')
+
+Transaction / Invoice Schema:
+  - id               : String (Primary Key)
+  - receiptNumber    : String (e.g., 'INV-2026-001')
+  - customerId       : UUID
+  - customerName     : String
+  - customerEmail    : String
+  - company          : String
+  - plan             : String ('Starter', 'Growth', 'Agency', 'Enterprise')
+  - creditsPurchased : Integer
+  - amount           : Decimal (INR)
+  - paymentMethod    : String ('Razorpay UPI', 'Credit Card', 'Bank Wire')
+  - paymentStatus    : String ('Success', 'Pending', 'Failed')
+  - date             : Date
+
+================================================================================
+END OF WORKFLOW DOCUMENTATION
+================================================================================

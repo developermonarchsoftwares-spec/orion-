@@ -129,7 +129,7 @@ export function isAuthorizedAdminEmail(email?: string | null): boolean {
   if (parts.length !== 2) return false;
   const [local, domain] = parts;
   if (!local || local.length === 0) return false;
-  return domain === 'monarchsoftwares.com';
+  return domain === 'monarchsoftwares.com' || domain === 'orion.ai';
 }
 
 /**
