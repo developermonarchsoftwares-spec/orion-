@@ -593,7 +593,7 @@ export default function AdminPortalPage() {
     };
     setActivityLogs((prev) => [newLog, ...prev]);
 
-    showToast(`Batch "${fileName}" imported. Proceeding to Data Validation & Duplicate Manager.`);
+    showToast(`Batch "${fileName}" imported successfully. Proceeding to Data Validation.`);
     setActiveTab('validation');
   };
 

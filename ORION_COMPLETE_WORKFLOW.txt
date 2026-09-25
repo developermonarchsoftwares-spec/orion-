@@ -37,6 +37,9 @@ Architecture Stack:
 - Payment Gateway: Razorpay integration with automated UPI, Card, NetBanking, 
   and Tax Invoice calculation (GST 18%).
 
+Data Ingestion & Publishing Pipeline:
+Import Data → Data Validation → Duplicate Manager → Publish Queue → Published Businesses → Customer Discover Page
+
 ================================================================================
 2. USER & AUTHENTICATION WORKFLOWS
 ================================================================================
@@ -145,8 +148,9 @@ Architecture Stack:
 5.2 Data Import & Batch Ingestion:
    - Admin navigates to "Import Data" section.
    - CSV File Upload with custom template download ("orion_business_import_template.csv").
-   - Column Auto-Mapping & Validation:
+   - Column Auto-Mapping & Direct Pipeline Ingestion:
      * Maps CSV columns (Name, Industry, Phone, Email, LinkedIn, Location, Headcount).
+     * Routes records directly into Data Validation & Duplicate Management stage.
      * Scans incoming candidate records against master database to detect duplicate 
        phone numbers, emails, or company names.
      * Import Options: Skip duplicates, Overwrite existing, or Flag for review.
@@ -162,7 +166,15 @@ Architecture Stack:
      * Standardizes phone numbers with country code (+91).
      * Generates downloadable CSV Data Validation Report.
 
-5.4 Transactions & Ledger Management:
+5.4 Duplicate Manager:
+   - Resolves similarity conflicts across phone numbers, emails, domains, and addresses.
+   - Admin can merge, keep original, keep new, or ignore duplicate flags.
+
+5.5 Publish Queue & Live Directory:
+   - Final approval gate: approve, publish, reject, or draft businesses.
+   - Published businesses are instantly synced to Customer Discover page.
+
+5.6 Transactions & Ledger Management:
    - Admin views all customer transactions, revenue analytics, and credit balances.
    - Actions:
      * Download Tax Invoice for any customer transaction.
@@ -170,7 +182,7 @@ Architecture Stack:
      * Cancel pending transactions.
      * Export complete transaction ledger to CSV.
 
-5.5 Users & Access Control Management:
+5.7 Users & Access Control Management:
    - View all registered candidates / customer accounts.
    - Grant or update user roles (Candidate / Admin).
    - View active device sessions, IP logs, and last activity timestamps.
@@ -192,14 +204,13 @@ LinkedIn integration is fully embedded across all platform workflows:
 ================================================================================
 7.1 Export Workflows:
    - Customers export saved/unlocked leads to CSV (`orion-unlocked-leads-YYYY-MM-DD.csv`).
-   - Admins export master business database, transaction ledger, activity audit logs, 
-     and data validation reports.
+   - Admins export master business database, transaction ledger, activity audit logs, and data validation reports.
    - Export sanitizes CSV fields to prevent formula injection (`=` or `@` prefixes).
 
 7.2 Import Workflows:
    - Pre-formatted CSV imports with automatic header recognition.
    - Real-time progress bar and record parsing engine.
-   - Detailed import summary report showing created records, updated records, and skipped duplicates.
+   - Direct ingestion into Data Validation pipeline.
 
 ================================================================================
 8. PRODUCTION DEPLOYMENT & FAILSAFE MECHANISMS

@@ -7,6 +7,7 @@ import {
   Database,
   UploadCloud,
   History,
+  FolderArchive,
   ShieldAlert,
   CopyX,
   Layers,
