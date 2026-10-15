@@ -1,0 +1,125 @@
+{
+  "migrations": [
+    {
+      "created_at": "1789041177967",
+      "hash8": "3300fe59"
+    },
+    {
+      "created_at": "1789059537220",
+      "hash8": "7aca2530"
+    },
+    {
+      "created_at": "1789061231383",
+      "hash8": "2bb75d61"
+    }
+  ],
+  "tables": {
+    "accounts": 0,
+    "admin_otps": 0,
+    "api_keys": 0,
+    "audit_logs": 34,
+    "business_contacts": 0,
+    "business_history": 2,
+    "business_identifiers": 0,
+    "business_locations": 0,
+    "business_metrics": 0,
+    "business_refresh_history": 0,
+    "business_scores": 0,
+    "business_types": 0,
+    "businesses": 2,
+    "categories": 0,
+    "credit_packages": 5,
+    "credit_transactions": 468,
+    "data_sources": 0,
+    "dataset_versions": 0,
+    "deleted_leads": 97,
+    "digital_presences": 0,
+    "duplicate_candidates": 0,
+    "duplicate_clusters": 0,
+    "duplicate_records": 0,
+    "enrichment_records": 0,
+    "entity_conflicts": 0,
+    "entity_relationships": 0,
+    "execution_logs": 119,
+    "export_history": 0,
+    "import_batches": 19,
+    "import_logs": 2,
+    "import_records": 6,
+    "industries": 8,
+    "lead_activity_log": 0,
+    "lead_unlocks": 0,
+    "master_businesses": 0,
+    "msme_categories": 0,
+    "pipeline_jobs": 15,
+    "pricing_settings": 3,
+    "product_analytics_events": 5,
+    "publish_queue": 0,
+    "publishing_history": 0,
+    "queue_jobs": 0,
+    "refresh_tokens": 25,
+    "review_queue": 0,
+    "saved_leads": 0,
+    "saved_searches": 5,
+    "schema_migrations": 16,
+    "search_sync_logs": 0,
+    "unlocked_leads": 0,
+    "user_sessions": 0,
+    "user_wallets": 53,
+    "users": 57,
+    "validation_logs": 0,
+    "verification_reviews": 0
+  },
+  "packages": [
+    {
+      "id": "5b11b41d-4451-4ea3-9ace-be33b7a18ad4",
+      "slug": "free",
+      "name": "Free Plan",
+      "price_inr": 0,
+      "credits": 5,
+      "is_active": true,
+      "sort_order": 1
+    },
+    {
+      "id": "30ad3ee3-f861-4a59-b374-5af11f820194",
+      "slug": "starter",
+      "name": "Starter Pack",
+      "price_inr": 99,
+      "credits": 100,
+      "is_active": true,
+      "sort_order": 2
+    },
+    {
+      "id": "cdcc091d-282c-4bd6-93d2-2f5aa1955110",
+      "slug": "growth",
+      "name": "Growth Pack",
+      "price_inr": 299,
+      "credits": 350,
+      "is_active": true,
+      "sort_order": 3
+    },
+    {
+      "id": "b8dfcad5-f348-40b7-801d-38124b909425",
+      "slug": "agency",
+      "name": "Agency Pack",
+      "price_inr": 999,
+      "credits": 1500,
+      "is_active": true,
+      "sort_order": 4
+    },
+    {
+      "id": "c31b8ca8-a484-46cb-b30d-675acfaefdb8",
+      "slug": "enterprise",
+      "name": "Enterprise Plan",
+      "price_inr": null,
+      "credits": 0,
+      "is_active": true,
+      "sort_order": 5
+    }
+  ],
+  "pricingSettingKeys": [
+    "ANNUAL_DISCOUNT_PERCENTAGE",
+    "DAILY_FREE_CREDITS",
+    "DEFAULT_CURRENCY"
+  ],
+  "importBatchesNullFileKey": 10
+}

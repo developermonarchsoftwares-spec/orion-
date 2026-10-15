@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      :root {
+        --bg: #05070b;
+        --panel: #0b1017;
+        --line: rgba(255, 255, 255, 0.09);
+        --text: #e8eef5;
+        --muted: #7c8a9b;
+        --accent: #5ce1e6;
+        --sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+        --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: var(--bg); }
+      #root { position: relative; width: 1080px; height: 1920px; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--sans); }
+      .abs { position: absolute; }
+
+      /* atmosphere */
+      #grid { inset: 0; background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 90px 90px; opacity: 0.35; -webkit-mask-image: radial-gradient(ellipse at 50% 45%, #000 20%, transparent 75%); mask-image: radial-gradient(ellipse at 50% 45%, #000 20%, transparent 75%); }
+      #glow { left: -200px; top: 380px; width: 1480px; height: 1100px; background: radial-gradient(ellipse at center, rgba(92, 225, 230, 0.16), transparent 62%); opacity: 0.5; }
+      .scan { left: 0; top: 0; width: 1080px; height: 2px; background: linear-gradient(90deg, transparent, rgba(92, 225, 230, 0.35), transparent); opacity: 0; }
+
+      /* chrome */
+      #brand { left: 80px; top: 84px; display: flex; align-items: center; gap: 16px; font-weight: 600; font-size: 30px; letter-spacing: 0.28em; opacity: 0; }
+      #brand i { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 22px var(--accent); display: block; }
+      #live { right: 80px; top: 90px; font-family: var(--mono); font-size: 22px; color: var(--muted); letter-spacing: 0.08em; opacity: 0; }
+
+      /* scene 1 */
+      #hook { left: 80px; top: 470px; width: 920px; font-size: 96px; line-height: 1.04; font-weight: 600; letter-spacing: -0.035em; opacity: 0; }
+      #hook span { color: var(--muted); }
+
+      #searchwrap { left: 80px; top: 190px; width: 920px; }
+      #bar { height: 124px; border-radius: 22px; background: var(--panel); border: 1px solid rgba(92, 225, 230, 0.35); box-shadow: 0 0 60px rgba(92, 225, 230, 0.12); display: flex; align-items: center; gap: 22px; padding: 0 34px; }
+      #bar svg { flex: none; }
+      #query { font-size: 31px; font-weight: 500; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; }
+      #caret { display: inline-block; width: 3px; height: 34px; background: var(--accent); margin-left: 3px; vertical-align: -6px; }
+      #chips { display: flex; gap: 14px; margin-top: 24px; }
+      .chip { font-family: var(--mono); font-size: 22px; color: var(--text); background: rgba(92, 225, 230, 0.08); border: 1px solid rgba(92, 225, 230, 0.3); border-radius: 10px; padding: 10px 18px; opacity: 0; white-space: nowrap; }
+      .chip b { color: var(--accent); font-weight: 500; }
+
+      /* scene 2 */
+      #rhead { left: 80px; top: 432px; width: 920px; display: flex; align-items: baseline; gap: 22px; opacity: 0; }
+      #count { font-family: var(--mono); font-size: 66px; font-weight: 500; letter-spacing: -0.03em; color: var(--accent); font-variant-numeric: tabular-nums; }
+      #rlabel { font-size: 27px; color: var(--muted); }
+      .card { left: 80px; width: 920px; height: 296px; border-radius: 24px; background: linear-gradient(180deg, #0d141d, #0a0f16); border: 1px solid var(--line); padding: 32px 36px; opacity: 0; }
+      .c1 { top: 540px; } .c2 { top: 858px; } .c3 { top: 1176px; } .c4 { top: 1494px; }
+      .row1 { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+      .cname { font-size: 34px; font-weight: 600; letter-spacing: -0.02em; white-space: nowrap; }
+      .age { font-family: var(--mono); font-size: 21px; color: var(--accent); border: 1px solid rgba(92, 225, 230, 0.3); border-radius: 999px; padding: 6px 16px; white-space: nowrap; }
+      .meta { margin-top: 12px; font-size: 25px; color: var(--muted); }
+      .rule { height: 1px; background: var(--line); margin: 26px 0 24px; }
+      .dm { display: flex; align-items: center; gap: 20px; }
+      .av { width: 66px; height: 66px; border-radius: 50%; background: #131d29; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 600; color: var(--accent); flex: none; }
+      .dmt { flex: 1; min-width: 0; }
+      .dmn { font-size: 30px; font-weight: 500; }
+      .dmr { font-size: 24px; color: var(--muted); margin-top: 2px; }
+      .ch { display: flex; gap: 10px; }
+      .ch span { font-family: var(--mono); font-size: 19px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 6px 11px; }
+      .ch span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 8px; }
+
+      /* scene 3 */
+      #panel { left: 80px; top: 760px; width: 920px; height: 800px; border-radius: 24px; background: linear-gradient(180deg, #0d141d, #0a0f16); border: 1px solid rgba(92, 225, 230, 0.28); box-shadow: 0 0 80px rgba(92, 225, 230, 0.08); padding: 38px 40px; opacity: 0; }
+      .lab { font-family: var(--mono); font-size: 21px; letter-spacing: 0.16em; color: var(--accent); }
+      #facts { display: grid; grid-template-columns: 1fr 1fr; gap: 30px 24px; margin-top: 30px; }
+      .k { font-size: 22px; color: var(--muted); }
+      .v { font-size: 32px; font-weight: 500; margin-top: 6px; }
+      .v em { font-style: normal; color: var(--accent); }
+      #panel .rule { margin: 38px 0 34px; }
+      #dmn2 { font-size: 40px; font-weight: 600; letter-spacing: -0.02em; margin-top: 22px; }
+      #dmr2 { font-size: 26px; color: var(--muted); margin-top: 4px; }
+      .cline { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; height: 84px; border-radius: 16px; background: #0e161f; border: 1px solid var(--line); padding: 0 28px; }
+      .cval { font-family: var(--mono); font-size: 32px; letter-spacing: 0.02em; }
+      .cval small { font-size: 20px; color: var(--muted); margin-right: 16px; letter-spacing: 0.1em; }
+      #unlock { font-size: 26px; font-weight: 600; color: #04191b; background: var(--accent); border-radius: 12px; padding: 14px 26px; white-space: nowrap; }
+      #cursor { left: 0; top: 0; width: 44px; height: 44px; opacity: 0; z-index: 20; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.6)); }
+
+      /* scene 4 */
+      #outro { left: 80px; top: 640px; width: 920px; opacity: 0; }
+      #o1 { font-size: 108px; line-height: 1.02; font-weight: 600; letter-spacing: -0.04em; }
+      #o1 span { color: var(--accent); }
+      #o2 { margin-top: 48px; font-size: 34px; color: var(--muted); }
+      #o3 { margin-top: 90px; display: flex; align-items: center; gap: 20px; font-weight: 600; font-size: 44px; letter-spacing: 0.3em; }
+      #o3 i { width: 18px; height: 18px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 30px var(--accent); display: block; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="20" data-width="1080" data-height="1920">
+      <div id="grid" class="abs"></div>
+      <div id="glow" class="abs"></div>
+      <div class="scan abs"></div>
+
+      <div id="brand" class="abs"><i></i>ORION</div>
+      <div id="live" class="abs">LIVE &middot; UPDATED TODAY</div>
+
+      <div id="hook" class="abs">Every day, new<br /><span>businesses open.</span></div>
+
+      <div id="searchwrap" class="abs">
+        <div id="bar">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#5ce1e6" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <div id="query"><span id="qtext"></span><span id="caret"></span></div>
+        </div>
+        <div id="chips">
+          <div class="chip">Industry <b>Manufacturing</b></div>
+          <div class="chip">State <b>Tamil Nadu</b></div>
+          <div class="chip">Age <b>0&ndash;30d</b></div>
+        </div>
+      </div>
+
+      <div id="rhead" class="abs"><div id="count">0</div><div id="rlabel">new businesses</div></div>
+
+      <div class="card c1 abs" id="card1">
+        <div class="row1"><div class="cname">Hosur Motion Systems Pvt Ltd</div><div class="age">5 days ago</div></div>
+        <div class="meta">Manufacturing &middot; Hosur, Tamil Nadu &middot; Private Limited</div>
+        <div class="rule"></div>
+        <div class="dm"><div class="av">DN</div><div class="dmt"><div class="dmn">Divya Nair</div><div class="dmr">Director</div></div><div class="ch"><span>Phone</span><span>Email</span><span>LinkedIn</span></div></div>
+      </div>
+      <div class="card c2 abs">
+        <div class="row1"><div class="cname">Coimbatore Precision Tooling Pvt Ltd</div><div class="age">12 days ago</div></div>
+        <div class="meta">Manufacturing &middot; Coimbatore, Tamil Nadu &middot; Private Limited</div>
+        <div class="rule"></div>
+        <div class="dm"><div class="av">AK</div><div class="dmt"><div class="dmn">Arun Krishnan</div><div class="dmr">Managing Director</div></div><div class="ch"><span>Phone</span><span>Email</span><span>LinkedIn</span></div></div>
+      </div>
+      <div class="card c3 abs">
+        <div class="row1"><div class="cname">Coromandel Industrial Dynamics LLP</div><div class="age">19 days ago</div></div>
+        <div class="meta">Manufacturing &middot; Chennai, Tamil Nadu &middot; LLP</div>
+        <div class="rule"></div>
+        <div class="dm"><div class="av">MS</div><div class="dmt"><div class="dmn">Meera Subramanian</div><div class="dmr">Designated Partner</div></div><div class="ch"><span>Phone</span><span>Email</span><span>LinkedIn</span></div></div>
+      </div>
+      <div class="card c4 abs">
+        <div class="row1"><div class="cname">Kovai Advanced Forgings &amp; Alloys</div><div class="age">24 days ago</div></div>
+        <div class="meta">Manufacturing &middot; Salem, Tamil Nadu &middot; Private Limited</div>
+        <div class="rule"></div>
+        <div class="dm"><div class="av">KR</div><div class="dmt"><div class="dmn">Karthik Raman</div><div class="dmr">Director</div></div><div class="ch"><span>Phone</span><span>Email</span><span>LinkedIn</span></div></div>
+      </div>
+
+      <div id="panel" class="abs">
+        <div class="lab">COMPANY INTELLIGENCE</div>
+        <div id="facts">
+          <div><div class="k">Status</div><div class="v"><em>Active</em></div></div>
+          <div><div class="k">Entity type</div><div class="v">Private Limited</div></div>
+          <div><div class="k">Registered</div><div class="v">5 days ago</div></div>
+          <div><div class="k">Website</div><div class="v">Verified domain</div></div>
+        </div>
+        <div class="rule"></div>
+        <div class="lab">DECISION MAKER</div>
+        <div id="dmn2">Divya Nair</div>
+        <div id="dmr2">Director &middot; Hosur Motion Systems</div>
+        <div class="cline"><div class="cval"><small>PHONE</small><span id="phone">+91 98&bull;&bull;&bull; &bull;&bull;210</span></div><div id="unlock">Unlock contact</div></div>
+        <div class="cline" style="margin-top:16px"><div class="cval"><small>EMAIL</small><span id="email">d&bull;&bull;&bull;@&bull;&bull;&bull;&bull;&bull;.in</span></div></div>
+      </div>
+
+      <svg id="cursor" class="abs" viewBox="0 0 24 24"><path d="M4 2l15 9-6.5 1.6L9.5 19z" fill="#fff" stroke="#05070b" stroke-width="1.3" stroke-linejoin="round"/></svg>
+
+      <div id="outro" class="abs">
+        <div id="o1">Reach them<br />before<br /><span>everyone else.</span></div>
+        <div id="o2">Newly registered. Fully enriched.</div>
+        <div id="o3"><i></i>ORION</div>
+      </div>
+
+      <audio id="music" src="assets/music/bed.mp3" data-start="0" data-duration="20" data-track-index="1" data-volume="0.5" data-fade-in="0.8" data-fade-out="1.8"></audio>
+      <audio id="sfx1" src="assets/sfx/card.ogg" data-start="5.28" data-duration="1" data-track-index="2" data-volume="0.35"></audio>
+      <audio id="sfx2" src="assets/sfx/card.ogg" data-start="6.34" data-duration="1" data-track-index="3" data-volume="0.35"></audio>
+      <audio id="sfx3" src="assets/sfx/card.ogg" data-start="7.4" data-duration="1" data-track-index="4" data-volume="0.35"></audio>
+      <audio id="sfx4" src="assets/sfx/card.ogg" data-start="8.44" data-duration="1" data-track-index="5" data-volume="0.35"></audio>
+      <audio id="sfx5" src="assets/sfx/click.ogg" data-start="15.6" data-duration="0.09" data-track-index="6" data-volume="0.5"></audio>
+      <audio id="sfx6" src="assets/sfx/select.ogg" data-start="17.38" data-duration="0.5" data-track-index="7" data-volume="0.3"></audio>
+    </div>
+
+    <script>
+      const $ = (s) => document.querySelector(s);
+      const tl = gsap.timeline({ paused: true });
+      const ease = "power3.out";
+
+      // measure cursor target before any transforms are applied
+      const ub = $("#unlock").getBoundingClientRect();
+      const target = { x: ub.left + ub.width * 0.55, y: ub.top + ub.height * 0.5 };
+      const stub = 0; // panel y offset is 0 at rest
+
+      gsap.set("#cursor", { x: 930, y: 1560 });
+      gsap.set("#searchwrap", { y: 670, opacity: 0 });
+      gsap.set("#chips", { opacity: 1 });
+
+      // atmosphere: glow breathes on the beat grid (beat-grid, vol-9 @114.84 BPM)
+      const beats = [1.07,1.59,2.12,2.65,3.18,3.7,4.23,4.75,5.28,5.8,6.34,6.86,7.4,7.92,8.44,8.96,9.5,10.01,10.54,11.06,11.6,12.12,12.65,13.18,13.7,14.22,14.76,15.28,15.81,16.34,16.86,17.38,17.91,18.44];
+      beats.forEach((b) => {
+        tl.to("#glow", { opacity: 0.68, duration: 0.14, ease: "sine.out" }, b);
+        tl.to("#glow", { opacity: 0.5, duration: 0.4, ease: "sine.inOut" }, b + 0.14);
+      });
+      [0, 4, 8, 12, 16].forEach((t) => {
+        tl.fromTo(".scan", { y: -10, opacity: 0.9 }, { y: 1930, opacity: 0.9, duration: 4, ease: "none" }, t);
+      });
+      tl.set(".scan", { opacity: 0 }, 20);
+
+      // Scene 1: hook + search
+      tl.to("#brand", { opacity: 1, duration: 0.7 }, 0.2);
+      tl.to("#live", { opacity: 1, duration: 0.7 }, 0.4);
+      tl.fromTo("#hook", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.9, ease }, 0.3);
+      tl.to("#hook", { opacity: 0, y: -20, duration: 0.5, ease: "power2.in" }, 3.55);
+      tl.to("#searchwrap", { opacity: 1, duration: 0.6 }, 1.2);
+      const q = "Manufacturing · Tamil Nadu · last 30 days";
+      const typer = { n: 0 };
+      tl.to(typer, { n: q.length, duration: 2.2, ease: "none", onUpdate: () => { $("#qtext").textContent = q.slice(0, Math.round(typer.n)); } }, 1.4);
+      tl.fromTo(".chip", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.5, ease, stagger: 0.28 }, 3.5);
+
+      // beat-locked: 4.23s search glides up, results open
+      tl.to("#searchwrap", { y: 0, duration: 0.9, ease: "power3.inOut" }, 4.23);
+      tl.to("#caret", { opacity: 0, duration: 0.2 }, 4.3);
+      tl.to("#rhead", { opacity: 1, duration: 0.6 }, 4.5);
+      const cnt = { v: 0 };
+      tl.to(cnt, { v: 1284, duration: 2.0, ease: "power2.out", onUpdate: () => { $("#count").textContent = Math.round(cnt.v).toLocaleString("en-US"); } }, 4.6);
+
+      // beat-grid: cards at 5.28, 6.34, 7.40, 8.44 (every other beat, text readability)
+      [["#card1", 5.28], [".c2", 6.34], [".c3", 7.4], [".c4", 8.44]].forEach(([sel, t]) => {
+        tl.fromTo(sel, { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.8, ease: "expo.out" }, t);
+      });
+      // beat-locked: 10.54s focus on the freshest lead
+      tl.to("#card1", { borderColor: "rgba(92,225,230,0.6)", boxShadow: "0 0 70px rgba(92,225,230,0.16)", duration: 0.6, ease: "sine.inOut" }, 10.54);
+      tl.to(".c2, .c3, .c4", { opacity: 0.45, duration: 0.6 }, 10.54);
+
+      // Scene 3: beat-locked 12.65s, lead opens into intelligence
+      tl.to(".c2, .c3, .c4", { opacity: 0, y: 40, duration: 0.6, ease: "power2.in" }, 12.65);
+      tl.to("#rhead", { opacity: 0, duration: 0.5 }, 12.65);
+      tl.to("#searchwrap", { opacity: 0, y: -30, duration: 0.6, ease: "power2.in" }, 12.65);
+      tl.to("#card1", { y: -100, duration: 0.9, ease: "power3.inOut" }, 12.65);
+      tl.fromTo("#panel", { opacity: 0, y: 50 }, { opacity: 1, y: 0, duration: 0.8, ease }, 13.1);
+      tl.to("#cursor", { opacity: 1, duration: 0.3 }, 14.3);
+      tl.to("#cursor", { x: target.x, y: target.y, duration: 1.0, ease: "power2.inOut" }, 14.4);
+      tl.to("#unlock", { scale: 0.94, duration: 0.1 }, 15.6);
+      tl.to("#unlock", { scale: 1, duration: 0.2 }, 15.7);
+      tl.call(() => {}, [], 15.6);
+      const unlockAt = 15.65;
+      tl.to("#unlock", { opacity: 0, duration: 0.15 }, unlockAt);
+      tl.set("#unlock", { textContent: "Unlocked" }, unlockAt + 0.15);
+      tl.to("#unlock", { opacity: 1, backgroundColor: "#12313a", color: "#5ce1e6", duration: 0.25 }, unlockAt + 0.15);
+      const rev = { p: 0 };
+      const phoneFull = "+91 98765 43210", emailFull = "divya@hosurmotion.in";
+      const phoneMask = "+91 98••• ••210", emailMask = "d•••@•••••.in";
+      tl.set("#phone", { textContent: phoneFull }, unlockAt + 0.1);
+      tl.set("#email", { textContent: emailFull }, unlockAt + 0.1);
+      tl.to("#phone, #email", { color: "#5ce1e6", duration: 0.4 }, unlockAt + 0.1);
+      tl.to("#cursor", { opacity: 0, y: target.y + 40, duration: 0.5 }, 16.4);
+
+      // Scene 4: beat-locked 17.38s outro
+      tl.to("#card1, #panel", { opacity: 0, duration: 0.45, ease: "power2.in" }, 16.75);
+      tl.to("#brand, #live", { opacity: 0, duration: 0.4 }, 17.0);
+      tl.fromTo("#outro", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.9, ease }, 17.38);
+      tl.to("#glow", { opacity: 0.85, duration: 1.4, ease: "sine.inOut" }, 18.4);
+
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

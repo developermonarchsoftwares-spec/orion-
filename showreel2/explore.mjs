@@ -1,0 +1,13 @@
+import { chromium } from '../node_modules/playwright/index.mjs';
+import { installDemoApi, demoInit } from './demo-api.mjs';
+const browser = await chromium.launch({ channel: 'chrome' });
+const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
+await ctx.addInitScript(demoInit);
+const page = await ctx.newPage();
+await installDemoApi(page);
+await page.goto('http://localhost:3000/discover', { waitUntil: 'networkidle' });
+await page.getByText('Select State / UT…').first().click().catch(async()=>{ await page.locator('text=Select State').first().click(); });
+await page.waitForTimeout(800);
+await page.screenshot({ path: 'ex1.png' });
+console.log(await page.evaluate(() => [...document.querySelectorAll('[role=option],[role=listbox] *')].slice(0,5).map(e=>e.outerHTML.slice(0,200))));
+await browser.close();

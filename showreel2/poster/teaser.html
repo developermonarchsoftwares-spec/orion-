@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Orion Teaser Poster</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root { --bg:#0a0a0a; --text:#fff; --muted:#a1a1aa; --accent:#7c3aed; --accent-text:#a78bfa; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:1800px; height:2400px; background:var(--bg); }
+  #p { position:relative; width:1800px; height:2400px; overflow:hidden; background:var(--bg); color:var(--text); font-family:"Inter",system-ui,sans-serif; }
+  .abs { position:absolute; }
+  #glow { left:150px; top:420px; width:1500px; height:1500px; border-radius:50%; background:radial-gradient(circle at center, rgba(124,58,237,.42), rgba(124,58,237,.10) 42%, transparent 68%); }
+  #grid { inset:0; opacity:.2; background-image:linear-gradient(rgba(255,255,255,.09) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.09) 1px,transparent 1px); background-size:150px 150px; -webkit-mask-image:radial-gradient(circle at 50% 46%,#000 8%,transparent 62%); mask-image:radial-gradient(circle at 50% 46%,#000 8%,transparent 62%); }
+  .ring { border-radius:50%; border:1px solid rgba(167,139,250,.28); left:50%; top:1100px; transform:translate(-50%,-50%); }
+  #r1 { width:760px; height:760px; }
+  #r2 { width:1160px; height:1160px; border-color:rgba(167,139,250,.18); }
+  #r3 { width:1560px; height:1560px; border-color:rgba(167,139,250,.10); }
+  .dot { width:16px; height:16px; border-radius:50%; background:var(--accent-text); box-shadow:0 0 30px 6px rgba(167,139,250,.7); }
+  #vig { inset:0; background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.7)); }
+  #kicker { left:0; width:1800px; top:150px; text-align:center; font-family:"JetBrains Mono",monospace; font-size:26px; letter-spacing:.34em; color:var(--muted); }
+  #logo { left:50%; top:1100px; width:880px; transform:translate(-50%,-50%); }
+  #soon { left:0; width:1800px; top:1650px; text-align:center; font-size:132px; font-weight:600; letter-spacing:-.045em; }
+  #soon span { color:var(--accent-text); }
+  #three { left:0; width:1800px; top:1860px; text-align:center; font-size:54px; font-weight:500; letter-spacing:-.01em; }
+  #three span { color:var(--accent-text); }
+  #tag { left:0; width:1800px; top:1960px; text-align:center; font-size:38px; color:var(--muted); }
+  #foot { left:0; width:1800px; top:2250px; text-align:center; font-family:"JetBrains Mono",monospace; font-size:22px; letter-spacing:.3em; color:#8d8d97; }
+</style>
+</head>
+<body>
+<div id="p">
+  <div id="grid" class="abs"></div>
+  <div id="glow" class="abs"></div>
+  <div id="r3" class="ring abs"></div>
+  <div id="r2" class="ring abs"></div>
+  <div id="r1" class="ring abs"></div>
+  <div class="dot abs" style="left:1060px;top:722px"></div>
+  <div class="dot abs" style="left:560px;top:1578px;width:11px;height:11px;opacity:.7"></div>
+  <div id="vig" class="abs"></div>
+  <div id="kicker" class="abs">A NEW KIND OF BUSINESS INTELLIGENCE</div>
+  <img id="logo" class="abs" src="logo.png" alt="Orion" />
+  <div id="soon" class="abs">Launching <span>soon.</span></div>
+  <div id="three" class="abs">Discover. Enrich. <span>Act.</span></div>
+  <div id="tag" class="abs">Business intelligence for modern sales teams.</div>
+  <div id="foot" class="abs">ORION</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Orion Teaser Poster 2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root { --bg:#0a0a0a; --text:#fff; --muted:#a1a1aa; --accent:#7c3aed; --accent-text:#a78bfa; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:1800px; height:2400px; background:var(--bg); }
+  #p { position:relative; width:1800px; height:2400px; overflow:hidden; background:var(--bg); color:var(--text); font-family:"Inter",system-ui,sans-serif; }
+  canvas { position:absolute; left:0; top:0; }
+  .abs { position:absolute; }
+  #vig { inset:0; background:radial-gradient(ellipse at 50% 45%, transparent 50%, rgba(0,0,0,.75)); }
+  #pill { left:50%; top:130px; transform:translateX(-50%); display:flex; align-items:center; gap:18px; padding:16px 34px; border-radius:999px; border:1px solid rgba(167,139,250,.45); background:rgba(124,58,237,.14); font-family:"JetBrains Mono",monospace; font-size:26px; letter-spacing:.28em; color:#e9e2ff; white-space:nowrap; box-shadow:0 0 60px rgba(124,58,237,.35); }
+  #pill i { width:14px; height:14px; border-radius:50%; background:var(--accent-text); box-shadow:0 0 18px 4px rgba(167,139,250,.9); }
+  #logo { left:50%; top:290px; width:700px; transform:translateX(-50%); filter:drop-shadow(0 0 40px rgba(167,139,250,.55)); }
+  #h { left:0; width:1800px; top:1690px; text-align:center; font-size:150px; font-weight:600; letter-spacing:-.05em; line-height:1; }
+  #h b { font-weight:600; background:linear-gradient(100deg,#c4b5fd,#7c3aed 60%,#a78bfa); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  #three { left:0; width:1800px; top:2062px; text-align:center; font-size:58px; font-weight:500; letter-spacing:-.01em; }
+  #three span { color:var(--accent-text); }
+  #tag { left:0; width:1800px; top:2158px; text-align:center; font-size:40px; color:var(--muted); }
+  #rule { left:50%; top:2236px; width:2px; height:50px; transform:translateX(-50%); background:linear-gradient(180deg, rgba(167,139,250,.9), transparent); }
+  #foot { left:0; width:1800px; top:2318px; text-align:center; font-family:"JetBrains Mono",monospace; font-size:22px; letter-spacing:.34em; color:#8d8d97; }
+</style>
+</head>
+<body>
+<div id="p">
+  <canvas id="c" width="1800" height="2400"></canvas>
+  <div id="vig" class="abs"></div>
+  <div id="pill" class="abs"><i></i>LAUNCHING SOON</div>
+  <img id="logo" class="abs" src="logo.png" alt="Orion" />
+  <div id="h" class="abs">A new star<br /><b>is rising.</b></div>
+  <div id="three" class="abs">Discover. Enrich. <span>Act.</span></div>
+  <div id="tag" class="abs">Business intelligence for modern sales teams.</div>
+  <div id="rule" class="abs"></div>
+  <div id="foot" class="abs">ORION</div>
+</div>
+<script>
+  // seeded RNG so the render is repeatable
+  let s = 20261004; const rnd = () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
+  const c = document.getElementById('c'), g = c.getContext('2d');
+  g.fillStyle = '#0a0a0a'; g.fillRect(0, 0, 1800, 2400);
+
+  const blob = (x, y, r, rgba) => { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, rgba); gr.addColorStop(1, 'rgba(10,10,10,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); };
+  // nebula
+  blob(900, 1050, 900, 'rgba(124,58,237,.34)');
+  blob(560, 760, 520, 'rgba(168,85,247,.20)');
+  blob(1300, 1350, 560, 'rgba(99,102,241,.20)');
+  blob(900, 1050, 360, 'rgba(196,181,253,.16)');
+
+  // dust
+  for (let i = 0; i < 1100; i++) {
+    const x = rnd() * 1800, y = rnd() * 2400, r = rnd() < .94 ? rnd() * 1.4 + .3 : rnd() * 2.4 + 1.2;
+    g.globalAlpha = .15 + rnd() * .6; g.fillStyle = rnd() < .2 ? '#c4b5fd' : '#ffffff';
+    g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  g.globalAlpha = 1;
+
+  // Orion constellation
+  const X0 = 330, Y0 = 600, W = 1140, H = 1040;
+  const P = (nx, ny) => [X0 + nx * W, Y0 + ny * H];
+  const S = {
+    meissa: [P(.52, .03), 9], betel: [P(.28, .13), 20], bella: [P(.74, .17), 15],
+    alnitak: [P(.41, .50), 13], alnilam: [P(.52, .47), 15], mintaka: [P(.63, .44), 12],
+    saiph: [P(.30, .90), 14], rigel: [P(.76, .86), 21]
+  };
+  const L = [['betel','meissa'],['meissa','bella'],['betel','alnitak'],['bella','mintaka'],['alnitak','alnilam'],['alnilam','mintaka'],['alnitak','saiph'],['mintaka','rigel']];
+  g.lineCap = 'round';
+  L.forEach(([a, b]) => {
+    const [pa] = S[a], [pb] = S[b];
+    const gr = g.createLinearGradient(pa[0], pa[1], pb[0], pb[1]);
+    gr.addColorStop(0, 'rgba(196,181,253,.75)'); gr.addColorStop(.5, 'rgba(167,139,250,.28)'); gr.addColorStop(1, 'rgba(196,181,253,.75)');
+    g.strokeStyle = gr; g.lineWidth = 2.5; g.beginPath(); g.moveTo(pa[0], pa[1]); g.lineTo(pb[0], pb[1]); g.stroke();
+  });
+  Object.values(S).forEach(([[x, y], r]) => {
+    blob(x, y, r * 7, 'rgba(167,139,250,.35)');
+    blob(x, y, r * 3, 'rgba(233,226,255,.45)');
+    // 4-point flare
+    g.save(); g.translate(x, y);
+    const fl = r * 5.5; const fg = g.createLinearGradient(-fl, 0, fl, 0);
+    fg.addColorStop(0, 'rgba(255,255,255,0)'); fg.addColorStop(.5, 'rgba(255,255,255,.95)'); fg.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = fg; g.fillRect(-fl, -1.4, fl * 2, 2.8);
+    g.rotate(Math.PI / 2); g.fillRect(-fl, -1.4, fl * 2, 2.8);
+    g.restore();
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(x, y, r * .42, 0, 7); g.fill();
+  });
+  // faint orbit arcs echoing the logo
+  g.strokeStyle = 'rgba(167,139,250,.14)'; g.lineWidth = 2;
+  [[900, 1120, 640], [900, 1120, 860]].forEach(([x, y, r]) => { g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke(); });
+</script>
+</body>
+</html>

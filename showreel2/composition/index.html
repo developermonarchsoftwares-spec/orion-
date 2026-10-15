@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      :root {
+        --bg: #0a0a0a;
+        --surface: #141414;
+        --text: #ffffff;
+        --muted: #a1a1aa;
+        --accent: #7c3aed;
+        --accent-text: #a78bfa;
+        --sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+        --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); }
+      #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--sans); }
+      .abs { position: absolute; }
+
+      #glow { left: 360px; top: 60px; width: 1200px; height: 900px; background: radial-gradient(ellipse at center, rgba(124, 58, 237, 0.22), transparent 64%); opacity: 0.45; }
+      #vig { inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.55)); }
+
+      /* logo scenes */
+      .logoScene { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0; }
+      .logoScene img { width: 780px; height: auto; display: block; }
+      .tag { margin-top: 34px; font-size: 40px; font-weight: 500; letter-spacing: 0.02em; color: var(--text); }
+      .tag span { color: var(--accent-text); }
+      .sub { margin-top: 22px; font-size: 27px; color: var(--muted); letter-spacing: 0.01em; }
+      #sheen { left: 570px; top: 380px; width: 200px; height: 320px; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.35), transparent); transform: skewX(-18deg); opacity: 0; mix-blend-mode: overlay; }
+
+      /* product frame */
+      .frame { left: 210px; top: 66px; width: 1500px; height: 844px; border-radius: 20px; overflow: hidden; background: #fff; opacity: 0; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14), 0 40px 120px rgba(0, 0, 0, 0.75), 0 0 140px rgba(124, 58, 237, 0.18); }
+      .frame .inner { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform: scale(0.78125); transform-origin: 0 0; }
+      .cam { position: absolute; left: 0; top: 0; width: 1500px; height: 844px; }
+      .frame video, .frame img { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: block; }
+      .glass { position: absolute; inset: 0; background: linear-gradient(115deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0) 32%, rgba(255, 255, 255, 0) 70%, rgba(124, 58, 237, 0.06) 100%); pointer-events: none; }
+      .rim { position: absolute; left: 0; top: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent); }
+      .reflect { left: 210px; top: 916px; width: 1500px; height: 60px; border-radius: 0 0 20px 20px; background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), transparent); filter: blur(10px); opacity: 0; }
+
+      .cap { left: 210px; top: 968px; width: 1500px; display: flex; align-items: baseline; gap: 22px; opacity: 0; }
+      .cap b { font-family: var(--mono); font-weight: 500; font-size: 26px; letter-spacing: 0.16em; color: var(--accent-text); }
+      .cap span { font-size: 32px; font-weight: 500; letter-spacing: -0.01em; }
+      .cap em { font-style: normal; font-size: 26px; color: var(--muted); }
+      #note { right: 60px; bottom: 26px; font-family: var(--mono); font-size: 16px; letter-spacing: 0.08em; color: #9a9aa4; opacity: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="15" data-width="1920" data-height="1080">
+      <div id="glow" class="abs"></div>
+
+      <!-- Scene 1: opening -->
+      <div id="s1" class="logoScene">
+        <img id="logo1" src="assets/media/logo.png" alt="Orion" />
+        <div id="tag1" class="tag" style="opacity:0">Discover. Enrich. <span>Act.</span></div>
+      </div>
+      <div id="sheen" class="abs"></div>
+
+      <!-- Scene 2: discovery -->
+      <div id="f2" class="frame abs">
+        <div class="cam" id="cam2"><div class="inner">
+          <video id="vA" class="clip" src="assets/media/clipA.mp4" muted playsinline data-start="3.18" data-duration="4.22" data-track-index="1"></video>
+        </div></div>
+        <div class="glass"></div><div class="rim"></div>
+      </div>
+      <div id="cap2" class="cap abs"><b>DISCOVER</b><span>Filter by industry and location.</span><em>Fresh businesses appear instantly.</em></div>
+
+      <!-- Scene 3: intelligence -->
+      <div id="f3" class="frame abs">
+        <div class="cam" id="cam3"><div class="inner">
+          <video id="vB" class="clip" src="assets/media/clipB.mp4" muted playsinline data-start="7.4" data-duration="3.66" data-track-index="2"></video>
+        </div></div>
+        <div class="glass"></div><div class="rim"></div>
+      </div>
+      <div id="cap3" class="cap abs"><b>ENRICH</b><span>Company signals and decision-maker contacts.</span><em>Unlock what you need.</em></div>
+
+      <!-- Scene 4: montage -->
+      <div id="f4" class="frame abs">
+        <div class="cam" id="cam4"><div class="inner">
+          <img id="m1" src="assets/media/stillResults.png" alt="" />
+          <img id="m2" src="assets/media/stillProfile.png" alt="" />
+          <img id="m3" src="assets/media/stillPeople.png" alt="" />
+        </div></div>
+        <div class="glass"></div><div class="rim"></div>
+      </div>
+      <div id="cap4" class="cap abs"><b>ACT</b><span>Save to pipeline. Export unlocked leads.</span></div>
+      <div id="refl" class="reflect abs"></div>
+
+      <!-- Scene 5: final -->
+      <div id="s5" class="logoScene">
+        <img id="logo5" src="assets/media/logo.png" alt="Orion" />
+        <div id="tag5" class="tag">Discover. Enrich. <span>Act.</span></div>
+        <div id="sub5" class="sub">Business intelligence for modern sales teams.</div>
+      </div>
+
+      <div id="vig" class="abs"></div>
+      <div id="note" class="abs">PRODUCT UI SHOWN WITH DEMO DATA</div>
+
+      <audio id="music" src="assets/music/bed.mp3" data-start="0" data-duration="15" data-track-index="5" data-volume="0.5" data-fade-in="0.8" data-fade-out="1.6"></audio>
+      <audio id="x1" src="assets/sfx/soft.ogg" data-start="3.18" data-duration="0.4" data-track-index="6" data-volume="0.3"></audio>
+      <audio id="x2" src="assets/sfx/click.ogg" data-start="5.1" data-duration="0.09" data-track-index="7" data-volume="0.4"></audio>
+      <audio id="x3" src="assets/sfx/soft.ogg" data-start="7.4" data-duration="0.4" data-track-index="8" data-volume="0.3"></audio>
+      <audio id="x4" src="assets/sfx/click.ogg" data-start="9.0" data-duration="0.09" data-track-index="9" data-volume="0.4"></audio>
+      <audio id="x5" src="assets/sfx/soft.ogg" data-start="11.06" data-duration="0.4" data-track-index="10" data-volume="0.3"></audio>
+      <audio id="x6" src="assets/sfx/soft.ogg" data-start="13.18" data-duration="0.4" data-track-index="11" data-volume="0.3"></audio>
+    </div>
+
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      const ease = "power3.out";
+      const inOut = "power2.inOut";
+
+      gsap.set("#s5", { opacity: 0 });
+      gsap.set(["#m2", "#m3"], { clipPath: "inset(0 0 0 100%)" });
+
+      // atmosphere
+      [1.07,2.12,3.18,4.23,5.28,6.34,7.4,8.44,9.5,10.54,11.6,12.65].forEach((b) => {
+        tl.to("#glow", { opacity: 0.6, duration: 0.16, ease: "sine.out" }, b);
+        tl.to("#glow", { opacity: 0.45, duration: 0.5, ease: "sine.inOut" }, b + 0.16);
+      });
+
+      // Scene 1 (0 - 3.18): logo reveal
+      tl.fromTo("#s1", { opacity: 0, scale: 0.94 }, { opacity: 1, scale: 1, duration: 1.1, ease }, 0.2);
+      tl.fromTo("#sheen", { x: -300, opacity: 0 }, { x: 1300, opacity: 0.9, duration: 1.3, ease: "power2.inOut" }, 0.6);
+      tl.to("#sheen", { opacity: 0, duration: 0.2 }, 1.9);
+      tl.fromTo("#tag1", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.8, ease }, 1.2);
+      // beat-locked 3.18: cut to product
+      tl.to("#s1", { opacity: 0, scale: 1.03, duration: 0.45, ease: "power2.in" }, 2.7);
+
+      // Scene 2 (3.18 - 7.40): discovery
+      tl.fromTo("#f2", { opacity: 0, y: 46, scale: 0.97 }, { opacity: 1, y: 0, scale: 1, duration: 0.8, ease }, 3.18);
+      tl.fromTo("#cap2", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.6, ease }, 3.5);
+      tl.to("#cam2", { scale: 1.04, duration: 2.4, ease: "none", transformOrigin: "30% 40%" }, 3.4);
+      tl.to("#cam2", { scale: 1.32, x: -170, y: -70, duration: 1.1, ease: inOut, transformOrigin: "60% 50%" }, 6.2);
+      tl.to(["#f2", "#cap2"], { opacity: 0, duration: 0.3, ease: "power2.in" }, 7.1);
+
+      // Scene 3 (7.40 - 11.06): intelligence
+      tl.fromTo("#f3", { opacity: 0, x: 60 }, { opacity: 1, x: 0, duration: 0.7, ease }, 7.4);
+      tl.fromTo("#cap3", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.6, ease }, 7.6);
+      tl.fromTo("#cam3", { scale: 1, x: 0, y: 0 }, { scale: 1.25, x: -230, y: -20, duration: 2.2, ease: inOut, transformOrigin: "82% 40%" }, 8.0);
+      tl.to("#cam3", { scale: 1, x: 0, y: 0, duration: 0.8, ease: inOut }, 10.2);
+      tl.to(["#f3", "#cap3"], { opacity: 0, duration: 0.3, ease: "power2.in" }, 10.8);
+
+      // Scene 4 (11.06 - 13.18): montage
+      tl.fromTo("#f4", { opacity: 0 }, { opacity: 1, duration: 0.3, ease }, 11.06);
+      tl.fromTo("#cap4", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.5, ease }, 11.2);
+      tl.fromTo("#cam4", { scale: 1.0 }, { scale: 1.12, duration: 2.1, ease: "none", transformOrigin: "50% 40%" }, 11.06);
+      tl.to("#m2", { clipPath: "inset(0 0 0 0%)", duration: 0.45, ease: inOut }, 11.7);
+      tl.to("#m3", { clipPath: "inset(0 0 0 0%)", duration: 0.45, ease: inOut }, 12.4);
+      tl.to(["#f4", "#cap4"], { opacity: 0, duration: 0.3, ease: "power2.in" }, 12.9);
+
+      // Scene 5 (13.18 - 15): final frame
+      tl.fromTo("#s5", { opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1, duration: 0.9, ease }, 13.18);
+      tl.fromTo("#tag5", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.6, ease }, 13.55);
+      tl.fromTo("#sub5", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.6, ease }, 13.85);
+      tl.to("#glow", { opacity: 0.8, duration: 1.2, ease: "sine.inOut" }, 13.4);
+
+      // disclosure
+      tl.to("#note", { opacity: 1, duration: 0.25 }, 3.18);
+      tl.to("#note", { opacity: 0, duration: 0.3 }, 12.9);
+
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

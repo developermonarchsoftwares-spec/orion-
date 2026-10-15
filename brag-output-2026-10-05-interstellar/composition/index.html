@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500&display=swap" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      :root { --bg:#050507; --text:#f2f2f4; --muted:#a9a9b3; --sans:"Jost","Helvetica Neue",Arial,sans-serif; }
+      * { margin:0; padding:0; box-sizing:border-box; }
+      html, body { width:1920px; height:1080px; overflow:hidden; background:var(--bg); }
+      #root { position:relative; width:1920px; height:1080px; overflow:hidden; background:var(--bg); color:var(--text); font-family:var(--sans); }
+      .abs { position:absolute; }
+
+      #world { left:0; top:0; width:1920px; height:1080px; transform-origin:960px 500px; }
+      .gx { position:absolute; left:-90px; top:-85px; width:2100px; height:1250px; }
+      .tw { position:absolute; border-radius:50%; background:#fff; }
+      #cam { left:0; top:0; width:1920px; height:1080px; }
+      svg#lines { position:absolute; left:0; top:0; width:1920px; height:1080px; overflow:visible; }
+      svg#lines path { fill:none; stroke:rgba(222,224,255,.62); stroke-width:1.6; stroke-linecap:round; }
+      .star { position:absolute; width:0; height:0; opacity:0; }
+      .star .halo { position:absolute; left:-52px; top:-52px; width:104px; height:104px; border-radius:50%; background:radial-gradient(circle,rgba(235,236,255,.26),rgba(180,170,255,.07) 45%,transparent 70%); }
+      .star .core { position:absolute; left:-4px; top:-4px; width:8px; height:8px; border-radius:50%; background:#fff; box-shadow:0 0 16px 4px rgba(240,240,255,.8); }
+      .star .fh { position:absolute; left:-80px; top:-.6px; width:160px; height:1.2px; background:linear-gradient(90deg,transparent,rgba(210,222,255,.85),transparent); }
+      .star .fv { position:absolute; left:-.6px; top:-34px; width:1.2px; height:68px; background:linear-gradient(180deg,transparent,rgba(235,235,255,.7),transparent); }
+      .nm { position:absolute; font-weight:400; font-size:15px; letter-spacing:.34em; color:rgba(220,222,245,.78); white-space:nowrap; opacity:0; }
+
+      #bloom { left:260px; top:-160px; width:1400px; height:1400px; border-radius:50%; background:radial-gradient(circle,rgba(255,250,240,1),rgba(255,236,205,.7) 16%,rgba(190,185,255,.25) 40%,transparent 66%); opacity:0; }
+      #streak { left:-100px; top:537px; width:2120px; height:6px; background:linear-gradient(90deg,transparent,rgba(205,220,255,.95) 50%,transparent); filter:blur(2.5px); opacity:0; }
+      #logo { left:960px; top:420px; width:600px; opacity:0; }
+
+      .cap { left:0; width:1920px; text-align:center; text-transform:uppercase; font-weight:300; opacity:0; }
+      #c1 { top:560px; font-size:34px; letter-spacing:.34em; }
+      #c2 { top:850px; font-size:30px; letter-spacing:.32em; }
+      #c3 { top:520px; font-size:50px; letter-spacing:.34em; font-weight:300; }
+      #c4 { top:612px; font-size:28px; letter-spacing:.38em; font-weight:400; color:var(--text); }
+      #c5 { top:690px; font-size:19px; letter-spacing:.3em; color:var(--muted); font-weight:400; }
+      #c6 { top:800px; font-size:17px; letter-spacing:.6em; font-weight:500; color:var(--text); }
+
+      #grain { left:-140px; top:-110px; width:2200px; height:1300px; opacity:.11; mix-blend-mode:overlay; background-repeat:repeat; }
+      #vig { z-index:0; inset:0; background:radial-gradient(ellipse at 50% 50%,transparent 46%,rgba(0,0,0,.78)); pointer-events:none; }
+      .bar { left:0; width:1920px; height:138px; background:#000; }
+      #barT { top:0; } #barB { bottom:0; }
+      #fade { inset:0; background:#000; opacity:1; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="20" data-width="1920" data-height="1080">
+      <div id="world" class="abs">
+        <canvas id="g1" class="gx" width="2100" height="1250"></canvas>
+        <canvas id="g2" class="gx" width="2100" height="1250"></canvas>
+        <canvas id="g3" class="gx" width="2100" height="1250"></canvas>
+        <div id="twk"></div>
+        <div id="vig" class="abs"></div>
+        <div id="cam" class="abs"><svg id="lines" viewBox="0 0 1920 1080"></svg></div>
+      </div>
+      <div id="bloom" class="abs"></div>
+      <div id="streak" class="abs"></div>
+      <img id="logo" class="abs" src="assets/media/logo.png" alt="Orion" />
+
+      <div id="c1" class="cap abs">Every day, new businesses open.</div>
+      <div id="c2" class="cap abs">Act before they become hard to reach.</div>
+      <div id="c3" class="cap abs">A new star is rising.</div>
+      <div id="c4" class="cap abs">Discover. Enrich. Act.</div>
+      <div id="c5" class="cap abs">Business intelligence for modern sales teams.</div>
+      <div id="c6" class="cap abs">Launching soon</div>
+
+      <div id="grain" class="abs"></div>
+      <div id="barT" class="bar abs"></div><div id="barB" class="bar abs"></div>
+      <div id="fade" class="abs"></div>
+
+      <audio id="score" src="assets/music/score.wav" data-start="0" data-duration="20" data-track-index="1" data-volume="1"></audio>
+    </div>
+
+    <script>
+      const $ = (s) => document.querySelector(s);
+      const tl = gsap.timeline({ paused: true });
+      const soft = "power2.out", ease = "power3.out";
+      gsap.set("#logo", { xPercent: -50, yPercent: -50 });
+
+      // ---------- galaxy (seeded, drawn once) ----------
+      let sd = 20261005; const rnd = () => (sd = (sd * 1664525 + 1013904223) % 4294967296) / 4294967296;
+      const gauss = () => Math.sqrt(-2 * Math.log(rnd() + 1e-9)) * Math.cos(6.2831853 * rnd());
+      const CW = 2100, CH = 1250, ANG = -0.46;
+      const cos = Math.cos(ANG), sin = Math.sin(ANG);
+      const bandPt = (t, o) => [CW / 2 + t * cos - o * sin, CH / 2 + t * sin + o * cos];
+      const cols = ["#ffffff", "#ffffff", "#e2ebff", "#cfdcff", "#ffeedd", "#f1e6ff"];
+      const ctx = (id) => $("#" + id).getContext("2d");
+      const dot = (g, x, y, r, a, col) => { g.globalAlpha = a; g.fillStyle = col; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); };
+      const glowEllipse = (g, cx, cy, rx, ry, rgba, rot) => {
+        g.save(); g.translate(cx, cy); g.rotate(rot); g.scale(rx / ry, 1);
+        const gr = g.createRadialGradient(0, 0, 0, 0, 0, ry); gr.addColorStop(0, rgba); gr.addColorStop(1, "rgba(5,5,7,0)");
+        g.fillStyle = gr; g.fillRect(-ry * 3, -ry, ry * 6, ry * 2); g.restore();
+      };
+      (() => {
+        const g = ctx("g1");
+        g.fillStyle = "#050507"; g.fillRect(0, 0, CW, CH);
+        glowEllipse(g, CW / 2, CH / 2, 1600, 360, "rgba(60,52,120,.20)", ANG);
+        glowEllipse(g, CW / 2, CH / 2, 1300, 210, "rgba(92,70,170,.17)", ANG);
+        glowEllipse(g, CW / 2, CH / 2, 950, 110, "rgba(205,195,240,.12)", ANG);
+        glowEllipse(g, CW / 2 - 200, CH / 2 + 70, 420, 80, "rgba(255,232,205,.07)", ANG);
+        for (let i = 0; i < 70; i++) {
+          const [x, y] = bandPt((rnd() - .5) * 2500, gauss() * 130);
+          glowEllipse(g, x, y, 50 + rnd() * 100, 24 + rnd() * 50, "rgba(" + (rnd() < .5 ? "170,150,235" : "130,150,245") + "," + (.025 + rnd() * .04) + ")", ANG + (rnd() - .5) * .7);
+        }
+        glowEllipse(g, CW / 2 + 60, CH / 2 + 22, 1500, 24, "rgba(4,4,8,.6)", ANG); // dust lane
+        glowEllipse(g, CW / 2 - 300, CH / 2 - 40, 700, 14, "rgba(4,4,8,.4)", ANG - .03);
+        for (let i = 0; i < 3600; i++) {
+          let x, y;
+          if (rnd() < .55) { [x, y] = bandPt((rnd() - .5) * 2700, gauss() * 200); } else { x = rnd() * CW; y = rnd() * CH; }
+          dot(g, x, y, rnd() * .45 + .25, .18 + rnd() * .4, cols[(rnd() * cols.length) | 0]);
+        }
+        g.globalAlpha = 1;
+      })();
+      (() => {
+        const g = ctx("g2");
+        for (let i = 0; i < 2300; i++) {
+          let x, y;
+          if (rnd() < .5) { [x, y] = bandPt((rnd() - .5) * 2600, gauss() * 240); } else { x = rnd() * CW; y = rnd() * CH; }
+          dot(g, x, y, rnd() * .6 + .45, .35 + rnd() * .5, cols[(rnd() * cols.length) | 0]);
+        }
+        g.globalAlpha = 1;
+      })();
+      const bright = [];
+      (() => {
+        const g = ctx("g3");
+        for (let i = 0; i < 320; i++) {
+          let x, y;
+          if (rnd() < .42) { [x, y] = bandPt((rnd() - .5) * 2500, gauss() * 270); } else { x = rnd() * CW; y = rnd() * CH; }
+          const r = rnd() * .8 + .8, col = cols[(rnd() * cols.length) | 0];
+          const gr = g.createRadialGradient(x, y, 0, x, y, r * 5); gr.addColorStop(0, "rgba(255,255,255,.3)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+          g.globalAlpha = .5 + rnd() * .5; g.fillStyle = gr; g.fillRect(x - r * 5, y - r * 5, r * 10, r * 10);
+          dot(g, x, y, r, .95, col);
+          if (i < 26) { // faint anamorphic streak
+            const len = 40 + rnd() * 90, sg = g.createLinearGradient(x - len, y, x + len, y);
+            sg.addColorStop(0, "rgba(170,195,255,0)"); sg.addColorStop(.5, "rgba(190,210,255,.30)"); sg.addColorStop(1, "rgba(170,195,255,0)");
+            g.globalAlpha = 1; g.fillStyle = sg; g.fillRect(x - len, y - .6, len * 2, 1.2);
+          }
+          if (i < 60) bright.push([x - 90, y - 85]);
+        }
+        g.globalAlpha = 1;
+      })();
+      bright.forEach(([x, y]) => {
+        if (x < 0 || x > 1920 || y < 0 || y > 1080) return;
+        const d = document.createElement("div"); d.className = "tw";
+        const r = 1.5 + rnd() * 1.3; d.style.cssText = "left:" + (x - r / 2) + "px;top:" + (y - r / 2) + "px;width:" + r + "px;height:" + r + "px;opacity:.25;box-shadow:0 0 " + (r * 4) + "px " + r + "px rgba(214,210,255,.5)";
+        $("#twk").appendChild(d);
+        tl.to(d, { opacity: 1, duration: 1.1 + rnd() * 1.6, ease: "sine.inOut", yoyo: true, repeat: 8 }, rnd() * 3);
+      });
+      // galaxy fades up out of black, then drifts with parallax
+      tl.fromTo(["#g1", "#g2", "#g3", "#twk"], { opacity: 0 }, { opacity: 1, duration: 4.5, ease: "sine.inOut" }, 0.6);
+      tl.to("#g1", { x: 30, y: -14, duration: 20, ease: "none" }, 0);
+      tl.to("#g2", { x: 62, y: -30, duration: 20, ease: "none" }, 0);
+      tl.to("#g3", { x: 110, y: -52, duration: 20, ease: "none" }, 0);
+      tl.to("#twk", { x: 110, y: -52, duration: 20, ease: "none" }, 0);
+      tl.fromTo("#world", { scale: 1.0 }, { scale: 1.12, duration: 11, ease: "none" }, 0);
+
+      // ---------- complete Orion constellation ----------
+      const X0 = 570, Y0 = 175, W = 780, H = 600;
+      const P = (nx, ny) => [X0 + nx * W, Y0 + ny * H];
+      const defs = {
+        alnilam: [P(.51, .50), 1.1, 3.2], alnitak: [P(.44, .52), .95, 5.0, "MACHINERY"], mintaka: [P(.58, .48), .9, 5.4, "PACKAGING"],
+        sw1: [P(.51, .60), .5, 5.8], sw2: [P(.51, .66), .6, 6.1], sw3: [P(.51, .72), .5, 6.4],
+        betel: [P(.34, .16), 1.35, 6.9, "MANUFACTURING"], bella: [P(.68, .19), 1.0, 7.4, "WHOLESALE"], meissa: [P(.50, .04), .7, 7.9, "SERVICES"],
+        arm1: [P(.22, .09), .55, 8.3], arm2: [P(.14, .17), .5, 8.6],
+        sh1: [P(.84, .15), .55, 9.0], sh2: [P(.90, .30), .55, 9.3], sh3: [P(.92, .46), .55, 9.6], sh4: [P(.88, .60), .5, 9.9],
+        saiph: [P(.38, .88), .95, 10.3, "LOGISTICS"], rigel: [P(.70, .84), 1.4, 10.8, "EXPORT"],
+      };
+      const cam = $("#cam"), svg = $("#lines");
+      Object.entries(defs).forEach(([name, [[x, y], sc, t, label]]) => {
+        const s = document.createElement("div"); s.className = "star"; s.id = "st_" + name;
+        s.style.left = x + "px"; s.style.top = y + "px";
+        s.innerHTML = '<div class="halo"></div><div class="fh"></div><div class="fv"></div><div class="core"></div>';
+        cam.appendChild(s);
+        tl.fromTo(s, { opacity: 0, scale: 0.2 }, { opacity: 1, scale: sc, duration: 1.3, ease: soft }, t);
+        tl.to(s.querySelector(".halo"), { scale: 1.2, duration: 1.8, ease: "sine.inOut", yoyo: true, repeat: 4 }, t + 1.3);
+        if (label) {
+          const n = document.createElement("div"); n.className = "nm"; n.textContent = label;
+          const right = x > 960, off = 26 + sc * 18;
+          n.style.left = (right ? x + off : x - off) + "px"; n.style.top = (y - 9) + "px";
+          if (!right) n.style.transform = "translateX(-100%)";
+          if (name === "betel") { n.style.left = (x - 30) + "px"; n.style.top = (y + 26) + "px"; n.style.transform = "translateX(-100%)"; }
+          cam.appendChild(n); tl.to(n, { opacity: 1, duration: 1.0, ease: soft }, t + 0.6);
+        }
+      });
+      const segs = [
+        ["alnitak","alnilam"],["alnilam","mintaka"],["alnilam","sw1"],["sw1","sw2"],["sw2","sw3"],
+        ["betel","alnitak"],["bella","mintaka"],["betel","meissa"],["meissa","bella"],
+        ["betel","arm1"],["arm1","arm2"],["bella","sh1"],["sh1","sh2"],["sh2","sh3"],["sh3","sh4"],
+        ["alnitak","saiph"],["mintaka","rigel"],
+      ];
+      segs.forEach(([a, b]) => {
+        const pa = defs[a][0], pb = defs[b][0];
+        const len = Math.hypot(pb[0] - pa[0], pb[1] - pa[1]);
+        const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        p.setAttribute("d", "M" + pa[0] + " " + pa[1] + " L" + pb[0] + " " + pb[1]);
+        p.setAttribute("stroke-dasharray", len); p.setAttribute("stroke-dashoffset", len);
+        svg.appendChild(p);
+        tl.to(p, { attr: { "stroke-dashoffset": 0 }, duration: 0.9, ease: "power1.inOut" }, Math.max(defs[a][2], defs[b][2]) + 0.25);
+      });
+
+      // ---------- grain (24 fps jitter) ----------
+      (() => {
+        const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d");
+        const img = g.createImageData(256, 256);
+        for (let i = 0; i < img.data.length; i += 4) { const v = (rnd() * 255) | 0; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }
+        g.putImageData(img, 0, 0);
+        $("#grain").style.backgroundImage = "url(" + c.toDataURL() + ")";
+        for (let f = 0; f < 20 * 24; f++) tl.set("#grain", { x: (rnd() * 120) | 0, y: (rnd() * 120) | 0 }, f / 24);
+      })();
+
+      // ---------- story ----------
+      tl.to("#fade", { opacity: 0, duration: 1.6, ease: "sine.inOut" }, 0.1);
+      tl.fromTo("#c1", { opacity: 0 }, { opacity: 1, duration: 1.6, ease: "sine.inOut" }, 1.3);
+      tl.to("#c1", { opacity: 0, duration: 1.0, ease: "sine.in" }, 4.0);
+      tl.fromTo("#c2", { opacity: 0 }, { opacity: 1, duration: 1.4, ease: "sine.inOut" }, 6.6);
+      tl.to("#c2", { opacity: 0, duration: 0.9, ease: "sine.in" }, 10.4);
+
+      // push toward the belt, white-out on the boom
+      tl.to("#world", { scale: 2.6, duration: 1.7, ease: "power3.in" }, 11.0);
+      tl.to("#cam", { opacity: 0, duration: 0.8, ease: "power2.in" }, 11.9);
+      tl.fromTo("#bloom", { opacity: 0, scale: 0.25 }, { opacity: 1, scale: 1.1, duration: 1.2, ease: "power3.in" }, 11.4);
+      tl.fromTo("#streak", { opacity: 0, scaleX: 0.1 }, { opacity: 1, scaleX: 1, duration: 0.9, ease: "power3.in" }, 11.7);
+      tl.set("#world", { scale: 1.06 }, 12.7);
+      // boom at 12.5 (score): bloom peaks then settles while the logo emerges
+      tl.to("#bloom", { opacity: 0, scale: 1.7, duration: 2.4, ease: "power2.out" }, 12.62);
+      tl.to("#streak", { opacity: 0, duration: 1.8, ease: "power2.out" }, 12.6);
+      tl.fromTo("#logo", { opacity: 0, scale: 0.94 }, { opacity: 1, scale: 1, duration: 2.2, ease: soft }, 12.7);
+      tl.to("#world", { scale: 1.16, duration: 7.2, ease: "none" }, 12.8);
+
+      tl.to("#logo", { y: -85, scale: 0.78, duration: 1.6, ease: "power2.inOut" }, 14.95);
+      tl.fromTo("#c3", { opacity: 0 }, { opacity: 1, duration: 1.4, ease: "sine.inOut" }, 15.0);
+      tl.fromTo("#c4", { opacity: 0 }, { opacity: 1, duration: 1.2, ease: "sine.inOut" }, 16.4);
+      tl.fromTo("#c5", { opacity: 0 }, { opacity: 1, duration: 1.2, ease: "sine.inOut" }, 17.3);
+      tl.fromTo("#c6", { opacity: 0 }, { opacity: 1, duration: 1.0, ease: "sine.inOut" }, 18.3);
+      tl.to("#fade", { opacity: 1, duration: 0.5, ease: "sine.in" }, 19.5);
+
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

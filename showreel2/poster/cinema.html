@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Orion Cinematic Poster</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  :root { --bg:#050507; --text:#f2f2f4; --muted:#a9a9b3; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:1800px; height:2400px; background:var(--bg); }
+  #p { position:relative; width:1800px; height:2400px; overflow:hidden; background:var(--bg); color:var(--text); font-family:"Jost","Helvetica Neue",Arial,sans-serif; }
+  canvas { position:absolute; left:0; top:0; }
+  .abs { position:absolute; }
+  .cap { left:0; width:1800px; text-align:center; text-transform:uppercase; }
+  .nm { position:absolute; font-weight:400; font-size:19px; letter-spacing:.34em; color:rgba(220,222,245,.8); white-space:nowrap; }
+  #top { top:170px; font-size:30px; letter-spacing:.4em; font-weight:300; color:#d8d8e0; }
+  #logo { left:900px; top:1790px; width:760px; transform:translate(-50%,-50%); filter:drop-shadow(0 0 40px rgba(180,175,255,.35)); }
+  #h { top:1990px; font-size:62px; letter-spacing:.36em; font-weight:300; padding-left:.36em; }
+  #sub { top:2100px; font-size:30px; letter-spacing:.4em; font-weight:400; padding-left:.4em; }
+  #tag { top:2170px; font-size:21px; letter-spacing:.3em; color:var(--muted); font-weight:400; padding-left:.3em; }
+  #soon { top:2272px; font-size:20px; letter-spacing:.62em; font-weight:500; padding-left:.62em; }
+  #rule { left:900px; top:2225px; width:1px; height:34px; background:linear-gradient(180deg,rgba(220,222,245,.7),transparent); }
+  #vig { inset:0; background:radial-gradient(ellipse at 50% 46%, transparent 42%, rgba(0,0,0,.8)); }
+  #grain { inset:0; opacity:.12; mix-blend-mode:overlay; }
+</style>
+</head>
+<body>
+<div id="p">
+  <canvas id="c" width="1800" height="2400"></canvas>
+  <div id="vig" class="abs"></div>
+  <div id="labels"></div>
+  <div id="top" class="cap abs">Every day, new businesses open.</div>
+  <img id="logo" class="abs" src="logo.png" alt="Orion" />
+  <div id="h" class="cap abs">A new star is rising.</div>
+  <div id="sub" class="cap abs">Discover. Enrich. Act.</div>
+  <div id="tag" class="cap abs">Business intelligence for modern sales teams.</div>
+  <div id="rule" class="abs"></div>
+  <div id="soon" class="cap abs">Launching soon</div>
+  <canvas id="grain" class="abs" width="1800" height="2400"></canvas>
+</div>
+<script>
+  let sd = 20261005; const rnd = () => (sd = (sd * 1664525 + 1013904223) % 4294967296) / 4294967296;
+  const gauss = () => Math.sqrt(-2 * Math.log(rnd() + 1e-9)) * Math.cos(6.2831853 * rnd());
+  const c = document.getElementById('c'), g = c.getContext('2d');
+  const CW = 1800, CH = 2400, ANG = -1.0;
+  const cos = Math.cos(ANG), sin = Math.sin(ANG);
+  const bandPt = (t, o) => [CW / 2 + t * cos - o * sin, CH * 0.42 + t * sin + o * cos];
+  const cols = ['#ffffff', '#ffffff', '#e2ebff', '#cfdcff', '#ffeedd', '#f1e6ff'];
+  const dot = (x, y, r, a, col) => { g.globalAlpha = a; g.fillStyle = col; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); };
+  const glowEllipse = (cx, cy, rx, ry, rgba, rot) => {
+    g.save(); g.translate(cx, cy); g.rotate(rot); g.scale(rx / ry, 1);
+    const gr = g.createRadialGradient(0, 0, 0, 0, 0, ry); gr.addColorStop(0, rgba); gr.addColorStop(1, 'rgba(5,5,7,0)');
+    g.fillStyle = gr; g.fillRect(-ry * 3, -ry, ry * 6, ry * 2); g.restore();
+  };
+  g.fillStyle = '#050507'; g.fillRect(0, 0, CW, CH);
+  glowEllipse(CW / 2, CH * .42, 2000, 430, 'rgba(60,52,120,.24)', ANG);
+  glowEllipse(CW / 2, CH * .42, 1700, 250, 'rgba(92,70,170,.20)', ANG);
+  glowEllipse(CW / 2, CH * .42, 1200, 130, 'rgba(205,195,240,.14)', ANG);
+  glowEllipse(CW / 2 + 120, CH * .42 + 60, 520, 90, 'rgba(255,232,205,.08)', ANG);
+  for (let i = 0; i < 90; i++) {
+    const [x, y] = bandPt((rnd() - .5) * 3200, gauss() * 150);
+    glowEllipse(x, y, 60 + rnd() * 120, 28 + rnd() * 60, 'rgba(' + (rnd() < .5 ? '170,150,235' : '130,150,245') + ',' + (.025 + rnd() * .04) + ')', ANG + (rnd() - .5) * .7);
+  }
+  glowEllipse(CW / 2 + 40, CH * .42 + 26, 1900, 28, 'rgba(4,4,8,.6)', ANG);
+  for (let i = 0; i < 7000; i++) {
+    let x, y;
+    if (rnd() < .55) { [x, y] = bandPt((rnd() - .5) * 3400, gauss() * 230); } else { x = rnd() * CW; y = rnd() * CH; }
+    dot(x, y, rnd() * .55 + .3, .2 + rnd() * .45, cols[(rnd() * cols.length) | 0]);
+  }
+  for (let i = 0; i < 3200; i++) {
+    let x, y;
+    if (rnd() < .5) { [x, y] = bandPt((rnd() - .5) * 3300, gauss() * 280); } else { x = rnd() * CW; y = rnd() * CH; }
+    dot(x, y, rnd() * .8 + .5, .35 + rnd() * .5, cols[(rnd() * cols.length) | 0]);
+  }
+  for (let i = 0; i < 420; i++) {
+    let x, y;
+    if (rnd() < .42) { [x, y] = bandPt((rnd() - .5) * 3200, gauss() * 300); } else { x = rnd() * CW; y = rnd() * CH; }
+    const r = rnd() * 1.0 + 0.9, col = cols[(rnd() * cols.length) | 0];
+    const gr = g.createRadialGradient(x, y, 0, x, y, r * 6); gr.addColorStop(0, 'rgba(255,255,255,.32)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.globalAlpha = .5 + rnd() * .5; g.fillStyle = gr; g.fillRect(x - r * 6, y - r * 6, r * 12, r * 12);
+    dot(x, y, r, .95, col);
+    if (i < 40) { const len = 50 + rnd() * 120, sg = g.createLinearGradient(x - len, y, x + len, y); sg.addColorStop(0, 'rgba(170,195,255,0)'); sg.addColorStop(.5, 'rgba(190,210,255,.32)'); sg.addColorStop(1, 'rgba(170,195,255,0)'); g.globalAlpha = 1; g.fillStyle = sg; g.fillRect(x - len, y - .7, len * 2, 1.4); }
+  }
+  g.globalAlpha = 1;
+
+  // constellation
+  const X0 = 360, Y0 = 520, W = 1080, H = 1000;
+  const P = (nx, ny) => [X0 + nx * W, Y0 + ny * H];
+  const S = {
+    alnilam: [P(.51, .50), 1.1], alnitak: [P(.44, .52), .95, 'MACHINERY'], mintaka: [P(.58, .48), .9, 'PACKAGING'],
+    sw1: [P(.51, .60), .5], sw2: [P(.51, .66), .6], sw3: [P(.51, .72), .5],
+    betel: [P(.34, .16), 1.4, 'MANUFACTURING'], bella: [P(.68, .19), 1.0, 'WHOLESALE'], meissa: [P(.50, .04), .7, 'SERVICES'],
+    arm1: [P(.22, .09), .55], arm2: [P(.14, .17), .5],
+    sh1: [P(.84, .15), .55], sh2: [P(.90, .30), .55], sh3: [P(.92, .46), .55], sh4: [P(.88, .60), .5],
+    saiph: [P(.38, .88), .95, 'LOGISTICS'], rigel: [P(.70, .84), 1.5, 'EXPORT'],
+  };
+  const L = [['alnitak','alnilam'],['alnilam','mintaka'],['alnilam','sw1'],['sw1','sw2'],['sw2','sw3'],['betel','alnitak'],['bella','mintaka'],['betel','meissa'],['meissa','bella'],['betel','arm1'],['arm1','arm2'],['bella','sh1'],['sh1','sh2'],['sh2','sh3'],['sh3','sh4'],['alnitak','saiph'],['mintaka','rigel']];
+  g.lineCap = 'round'; g.lineWidth = 2.2;
+  L.forEach(([a, b]) => { const pa = S[a][0], pb = S[b][0]; const gr = g.createLinearGradient(pa[0], pa[1], pb[0], pb[1]); gr.addColorStop(0, 'rgba(228,230,255,.8)'); gr.addColorStop(.5, 'rgba(190,190,245,.42)'); gr.addColorStop(1, 'rgba(228,230,255,.8)'); g.strokeStyle = gr; g.beginPath(); g.moveTo(pa[0], pa[1]); g.lineTo(pb[0], pb[1]); g.stroke(); });
+  const lab = document.getElementById('labels');
+  Object.entries(S).forEach(([name, [[x, y], sc, label]]) => {
+    const r = 9 * sc;
+    let gr = g.createRadialGradient(x, y, 0, x, y, r * 9); gr.addColorStop(0, 'rgba(235,236,255,.32)'); gr.addColorStop(.4, 'rgba(180,170,255,.09)'); gr.addColorStop(1, 'rgba(180,170,255,0)');
+    g.globalAlpha = 1; g.fillStyle = gr; g.fillRect(x - r * 9, y - r * 9, r * 18, r * 18);
+    const fl = 82 * sc + 40;
+    let fg = g.createLinearGradient(x - fl, y, x + fl, y); fg.addColorStop(0, 'rgba(210,222,255,0)'); fg.addColorStop(.5, 'rgba(225,235,255,.9)'); fg.addColorStop(1, 'rgba(210,222,255,0)');
+    g.fillStyle = fg; g.fillRect(x - fl, y - .8, fl * 2, 1.6);
+    fg = g.createLinearGradient(x, y - fl * .5, x, y + fl * .5); fg.addColorStop(0, 'rgba(235,235,255,0)'); fg.addColorStop(.5, 'rgba(235,235,255,.7)'); fg.addColorStop(1, 'rgba(235,235,255,0)');
+    g.fillStyle = fg; g.fillRect(x - .8, y - fl * .5, 1.6, fl);
+    g.shadowColor = 'rgba(240,240,255,.9)'; g.shadowBlur = 22; g.fillStyle = '#fff'; g.beginPath(); g.arc(x, y, r * .5, 0, 7); g.fill(); g.shadowBlur = 0;
+    if (label) {
+      const n = document.createElement('div'); n.className = 'nm'; n.textContent = label;
+      const right = x > 900, off = 34 + sc * 22;
+      n.style.left = (right ? x + off : x - off) + 'px'; n.style.top = (y - 12) + 'px';
+      if (!right) n.style.transform = 'translateX(-100%)';
+      if (name === 'betel') { n.style.left = (x - 40) + 'px'; n.style.top = (y + 34) + 'px'; n.style.transform = 'translateX(-100%)'; }
+      lab.appendChild(n);
+    }
+  });
+  // warm glow at the belt, the centre of the figure
+  const bx = S.alnilam[0][0], by = S.alnilam[0][1];
+  let bg = g.createRadialGradient(bx, by, 0, bx, by, 360); bg.addColorStop(0, 'rgba(255,238,215,.22)'); bg.addColorStop(1, 'rgba(255,238,215,0)'); g.fillStyle = bg; g.fillRect(bx - 360, by - 360, 720, 720);
+
+  // film grain
+  const gc = document.getElementById('grain').getContext('2d'), img = gc.createImageData(1800, 2400);
+  for (let i = 0; i < img.data.length; i += 4) { const v = (rnd() * 255) | 0; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }
+  gc.putImageData(img, 0, 0);
+</script>
+</body>
+</html>

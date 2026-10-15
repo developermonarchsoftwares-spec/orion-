@@ -1,0 +1,20 @@
+import { chromium } from '../node_modules/playwright/index.mjs';
+import { installDemoApi, demoInit, businesses } from './demo-api.mjs';
+
+const browser = await chromium.launch({ channel: 'chrome' });
+const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
+await ctx.addInitScript(demoInit);
+const page = await ctx.newPage();
+page.on('console', (m) => m.type() === 'error' && console.log('[console]', m.text().slice(0, 300)));
+page.on('pageerror', (e) => console.log('[pageerror]', e.message.slice(0, 400)));
+await installDemoApi(page);
+import('./demo-api.mjs').then(m=>m.unlocked.add('demo-1'));
+await page.goto('http://localhost:3000/discover', { waitUntil: 'networkidle' });
+await page.waitForTimeout(1500);
+await page.screenshot({ path: 'shot-discover.png' });
+await page.goto(`http://localhost:3000/discover/${businesses[0].slug}`, { waitUntil: 'networkidle' });
+await page.waitForTimeout(1500);
+await page.screenshot({ path: 'shot-profile.png' });
+await page.getByText('People', { exact: true }).first().click(); await page.waitForTimeout(2000); await page.screenshot({ path: 'shot-people.png' });
+console.log(page.url());
+await browser.close();
