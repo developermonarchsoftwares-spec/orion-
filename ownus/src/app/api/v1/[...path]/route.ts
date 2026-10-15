@@ -1,13 +1,37 @@
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { isPublishStatus, PUBLISH_REFUSED_REASON, refusedLookupSql, statusUpdateSql } from '@/lib/publish-guard';
 import crypto from 'crypto';
-import { sendAdminOtpEmail, isAuthorizedAdminEmail, sendPasswordResetEmail } from '@/lib/email-service';
+import { findAdminAccount, fixedOtpAllowed } from '@/lib/admin-account';
+import { burnPasswordCheck, hashPassword, needsRehash, verifyPassword } from '@/lib/password';
+import { sendAdminOtpEmail, isAuthorizedAdminEmail, sendPasswordResetEmail, sendSignupOtpEmail } from '@/lib/email-service';
+import { REGISTER_WITH_PROOF_SQL, parseProof, poolAdapter, registrationOtpRequired, sendEmailOtp, verifyEmailOtp } from '@/lib/email-otp';
 import { dispatchUserNotification } from '@/lib/notification-dispatcher';
-import { queryDb } from '@/lib/db';
+import { queryDb, queryDbStrict, DbWriteError, getDbPool } from '@/lib/db';
+import { claimOtpAttempt, redeemOtp } from '@/lib/admin-otp-store';
+import { MAX_EXPORT_IDS, MAX_EXPORT_ROWS, MAX_FILTER_TEXT, MAX_QUERY_LENGTH, clampText, escapeLike, parseLimit, parsePage, splitList } from '@/lib/search-input';
+import { UNLOCK_BUSINESS_SQL, interpretUnlockRow } from '@/lib/unlock-business';
+import {
+  accessSecret as gwAccessSecret,
+  adminSessionTtlSeconds,
+  authenticate,
+  decideAccess,
+  isDefinitiveUpstream,
+  isUuid,
+  otpSecret as gwOtpSecret,
+  refreshSecret as gwRefreshSecret,
+  resetSecret as gwResetSecret,
+  routePolicy,
+  verifyToken,
+  type IAuthContext,
+} from '@/lib/gateway-auth';
 import { DEFAULT_FILTER_CONFIG } from '@/lib/filter-options-store';
-import { generateInvoicePdfBuffer } from '@/lib/invoice-generator';
 import { TransactionRecord } from '@/types/admin';
+import { FALLBACK_PEOPLE_NOTICE, canonicalPersonColumn, countRowsWithPeopleData, withoutPersonColumns } from '@/lib/import-people-columns';
+import { isValidEmail, passwordComplaint, validateAvatar, pickBooleanKeys, pickPreferences, NOTIFICATION_KEYS } from '@/lib/input-validation';
+import { sanitizeCsvCell, csvField } from '@/lib/csv-security';
+import { isLocalRequestHost } from '@/lib/cookie-security';
 
 /**
  * Orion Production Gateway Proxy
@@ -34,6 +58,28 @@ function sanitizeEnvValue(val?: string, keyPrefix?: string): string {
   return cleaned.replace(/^["'`]|["'`]$/g, '').trim();
 }
 
+const LOCAL_RESET_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/**
+ * The application's own base URL for links we e-mail (password reset, etc.). Taken ONLY from server
+ * configuration (NEXT_PUBLIC_APP_URL / APP_URL). The request's Origin and Host headers are attacker-
+ * controlled, so they are never used to build a link that carries a credential. When nothing is
+ * configured, only a genuinely local request may fall back to its own host; anything else fails closed
+ * to localhost (a broken link) rather than trusting an arbitrary host. Production MUST set the env var.
+ */
+function appBaseUrl(req: NextRequest): string {
+  const configured = sanitizeEnvValue(process.env.NEXT_PUBLIC_APP_URL) || sanitizeEnvValue(process.env.APP_URL);
+  if (configured && /^https?:\/\//i.test(configured)) {
+    return configured.replace(/\/+$/, '');
+  }
+  const host = (req.headers.get('host') || req.nextUrl.host || 'localhost:3000').split(',')[0].trim();
+  const hostname = host.split(':')[0].toLowerCase();
+  if (LOCAL_RESET_HOSTS.has(hostname) || hostname.endsWith('.localhost')) {
+    return `http://${host}`;
+  }
+  return 'http://localhost:3000';
+}
+
 function signJwt(payload: Record<string, any>, secret: string, expiresInSec: number): string {
   const header = { alg: 'HS256', typ: 'JWT' };
   const now = Math.floor(Date.now() / 1000);
@@ -50,17 +96,29 @@ function signJwt(payload: Record<string, any>, secret: string, expiresInSec: num
   return `${b64Header}.${b64Payload}.${sig}`;
 }
 
+/**
+ * Returns the payload of a VALID access token (signature, expiry, subject, purpose), or null. It no longer decodes unsigned
+ * tokens: every identity derived from it is verified (Phase 6.17).
+ */
 function decodeJwtPayload(token: string): any {
-  try {
-    const parts = token.split('.');
-    if (parts.length >= 2) {
-      return JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-    }
-  } catch {
-    // Ignore error
-  }
-  return null;
+  return verifyToken(token, gwAccessSecret(), 'access');
 }
+
+const authNotConfigured = () =>
+  NextResponse.json(
+    { success: false, statusCode: 503, errorCode: 'AUTH_NOT_CONFIGURED', message: 'Authentication is not configured on this gateway.', timestamp: new Date().toISOString() },
+    { status: 503 },
+  );
+const unauthorized = () =>
+  NextResponse.json(
+    { success: false, statusCode: 401, errorCode: 'UNAUTHORIZED', message: 'A valid session is required.', timestamp: new Date().toISOString() },
+    { status: 401 },
+  );
+const paymentsUnavailable = () =>
+  NextResponse.json(
+    { success: false, statusCode: 503, errorCode: 'PAYMENTS_UNAVAILABLE', message: 'Payments and invoices are handled by the Orion backend, which is currently unreachable. Nothing was charged or credited.', timestamp: new Date().toISOString() },
+    { status: 503 },
+  );
 
 function handleGoogleAuth(req: NextRequest): NextResponse {
   const clientId = sanitizeEnvValue(process.env.GOOGLE_CLIENT_ID, 'GOOGLE_CLIENT_ID');
@@ -76,7 +134,7 @@ function handleGoogleAuth(req: NextRequest): NextResponse {
   }
 
   const host = req.headers.get('x-forwarded-host') || req.nextUrl.host || 'orion-api-snowy.vercel.app';
-  const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
+  const isLocal = isLocalRequestHost(host);
   let callbackUrl = sanitizeEnvValue(process.env.GOOGLE_CALLBACK_URL, 'GOOGLE_CALLBACK_URL');
   if (!callbackUrl || !callbackUrl.startsWith('http')) {
     callbackUrl = `${isLocal ? 'http' : 'https'}://${host}/api/v1/auth/google/callback`;
@@ -127,11 +185,34 @@ async function handleGoogleCallback(req: NextRequest): Promise<NextResponse> {
     );
   }
 
+  // S-10: verify the OAuth `state` against the value we set in the httpOnly cookie at the start of the flow,
+  // using a constant-time compare. This blocks login-CSRF (an attacker signing a victim into the attacker's
+  // account). A missing or mismatched state aborts the sign-in.
+  const returnedState = req.nextUrl.searchParams.get('state') || '';
+  const expectedState = req.cookies.get('orion_oauth_state')?.value || '';
+  const stateOk =
+    returnedState.length > 0 &&
+    expectedState.length === returnedState.length &&
+    (() => {
+      try {
+        return crypto.timingSafeEqual(Buffer.from(expectedState), Buffer.from(returnedState));
+      } catch {
+        return false;
+      }
+    })();
+  if (!stateOk) {
+    const res = NextResponse.redirect(
+      new URL(`/login?error=${encodeURIComponent('Sign-in could not be verified. Please try again.')}`, req.url),
+    );
+    res.cookies.delete('orion_oauth_state');
+    return res;
+  }
+
   const clientId = sanitizeEnvValue(process.env.GOOGLE_CLIENT_ID, 'GOOGLE_CLIENT_ID');
   const clientSecret = sanitizeEnvValue(process.env.GOOGLE_CLIENT_SECRET, 'GOOGLE_CLIENT_SECRET');
 
   const host = req.headers.get('x-forwarded-host') || req.nextUrl.host || 'orion-api-snowy.vercel.app';
-  const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
+  const isLocal = isLocalRequestHost(host);
   let callbackUrl = sanitizeEnvValue(process.env.GOOGLE_CALLBACK_URL, 'GOOGLE_CALLBACK_URL');
   if (!callbackUrl || !callbackUrl.startsWith('http')) {
     callbackUrl = `${isLocal ? 'http' : 'https'}://${host}/api/v1/auth/google/callback`;
@@ -191,6 +272,13 @@ async function handleGoogleCallback(req: NextRequest): Promise<NextResponse> {
         new URL(`/login?error=${encodeURIComponent('Google authentication failed: Email address not returned by Google.')}`, req.url),
       );
     }
+    // S-10: only a Google-verified email may be linked to (or create) an account, so an attacker cannot take
+    // over an existing account by registering its address at an identity provider without proving ownership.
+    if (profile.email_verified !== true && profile.email_verified !== 'true') { // Phase 25: must be affirmatively verified (same rule as the API, SG-03)
+      return NextResponse.redirect(
+        new URL(`/login?error=${encodeURIComponent('Your Google email address is not verified. Please verify it with Google and try again.')}`, req.url),
+      );
+    }
 
     const firstName = profile.given_name || profile.name?.split(' ')[0] || 'User';
     const lastName = profile.family_name || profile.name?.split(' ').slice(1).join(' ') || '';
@@ -232,6 +320,11 @@ async function handleGoogleCallback(req: NextRequest): Promise<NextResponse> {
       console.error('[Google OAuth] Error upserting user in PostgreSQL:', dbErr);
     }
 
+    // Phase 25: a suspended or inactive account does not get a session from the social-login path either (the API refuses it too)
+    if (dbUser && (dbUser.status === 'SUSPENDED' || dbUser.status === 'INACTIVE')) {
+      return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent('Your account is inactive. Please contact support.')}`, req.url));
+    }
+
     const userId = dbUser?.id || email;
     await getOrSyncUserWallet(email);
 
@@ -244,8 +337,11 @@ async function handleGoogleCallback(req: NextRequest): Promise<NextResponse> {
       [JSON.stringify(updatedMeta), email]
     );
 
-    const accessSecret = sanitizeEnvValue(process.env.JWT_ACCESS_SECRET) || 'orion-jwt-access-secret-production-fallback';
-    const refreshSecret = sanitizeEnvValue(process.env.JWT_REFRESH_SECRET) || 'orion-jwt-refresh-secret-production-fallback';
+    const accessSecret = gwAccessSecret();
+    const refreshSecret = gwRefreshSecret();
+    if (!accessSecret || !refreshSecret) {
+      return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent('Authentication is not configured.')}`, req.url));
+    }
 
     const userPayload = {
       sub: userId,
@@ -262,7 +358,7 @@ async function handleGoogleCallback(req: NextRequest): Promise<NextResponse> {
       sessionId,
     };
 
-    const accessToken = signJwt(userPayload, accessSecret, 24 * 3600);
+    const accessToken = signJwt(userPayload, accessSecret, ACCESS_TOKEN_TTL_SEC);
     const refreshToken = signJwt({ sub: userId, email, type: 'refresh' }, refreshSecret, 7 * 24 * 3600);
 
     const redirectUrl = new URL(
@@ -284,52 +380,80 @@ async function handleGoogleCallback(req: NextRequest): Promise<NextResponse> {
   }
 }
 
-interface IOtpRecord {
-  code: string;
-  expiresAt: number;
-  attempts: number;
+// S-04 / S-21: admin OTPs live in the shared admin_otps table, stored only as a keyed HMAC (never plaintext).
+// The table is the single source of truth, so the attempt counter and single-use guarantee survive a restart
+// or hold across separate serverless instances, and there is no stateless challenge cookie to replay.
+const OTP_TTL_SECONDS = 300;
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_MIN_RESEND_SECONDS = 45; // throttles re-sends per email, independent of client IP
+
+function hashOtp(email: string, otp: string): string {
+  return crypto.createHmac('sha256', gwOtpSecret() ?? '').update(`${email.toLowerCase().trim()}:${String(otp).trim()}`).digest('hex');
 }
 
-const adminOtpStore = new Map<string, IOtpRecord>();
-const adminRateLimitStore = new Map<string, { count: number; resetAt: number }>();
-
-function getHmacSecret(): string {
-  return sanitizeEnvValue(process.env.JWT_ACCESS_SECRET) || 'orion-admin-auth-hmac-secret-fallback';
-}
-
-function generateOtpChallenge(email: string, otp: string, expiresAt: number): string {
-  const secret = getHmacSecret();
-  return crypto.createHmac('sha256', secret).update(`${email}:${otp}:${expiresAt}`).digest('hex');
-}
-
-function verifyOtpChallenge(email: string, otp: string, expiresAt: number, expectedHash: string): boolean {
-  if (Date.now() > expiresAt) return false;
-  const computedHash = generateOtpChallenge(email, otp, expiresAt);
+function timingSafeHexEqual(a: string, b: string): boolean {
   try {
-    return crypto.timingSafeEqual(Buffer.from(computedHash), Buffer.from(expectedHash));
+    const x = Buffer.from(a, 'hex');
+    const y = Buffer.from(b, 'hex');
+    return x.length > 0 && x.length === y.length && crypto.timingSafeEqual(x, y);
   } catch {
     return false;
   }
 }
 
-function checkAdminRateLimit(key: string, limit: number = 10, windowMs: number = 300000): boolean {
+/**
+ * S-09: lightweight per-key limiter for the gateway's own credential endpoints (login, register, forgot-password),
+ * which @nestjs/throttler does not cover. It is in-process, so on a multi-instance serverless deployment it only
+ * limits per instance — a shared store (Postgres / Upstash) is the production-grade backing and is called out in
+ * the infrastructure handoff. It still blocks single-instance and self-hosted credential stuffing.
+ */
+const gatewayRateStore = new Map<string, { count: number; resetAt: number }>();
+function gatewayRateLimited(key: string, limit: number, windowMs: number): boolean {
   const now = Date.now();
-  const entry = adminRateLimitStore.get(key);
-  if (!entry || now > entry.resetAt) {
-    adminRateLimitStore.set(key, { count: 1, resetAt: now + windowMs });
-    return true;
+  if (gatewayRateStore.size > 10000) {
+    for (const [k, v] of gatewayRateStore) if (v.resetAt < now) gatewayRateStore.delete(k);
   }
-  if (entry.count >= limit) {
+  const entry = gatewayRateStore.get(key);
+  if (!entry || now > entry.resetAt) {
+    gatewayRateStore.set(key, { count: 1, resetAt: now + windowMs });
     return false;
   }
+  if (entry.count >= limit) return true;
   entry.count++;
-  return true;
+  return false;
+}
+function clientIpOf(req: NextRequest): string {
+  const xff = req.headers.get('x-forwarded-for') || '';
+  return (xff.split(',')[0] || req.headers.get('x-real-ip') || 'unknown').trim();
+}
+const tooManyRequests = (message: string) =>
+  NextResponse.json({ success: false, statusCode: 429, errorCode: 'RATE_LIMITED', message }, { status: 429 });
+
+/**
+ * Request body as an object. Malformed JSON still throws, as `req.json()` does (callers that expect it answer 400). A body that is
+ * valid JSON but not an object (null, a number, a string) used to reach handlers that read `body.x` and crash with a 500; it is now
+ * an empty object, so the handler's own "field is required" answer applies. An array is kept (the import route takes a list).
+ */
+async function readJson(req: NextRequest): Promise<any> {
+  const v = await req.json();
+  return v !== null && typeof v === 'object' ? v : {};
+}
+
+/** A refused write, as the client should see it: bad values are the caller's (400, 409), anything else is a temporary failure (503). Nothing from the driver is echoed. */
+function writeFailure(err: unknown): NextResponse {
+  const code = err instanceof DbWriteError ? err.code : undefined;
+  if (code === '23505') return NextResponse.json({ success: false, statusCode: 409, errorCode: 'ALREADY_EXISTS', message: 'That value is already in use.' }, { status: 409 });
+  if (code && (code.startsWith('22') || code.startsWith('23'))) {
+    return NextResponse.json({ success: false, statusCode: 400, errorCode: 'INVALID_VALUE', message: 'One of the values is not valid or is too long.' }, { status: 400 });
+  }
+  return NextResponse.json({ success: false, statusCode: 503, errorCode: 'SAVE_FAILED', message: 'Your changes could not be saved. Please try again.' }, { status: 503 });
 }
 
 async function handleAdminSendOtp(req: NextRequest): Promise<NextResponse> {
+  if (!gwOtpSecret()) return authNotConfigured();
   let body: any = {};
   try {
-    body = await req.json();
+    body = await readJson(req);
   } catch {
     return NextResponse.json(
       { success: false, statusCode: 400, message: 'Invalid JSON body' },
@@ -356,75 +480,73 @@ async function handleAdminSendOtp(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const clientIp = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-  if (!checkAdminRateLimit(`otp-send:${email}:${clientIp}`, 10, 300000)) {
-    return NextResponse.json(
-      {
-        success: false,
-        statusCode: 429,
-        message: 'Too many OTP requests. Please wait a few minutes before trying again.',
-      },
-      { status: 429 },
+  const genericSent = () =>
+    NextResponse.json({
+      success: true,
+      statusCode: 200,
+      message: `A 6-digit verification passcode has been dispatched to ${email}.`,
+      data: { expiresIn: OTP_TTL_SECONDS },
+      timestamp: new Date().toISOString(),
+    });
+
+  // The domain is only a first filter: a code is issued only for a persisted, ACTIVE ADMIN / SUPER_ADMIN account. Anyone else
+  // receives the same response and no e-mail (no account enumeration).
+  if (!(await findAdminAccount({ email }))) {
+    return genericSent();
+  }
+
+  // S-04: re-send throttling and single-active-code enforcement live in the database (not an IP-keyed in-memory
+  // counter that a rotating X-Forwarded-For defeats and a restart resets).
+  try {
+    await queryDb(`DELETE FROM admin_otps WHERE expires_at < NOW()`);
+    const recent = await queryDb(
+      `SELECT 1 FROM admin_otps WHERE email = $1 AND created_at > NOW() - make_interval(secs => $2) LIMIT 1`,
+      [email, OTP_MIN_RESEND_SECONDS],
     );
+    if (recent.length > 0) {
+      return NextResponse.json(
+        { success: false, statusCode: 429, message: 'A verification code was just sent. Please wait a moment before requesting another.' },
+        { status: 429 },
+      );
+    }
+  } catch (e) {
+    console.error('[Gateway] admin OTP throttle check failed:', (e as any)?.message);
   }
 
   const otp = crypto.randomInt(100000, 999999).toString();
-  const ttlSeconds = 300; // 5 minutes
-  const expiresAt = Date.now() + ttlSeconds * 1000;
-
-  adminOtpStore.set(email, {
-    code: otp,
-    expiresAt,
-    attempts: 0,
-  });
-
-  const challenge = generateOtpChallenge(email, otp, expiresAt);
-  const cookieVal = `${expiresAt}.${challenge}`;
-
-  // Dispatch OTP email strictly via Resend HTTP API
-  const emailResult = await sendAdminOtpEmail({
-    email,
-    otp,
-    expiresInMinutes: 5,
-  });
-
-  if (!emailResult.success) {
+  const otpHash = hashOtp(email, otp);
+  try {
+    await queryDb(`DELETE FROM admin_otps WHERE email = $1`, [email]);
+    await queryDb(
+      `INSERT INTO admin_otps (email, otp, attempts, max_attempts, expires_at)
+       VALUES ($1, $2, 0, $3, NOW() + make_interval(secs => $4))`,
+      [email, otpHash, OTP_MAX_ATTEMPTS, OTP_TTL_SECONDS],
+    );
+  } catch (e) {
+    console.error('[Gateway] admin OTP persist failed:', (e as any)?.message);
     return NextResponse.json(
-      {
-        success: false,
-        statusCode: 503,
-        message: emailResult.error || 'Failed to dispatch verification email. Please ensure RESEND_API_KEY is configured.',
-      },
+      { success: false, statusCode: 503, message: 'Could not generate a verification code right now. Please try again shortly.' },
       { status: 503 },
     );
   }
 
-  const res = NextResponse.json({
-    success: true,
-    statusCode: 200,
-    message: `A 6-digit verification passcode has been dispatched to ${email}.`,
-    data: {
-      expiresIn: ttlSeconds,
-    },
-    timestamp: new Date().toISOString(),
-  });
+  const emailResult = await sendAdminOtpEmail({ email, otp, expiresInMinutes: Math.round(OTP_TTL_SECONDS / 60) });
+  if (!emailResult.success) {
+    await queryDb(`DELETE FROM admin_otps WHERE email = $1`, [email]).catch(() => {});
+    return NextResponse.json(
+      { success: false, statusCode: 503, message: emailResult.error || 'Failed to dispatch verification email. Please ensure RESEND_API_KEY is configured.' },
+      { status: 503 },
+    );
+  }
 
-  const isLocal = (req.headers.get('host') || '').includes('localhost');
-  res.cookies.set('orion_admin_otp_challenge', cookieVal, {
-    path: '/',
-    httpOnly: true,
-    secure: !isLocal,
-    sameSite: 'lax',
-    maxAge: ttlSeconds,
-  });
-
-  return res;
+  return genericSent();
 }
 
 async function handleAdminVerifyOtp(req: NextRequest): Promise<NextResponse> {
+  if (!gwOtpSecret()) return authNotConfigured();
   let body: any = {};
   try {
-    body = await req.json();
+    body = await readJson(req);
   } catch {
     return NextResponse.json(
       { success: false, statusCode: 400, message: 'Invalid JSON body' },
@@ -443,66 +565,77 @@ async function handleAdminVerifyOtp(req: NextRequest): Promise<NextResponse> {
   }
 
   if (!isAuthorizedAdminEmail(email)) {
+    void recordGatewayAudit(req, 'ADMIN_OTP_UNAUTHORIZED_DOMAIN', 'USER', { reason: 'domain_not_allowed' });
     return NextResponse.json(
       { success: false, statusCode: 403, message: 'Access Denied: Only @monarchsoftwares.com email addresses are authorized for administrative access.' },
       { status: 403 },
     );
   }
 
-  const record = adminOtpStore.get(email);
-  if (record && record.attempts >= 5) {
-    return NextResponse.json(
-      {
-        success: false,
-        statusCode: 429,
-        message: 'Too many failed attempts. This verification session is locked. Please request a new code.',
-      },
-      { status: 429 },
-    );
+  // Second layer behind the per-code attempt cap (which is persisted and atomic): bounds code-guessing across successive codes.
+  // In-process, so per instance only (see gatewayRateLimited); the persisted per-code cap is what holds across instances.
+  if (gatewayRateLimited(`otpverify:acct:${email}`, 15, 5 * 60000) || gatewayRateLimited(`otpverify:ip:${clientIpOf(req)}`, 30, 5 * 60000)) {
+    return tooManyRequests('Too many verification attempts. Please wait a few minutes and try again.');
   }
 
-  // Validate OTP:
-  // 1. In-memory store
-  // 2. Stateless HMAC challenge cookie (for cross-lambda verification)
-  // 3. Deterministic master fallback code
-  let isValid = false;
-
-  if (record && record.expiresAt > Date.now() && record.code === otp) {
-    isValid = true;
-  }
-
-  if (!isValid) {
-    const challengeCookie = req.cookies.get('orion_admin_otp_challenge')?.value;
-    if (challengeCookie && challengeCookie.includes('.')) {
-      const [expStr, hash] = challengeCookie.split('.');
-      const expiresAt = parseInt(expStr, 10);
-      if (expiresAt && hash && verifyOtpChallenge(email, otp, expiresAt, hash)) {
-        isValid = true;
-      }
-    }
-  }
-
-  if (!isValid && otp === '123456') {
-    isValid = true;
-  }
-
-  if (!isValid) {
-    if (record) record.attempts++;
+  const invalidCode = () => {
+    // Phase 25: a failed administrator sign-in is audited (no e-mail, no code); the monitoring rule for administrator sign-in failures reads this
+    void recordGatewayAudit(req, 'ADMIN_OTP_FAILED', 'USER', { reason: 'invalid_or_expired_code' });
     return NextResponse.json(
       { success: false, statusCode: 400, message: 'Invalid or expired verification code.' },
       { status: 400 },
     );
+  };
+
+  // S-04: validate against the single active, unexpired code in the database. The code is stored only as an
+  // HMAC and compared in constant time; the attempt counter is persisted (so a restart or another instance
+  // cannot reset it) and a correct code is deleted immediately (single use, no replay). There is no challenge
+  // cookie. The deterministic test code is honoured only under fixedOtpAllowed() (local automated tests).
+  let adminAccount: Awaited<ReturnType<typeof findAdminAccount>> = null;
+  try {
+    const rows = await queryDb(
+      `SELECT id, otp, attempts, max_attempts FROM admin_otps WHERE email = $1 AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1`,
+      [email],
+    );
+    const row: any = rows[0];
+
+    if (!row) {
+      if (fixedOtpAllowed() && otp === '123456') {
+        adminAccount = await findAdminAccount({ email });
+      }
+      if (!adminAccount) return invalidCode();
+    } else {
+      // Claim an attempt BEFORE comparing (atomic, only while attempts remain): parallel guesses cannot exceed max_attempts.
+      if (!(await claimOtpAttempt(queryDb, String(row.id)))) {
+        void recordGatewayAudit(req, 'ADMIN_OTP_FAILED', 'USER', { reason: 'attempts_exhausted' });
+        return NextResponse.json(
+          { success: false, statusCode: 429, message: 'Too many failed attempts. This verification session is locked. Please request a new code.' },
+          { status: 429 },
+        );
+      }
+      const codeOk = timingSafeHexEqual(String(row.otp), hashOtp(email, otp)) || (fixedOtpAllowed() && otp === '123456');
+      const acct = codeOk ? await findAdminAccount({ email }) : null;
+      if (!codeOk || !acct) return invalidCode(); // the attempt was already counted
+      // Single use and race-safe: only the caller that deletes the row is signed in; a parallel request with the same code is refused.
+      if (!(await redeemOtp(queryDb, String(row.id)))) return invalidCode();
+      adminAccount = acct;
+    }
+  } catch (e) {
+    console.error('[Gateway] admin OTP verify error:', (e as any)?.message);
+    return NextResponse.json(
+      { success: false, statusCode: 503, message: 'Verification is temporarily unavailable. Please try again.' },
+      { status: 503 },
+    );
   }
 
-  // Clean up used OTP
-  adminOtpStore.delete(email);
+  const { firstName, lastName, role: adminRole, id: userId } = adminAccount as NonNullable<typeof adminAccount>;
 
-  const nameParts = email.split('@')[0].split('.');
-  const firstName = (nameParts[0] || 'Admin').charAt(0).toUpperCase() + (nameParts[0] || 'Admin').slice(1);
-  const lastName = nameParts[1] ? nameParts[1].charAt(0).toUpperCase() + nameParts[1].slice(1) : 'Administrator';
-  const userId = `usr_adm_${crypto.createHash('md5').update(email).digest('hex').substring(0, 12)}`;
-
-  const accessSecret = sanitizeEnvValue(process.env.JWT_ACCESS_SECRET) || 'orion-jwt-access-secret-production-fallback';
+  const accessSecret = gwAccessSecret();
+  if (!accessSecret) return authNotConfigured();
+  // Phase 25: the administrator session is revocable like a customer one. It carries a session id stored as the account's active session,
+  // so a logout or a newer sign-in makes the older token fail assertSessionCurrent.
+  const adminSessionId = await rotateActiveSession(userId);
+  void recordGatewayAudit(req, 'ADMIN_LOGIN_SUCCESS', 'USER', { entityId: userId }, userId);
   const adminToken = signJwt(
     {
       sub: userId,
@@ -511,13 +644,14 @@ async function handleAdminVerifyOtp(req: NextRequest): Promise<NextResponse> {
       lastName,
       name: `${firstName} ${lastName}`,
       displayName: `${firstName} ${lastName}`,
-      role: 'SUPER_ADMIN',
+      role: adminRole,
       status: 'ACTIVE',
       organizationId: null,
       provider: 'EMAIL',
+      sessionId: adminSessionId,
     },
     accessSecret,
-    7 * 24 * 3600, // 7 days
+    adminSessionTtlSeconds(),
   );
 
   const res = NextResponse.json({
@@ -533,27 +667,40 @@ async function handleAdminVerifyOtp(req: NextRequest): Promise<NextResponse> {
         lastName,
         name: `${firstName} ${lastName}`,
         displayName: `${firstName} ${lastName}`,
-        role: 'SUPER_ADMIN',
+        role: adminRole,
         organizationName: 'Monarch Softwares',
       },
     },
     timestamp: new Date().toISOString(),
   });
 
-  const isLocal = (req.headers.get('host') || '').includes('localhost');
+  const isLocal = isLocalRequestHost(req.headers.get('host'));
+  // S-11: the token cookie is HttpOnly + Secure so page scripts cannot read it. (The SPA uses the token from the
+  // response body for its Authorization header; nothing client-side reads this cookie.)
   res.cookies.set('orion_admin_token', adminToken, {
     path: '/',
-    httpOnly: false,
+    httpOnly: true,
     secure: !isLocal,
     sameSite: 'lax',
-    maxAge: 7 * 24 * 3600,
+    maxAge: adminSessionTtlSeconds(),
   });
   res.cookies.delete('orion_admin_otp_challenge');
 
   return res;
 }
 
-function handleAdminLogout(): NextResponse {
+async function handleAdminLogout(req: NextRequest): Promise<NextResponse> {
+  // Phase 25: ends the session on the server, not only in the browser. Only the CURRENT session may end the account's session (a stale or
+  // forged token is ignored), so an old token cannot be used to log the administrator out of a newer sign-in.
+  try {
+    const a = authenticate(req.headers);
+    if (a.ok && isUuidSub(a.auth.sub) && !(await assertSessionCurrent(a.auth))) {
+      await rotateActiveSession(a.auth.sub);
+      void recordGatewayAudit(req, 'ADMIN_LOGOUT', 'USER', { entityId: a.auth.sub }, a.auth.sub);
+    }
+  } catch {
+    // logging out always succeeds for the browser
+  }
   const res = NextResponse.json({
     success: true,
     statusCode: 200,
@@ -566,44 +713,54 @@ function handleAdminLogout(): NextResponse {
   return res;
 }
 
+/**
+ * S-05: user logout revokes the session server-side. Rotating the account's active session id invalidates
+ * every access and refresh token previously issued to it (both the gateway's and, via JwtStrategy, the NestJS
+ * API's), so a stolen token stops working the moment the real user logs out. Always succeeds (idempotent).
+ */
+async function handleUserLogout(req: NextRequest): Promise<NextResponse> {
+  try {
+    const authHeader = req.headers.get('authorization') || '';
+    const m = /^Bearer\s+(\S+)$/i.exec(authHeader);
+    let sub: string | undefined = m ? verifyToken(m[1], gwAccessSecret(), 'access')?.sub : undefined;
+    if (!sub) {
+      const body = await req.clone().json().catch(() => ({}));
+      const rt = String(body?.refreshToken || '').trim();
+      if (rt) sub = verifyToken(rt, gwRefreshSecret(), 'refresh')?.sub;
+    }
+    if (sub && isUuidSub(sub)) await rotateActiveSession(sub);
+  } catch (err) {
+    console.error('[Gateway] logout session rotation error:', (err as any)?.message);
+  }
+  const res = NextResponse.json({
+    success: true,
+    statusCode: 200,
+    message: 'Logged out successfully',
+    data: { loggedOut: true },
+    timestamp: new Date().toISOString(),
+  });
+  res.cookies.delete('orion_access_token');
+  return res;
+}
+
+// Canonical company-upload template. MUST stay identical to docs/ORION_IMPORT_TEMPLATE.csv and to
+// AdminImportService.getCanonicalTemplateCsv() (a backend test compares all three).
+// Company-level columns: business_name ... founding_year (incl. email, phone, website: these belong to the COMPANY).
+// Person-level columns: contact_person, contact_title, person_*, person_2_*, person_3_* (people 4 and 5 use the same pattern).
+// BEGIN CANONICAL TEMPLATE
+const CANONICAL_TEMPLATE_CSV = `business_name,legal_name,gstin,cin,pan,address_line1,city,district,state,pincode,phone,email,website,contact_person,contact_title,business_type,msme_category,industry,category,description,founding_year,person_email,person_phone,person_mobile,person_linkedin,person_2_name,person_2_title,person_2_email,person_2_phone,person_2_mobile,person_2_linkedin,person_3_name,person_3_title,person_3_email,person_3_phone,person_3_mobile,person_3_linkedin
+"Tata Consultancy Services","Tata Consultancy Services Limited","27AAACT2727Q1ZW","L22210MH1995PLC084781","AAACT2727Q","9th Floor Nirmal Building Nariman Point","Mumbai","Mumbai","Maharashtra","400021","'+91 22 67789999","corporate.office@tcs.com","https://www.tcs.com","K. Krithivasan","CEO & Managing Director","PUBLIC_LIMITED","NOT_APPLICABLE","Information Technology","IT Services & Consulting","Global leader in IT services, digital and business solutions.","1968","","","","","","","","","","","","","","","",""
+"Infosys Limited","Infosys Limited","29AAACI4397H1Z5","L85110KA1981PLC013115","AAACI4397H","Plot No 44 Electronics City Hosur Road","Bangalore","Bengaluru Urban","Karnataka","560100","'+91 80 28520261","investors@infosys.com","https://www.infosys.com","Salil Parekh","CEO & Managing Director","PUBLIC_LIMITED","NOT_APPLICABLE","Information Technology","Enterprise Software & AI","Next-generation digital services and consulting.","1981","","","","","","","","","","","","","","","",""
+`;
+// END CANONICAL TEMPLATE
+
 function handleAdminCsvTemplate(): NextResponse {
-  const headers = [
-    'name', 'legalName', 'cin', 'pan', 'gstin', 'status',
-    'incorporationDate', 'businessType', 'industry', 'subIndustry',
-    'paidUpCapital', 'authorizedCapital', 'employeeCount', 'annualTurnover',
-    'website', 'primaryEmail', 'primaryPhone', 'addressLine1', 'city',
-    'state', 'pincode', 'country',
-  ];
-  const sampleRow = [
-    'Monarch Technologies Private Limited',
-    'Monarch Technologies Pvt Ltd',
-    'U72200MH2020PTC123456',
-    'ABCDE1234F',
-    '27ABCDE1234F1Z5',
-    'VERIFIED',
-    '2020-01-15',
-    'PRIVATE_LIMITED',
-    'Information Technology',
-    'Software Development',
-    '10000000',
-    '20000000',
-    '120',
-    '50000000',
-    'https://monarchsoftwares.com',
-    'contact@monarchsoftwares.com',
-    '+919876543210',
-    '101 Cyber Park',
-    'Mumbai',
-    'Maharashtra',
-    '400001',
-    'India',
-  ];
-  const csvContent = `${headers.join(',')}\n"${sampleRow.join('","')}"\n`;
+  const csvContent = CANONICAL_TEMPLATE_CSV;
   return new NextResponse(csvContent, {
     status: 200,
     headers: {
       'Content-Type': 'text/csv',
-      'Content-Disposition': 'attachment; filename="orion_business_import_template.csv"',
+      'Content-Disposition': 'attachment; filename="orion_canonical_business_import_template.csv"',
     },
   });
 }
@@ -631,6 +788,10 @@ function normalizeRowHeader(key: string, customMapping?: Record<string, string>,
       }
     }
   }
+
+  // People columns (person_*) are never company fields: a substring match on email/phone/name would leak them.
+  const personColumn = canonicalPersonColumn(key);
+  if (personColumn) return personColumn;
 
   // 1. Precise Header Pattern Matching across arbitrary column arrangements
   if (clean.includes('businessname') || clean.includes('companyname') || clean.includes('firmname') || clean.includes('entityname') || clean.includes('tradename') || clean.includes('orgname') || clean.includes('vendorname') || clean.includes('storename') || clean.includes('shopname') || clean.includes('brandname')) return 'business_name';
@@ -672,10 +833,21 @@ function normalizeRowHeader(key: string, customMapping?: Record<string, string>,
   return key;
 }
 
+/** Fallback mode never ingests people; it reports that plainly instead of guessing or silently dropping. */
+function peopleFallbackReport(rows: Array<Record<string, unknown>>) {
+  const rowsWithPeopleData = countRowsWithPeopleData(rows);
+  return {
+    processed: false,
+    mode: 'FALLBACK',
+    rowsWithPeopleData,
+    notice: rowsWithPeopleData > 0 ? FALLBACK_PEOPLE_NOTICE : null,
+  };
+}
+
 async function handleAdminImportPreview(req: NextRequest): Promise<NextResponse> {
   let body: any = {};
   try {
-    body = await req.json();
+    body = await readJson(req);
   } catch {
     body = {};
   }
@@ -758,9 +930,10 @@ async function handleAdminImportPreview(req: NextRequest): Promise<NextResponse>
       }
     }
 
-    // Intra-Row Fallback Auto-Detection for missing mandatory fields
+    // Intra-Row Fallback Auto-Detection for missing mandatory fields (people columns are excluded: a person value is never a company field)
+    const companyOnlyRaw = withoutPersonColumns(raw as Record<string, unknown>);
     if (!mapped.business_name && !mapped.name) {
-      for (const [k, v] of Object.entries(raw)) {
+      for (const [k, v] of Object.entries(companyOnlyRaw)) {
         const valStr = String(v || '').trim();
         if (valStr && !/^[0-9+@]/i.test(valStr) && valStr.length > 2 && !INDIAN_STATES_SET.has(valStr.toLowerCase())) {
           mapped.business_name = valStr;
@@ -770,7 +943,7 @@ async function handleAdminImportPreview(req: NextRequest): Promise<NextResponse>
       }
     }
     if (!mapped.state) {
-      for (const [k, v] of Object.entries(raw)) {
+      for (const [k, v] of Object.entries(companyOnlyRaw)) {
         const valStr = String(v || '').trim();
         if (valStr && INDIAN_STATES_SET.has(valStr.toLowerCase())) {
           mapped.state = valStr;
@@ -779,7 +952,7 @@ async function handleAdminImportPreview(req: NextRequest): Promise<NextResponse>
       }
     }
     if (!mapped.phone) {
-      for (const [k, v] of Object.entries(raw)) {
+      for (const [k, v] of Object.entries(companyOnlyRaw)) {
         const valStr = String(v || '').trim();
         if (/^(?:\+91[\-\s]?)?[6-9]\d{9}$/.test(valStr.replace(/[\s\-\(\)]/g, ''))) {
           mapped.phone = valStr;
@@ -788,7 +961,7 @@ async function handleAdminImportPreview(req: NextRequest): Promise<NextResponse>
       }
     }
     if (!mapped.email) {
-      for (const [k, v] of Object.entries(raw)) {
+      for (const [k, v] of Object.entries(companyOnlyRaw)) {
         const valStr = String(v || '').trim();
         if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valStr)) {
           mapped.email = valStr;
@@ -931,6 +1104,7 @@ async function handleAdminImportPreview(req: NextRequest): Promise<NextResponse>
       previewRecords,
       duplicates,
       errors,
+      peopleColumns: peopleFallbackReport(rows),
       detectedHeaders: rawHeaders,
       fieldMappings: detectedFieldMappings,
     },
@@ -954,7 +1128,7 @@ async function handleGetFilterOptions(): Promise<NextResponse> {
 async function handleUpdateFilterOptions(req: NextRequest): Promise<NextResponse> {
   let body: any = {};
   try {
-    body = await req.json();
+    body = await readJson(req);
   } catch {
     return NextResponse.json({ success: false, statusCode: 400, message: 'Invalid JSON body' }, { status: 400 });
   }
@@ -987,183 +1161,50 @@ function normalizeBusinessStatus(statusStr?: string): string {
   return 'DRAFT';
 }
 
-async function handleAdminImportSubmit(req: NextRequest): Promise<NextResponse> {
-  let body: any = {};
+/**
+ * Import submit is owned by the NestJS import pipeline (records, validation, normalization, duplicate detection, publishing, People
+ * stage, batch and People summaries, audit). The gateway only forwards it; it never keeps a second implementation, and it never
+ * falls back to one: when the API is unreachable the upload fails visibly instead of leaving a half-written batch.
+ */
+async function forwardImportSubmit(req: NextRequest): Promise<NextResponse> {
+  let body: any;
   try {
-    body = await req.json();
+    body = await readJson(req);
   } catch {
-    body = {};
+    return NextResponse.json({ success: false, statusCode: 400, message: 'Invalid JSON body' }, { status: 400 });
   }
-
-  const filename = String(body?.batchName || body?.filename || 'Indian_Business_Ingestion_Batch.csv')
-    .replace(/[\/\\]/g, '_')
-    .replace(/[^a-zA-Z0-9._-]/g, '_');
-  const rows: Array<Record<string, unknown>> = Array.isArray(body?.rows) ? body.rows : [];
-  const customMapping = body?.customMapping || body?.mapping || {};
-
-  if (rows.length === 0) {
-    return NextResponse.json(
-      { success: false, statusCode: 400, message: 'Cannot submit empty import batch' },
-      { status: 400 },
-    );
+  if (!Array.isArray(body?.rows) || body.rows.length === 0) {
+    return NextResponse.json({ success: false, statusCode: 400, message: 'Cannot submit empty import batch' }, { status: 400 });
   }
-
-  const batchId = crypto.randomUUID();
-  const insertedRecords: any[] = [];
-
+  // The UI sends batchName / customMapping; the API contract is filename / mapping.
+  const payload = {
+    filename: body.filename || body.batchName,
+    rows: body.rows,
+    mapping: body.mapping || body.customMapping || undefined,
+    autoPublish: body.autoPublish,
+  };
+  const headers = new Headers();
+  headers.set('content-type', 'application/json');
+  const auth = req.headers.get('authorization');
+  if (auth) headers.set('authorization', auth);
+  for (const h of ['x-forwarded-for', 'user-agent', 'x-request-id']) {
+    const v = req.headers.get(h);
+    if (v) headers.set(h, v);
+  }
+  let upstream: Response;
   try {
-    // Persist batch record into PostgreSQL import_batches
-    await queryDb(
-      `INSERT INTO import_batches (id, filename, file_key, file_size, mime_type, status, total_records, processed_records, successful_records, failed_records, duplicate_records, created_at, started_at, completed_at)
-       VALUES ($1, $2, $3, $4, $5, 'COMPLETED', $6, $6, $7, $8, $9, NOW(), NOW(), NOW())
-       ON CONFLICT (id) DO NOTHING`,
-      [batchId, filename, `imports/${batchId}_${filename}`, JSON.stringify(rows).length, 'text/csv', rows.length, rows.length, 0, 0]
-    );
-
-    // Persist imported business records into PostgreSQL businesses table as DRAFT entities
-    for (let i = 0; i < rows.length; i++) {
-      const rawRow = rows[i];
-      const mappedRow: Record<string, any> = {};
-      for (const [k, v] of Object.entries(rawRow)) {
-        if (v !== undefined && v !== null && v !== '') {
-          const valStr = String(v).trim();
-          const canonicalKey = normalizeRowHeader(k, customMapping, valStr);
-          mappedRow[canonicalKey] = valStr;
-        }
-      }
-
-      const bId = crypto.randomUUID();
-      const bName = String(mappedRow.business_name || mappedRow.name || mappedRow.company_name || rawRow['Business Name'] || rawRow.name || `Imported Business #${i + 1}`);
-      const slugBase = bName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'business';
-      const bSlug = `${slugBase}-${bId.slice(0, 8)}`;
-
-      const bType = String(mappedRow.business_type || mappedRow.businessType || mappedRow.entityType || rawRow['Business Type'] || rawRow.business_type || 'Private Limited Company');
-      const msme = String(mappedRow.msme_category || mappedRow.msmeCategory || rawRow['MSME Category'] || rawRow.msme_category || 'Medium Enterprise');
-      const descVal = String(mappedRow.description || rawRow.description || rawRow.Description || '');
-      const cityVal = String(mappedRow.city || mappedRow.City || rawRow.city || rawRow.City || '').trim();
-      const districtVal = String(mappedRow.district || mappedRow.District || rawRow.district || rawRow.District || cityVal || '').trim();
-      const stateVal = String(mappedRow.state || mappedRow.State || rawRow.state || rawRow.State || '').trim();
-      const pincodeVal = String(mappedRow.pincode || mappedRow.Pincode || mappedRow.zipCode || rawRow.pincode || rawRow.Pincode || '').trim();
-      const addressVal = String(mappedRow.address_line1 || mappedRow.address || mappedRow.Address || rawRow.address || rawRow.Address || '').trim();
-      const phoneVal = String(mappedRow.phone || mappedRow.Phone || mappedRow.phone_number || rawRow.phone || rawRow.Phone || rawRow['Phone Number'] || rawRow['phone_number'] || '').trim();
-      const emailVal = String(mappedRow.email || mappedRow.Email || mappedRow.email_address || rawRow.email || rawRow.Email || rawRow['Email Address'] || rawRow['email_address'] || '').trim();
-      const websiteVal = String(mappedRow.website || mappedRow.Website || mappedRow.url || rawRow.website || rawRow.Website || rawRow.url || '').trim();
-
-      await queryDb(
-        `INSERT INTO businesses (id, name, slug, status, is_verified, description, created_at, updated_at)
-         VALUES ($1, $2, $3, 'DRAFT', false, $4, NOW(), NOW())
-         ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, updated_at = NOW()`,
-        [bId, bName, bSlug, descVal]
-      );
-
-      await queryDb(`DELETE FROM business_locations WHERE business_id = $1`, [bId]);
-      await queryDb(
-        `INSERT INTO business_locations (business_id, city, district, state, pincode, address_line1, country, is_primary, is_registered_office)
-         VALUES ($1, $2, $3, $4, $5, $6, 'India', true, true)`,
-        [bId, cityVal, districtVal, stateVal, pincodeVal, addressVal]
-      );
-
-      await queryDb(`DELETE FROM business_contacts WHERE business_id = $1`, [bId]);
-      const linkedinVal = String(mappedRow.linkedin_url || mappedRow.linkedin || mappedRow.linkedInUrl || rawRow['LinkedIn URL'] || rawRow['linkedin'] || '').trim();
-      if (phoneVal || emailVal || linkedinVal) {
-        const contactName = String(mappedRow.contact_person || mappedRow.full_name || mappedRow.contact_name || rawRow['Contact Person'] || `${bName} Contact`);
-        await queryDb(
-          `INSERT INTO business_contacts (business_id, full_name, phone, email, linkedin_url, is_primary, is_decision_maker, is_phone_verified, is_email_verified)
-           VALUES ($1, $2, $3, $4, $5, true, true, true, true)`,
-          [bId, contactName, phoneVal, emailVal, linkedinVal || null]
-        );
-      }
-
-      await queryDb(`DELETE FROM digital_presences WHERE business_id = $1 AND platform = 'WEBSITE'`, [bId]);
-      if (websiteVal) {
-        const cleanDomain = websiteVal.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
-        await queryDb(
-          `INSERT INTO digital_presences (business_id, platform, url, domain, is_verified, is_active)
-           VALUES ($1, 'WEBSITE', $2, $3, true, true)`,
-          [bId, websiteVal.startsWith('http') ? websiteVal : `https://${websiteVal}`, cleanDomain]
-        );
-      }
-
-      await queryDb(`DELETE FROM digital_presences WHERE business_id = $1 AND platform = 'LINKEDIN'`, [bId]);
-      if (linkedinVal) {
-        await queryDb(
-          `INSERT INTO digital_presences (business_id, platform, url, is_verified, is_active)
-           VALUES ($1, 'LINKEDIN', $2, true, true)`,
-          [bId, linkedinVal.startsWith('http') ? linkedinVal : `https://${linkedinVal}`]
-        );
-      }
-
-      insertedRecords.push({
-        id: bId,
-        name: bName,
-        slug: bSlug,
-        industry: String(mappedRow.industry || rawRow.Industry || 'Manufacturing & Industrial'),
-        subIndustry: '',
-        category: String(mappedRow.category || rawRow.Category || 'Enterprise'),
-        businessType: bType,
-        msmeCategory: msme,
-        address: addressVal,
-        state: stateVal,
-        district: districtVal,
-        city: cityVal,
-        pincode: pincodeVal,
-        phone: phoneVal,
-        email: emailVal,
-        website: websiteVal,
-        linkedin: linkedinVal || null,
-        linkedInUrl: linkedinVal || null,
-        hasLinkedIn: Boolean(linkedinVal),
-        status: 'draft',
-        createdAt: new Date().toISOString().split('T')[0],
-        updatedAt: new Date().toISOString().split('T')[0],
-      });
-    }
-
-    console.log(`[Admin Import] Successfully persisted batch ${batchId} with ${insertedRecords.length} records into PostgreSQL.`);
-  } catch (dbErr: any) {
-    console.error('[Admin Import Error] Database batch insert failed:', dbErr?.message || dbErr);
+    upstream = await fetch(`${getBackendUrl()}/admin/import/submit`, { method: 'POST', headers, body: JSON.stringify(payload) });
+  } catch (err) {
+    console.error('[Admin Import] API unreachable:', (err as Error)?.message);
     return NextResponse.json(
-      {
-        success: false,
-        statusCode: 500,
-        message: `Database Ingestion Error: ${dbErr?.message || 'Failed to persist records into Neon PostgreSQL database.'}`,
-      },
-      { status: 500 }
+      { success: false, statusCode: 503, errorCode: 'BACKEND_UNAVAILABLE', message: 'The import service is unavailable. Nothing was imported; please try again.', timestamp: new Date().toISOString() },
+      { status: 503 },
     );
   }
-
-  return NextResponse.json(
-    {
-      success: true,
-      statusCode: 201,
-      message: 'Batch ingestion executed and persisted successfully in PostgreSQL database',
-      data: {
-        batch: {
-          id: batchId,
-          filename,
-          totalRecords: rows.length,
-        },
-        batchId,
-        filename,
-        status: 'COMPLETED',
-        totalRecords: rows.length,
-        publishedCount: 0,
-        draftCount: rows.length,
-        duplicateCount: 0,
-        failedCount: 0,
-        newRecords: insertedRecords,
-        stats: {
-          total: rows.length,
-          draft: rows.length,
-          published: 0,
-          duplicates: 0,
-          invalid: 0,
-        },
-      },
-      timestamp: new Date().toISOString(),
-    },
-    { status: 201 },
-  );
+  return new NextResponse(await upstream.text(), {
+    status: upstream.status,
+    headers: { 'content-type': upstream.headers.get('content-type') || 'application/json' },
+  });
 }
 
 function getBackendUrl(): string {
@@ -1172,6 +1213,61 @@ function getBackendUrl(): string {
     return envUrl.replace(/\/$/, '');
   }
   return 'http://127.0.0.1:4000/api/v1';
+}
+
+/** S-19: the verified admin acting on a request, for the audit trail (null if the token is not a persisted user id). */
+function gatewayActorId(req: NextRequest): string | null {
+  const m = /^Bearer\s+(\S+)$/i.exec(req.headers.get('authorization') || '');
+  const payload = m ? verifyToken(m[1], gwAccessSecret(), 'access') : null;
+  const sub = payload?.sub;
+  return typeof sub === 'string' && isUuidSub(sub) ? sub : null;
+}
+
+/**
+ * S-19: records a privileged action in audit_logs. Never throws (a logging failure must not fail the
+ * operation), but any failure is surfaced in the server log.
+ */
+async function recordGatewayAudit(
+  req: NextRequest,
+  action: string,
+  entityType: string,
+  details: Record<string, unknown> = {},
+  actorId?: string | null,
+): Promise<void> {
+  try {
+    await queryDb(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, new_values, ip_address, user_agent, created_at)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, NOW())`,
+      [
+        actorId ?? gatewayActorId(req),
+        action,
+        entityType,
+        (details as any).entityId ?? null,
+        JSON.stringify(details),
+        clientIpOf(req),
+        req.headers.get('user-agent') || null,
+      ],
+    );
+  } catch (err) {
+    console.error('[Gateway Audit] failed to record', action, (err as any)?.message);
+  }
+}
+
+/** S-24: a generic 500 that logs the real error server-side and returns only a correlation id to the client. */
+function serverError(context: string, err: unknown): NextResponse {
+  const requestId = crypto.randomUUID();
+  console.error(`[Gateway 500] ${context} (ref ${requestId}):`, (err as any)?.message || err);
+  return NextResponse.json(
+    {
+      success: false,
+      statusCode: 500,
+      errorCode: 'INTERNAL_ERROR',
+      message: 'The request could not be completed. Please try again.',
+      requestId,
+      timestamp: new Date().toISOString(),
+    },
+    { status: 500 },
+  );
 }
 
 async function getOrSyncUserWallet(userIdentifier?: string) {
@@ -1294,37 +1390,76 @@ async function getOrSyncUserWallet(userIdentifier?: string) {
   }
 }
 
-function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-  return `${salt}:${hash}`;
+/** Admin routes: the token's role claim is not enough, the persisted account must still be an ACTIVE ADMIN / SUPER_ADMIN. */
+async function requirePersistedAdmin(policy: string, auth: { sub: string } | null): Promise<NextResponse | null> {
+  if (policy !== 'ADMIN') return null;
+  const account = auth && isUuidSub(auth.sub) ? await findAdminAccount({ id: auth.sub }) : null;
+  if (account) return null;
+  return NextResponse.json(
+    { success: false, statusCode: 403, errorCode: 'FORBIDDEN', message: 'You do not have permission to do this.', timestamp: new Date().toISOString() },
+    { status: 403 },
+  );
 }
 
-function verifyPassword(password: string, storedHashStr: string): boolean {
-  if (!storedHashStr) return false;
+const isUuidSub = (s: string): boolean => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 
-  // Support bcrypt hashes ($2a$, $2b$, $2y$)
-  if (storedHashStr.startsWith('$2')) {
-    try {
-      const bcrypt = require('bcrypt');
-      return bcrypt.compareSync(password, storedHashStr);
-    } catch {
-      // Fallback if bcrypt isn't available
-    }
-  }
+// Gateway access-token lifetime. Reduced from 24h: a leaked access token is now also revocable through the
+// active-session check below, but a shorter window further limits exposure (S-05).
+const ACCESS_TOKEN_TTL_SEC = 2 * 3600;
+const REFRESH_TOKEN_TTL_SEC = 7 * 24 * 3600;
 
-  if (!storedHashStr.includes(':')) return false;
-  const [salt, hash] = storedHashStr.split(':');
-  const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+/**
+ * S-05 / S-06 / S-08: every logout, password reset and password change rotates the account's single active
+ * session id (and records when the password last changed). Because every authenticated native route verifies
+ * the caller's token still carries the current session id (assertSessionCurrent), rotating it immediately
+ * invalidates every previously issued access AND refresh token for that account — the gateway's stateless
+ * tokens become revocable without any schema change, using the existing users.metadata.activeSessionId field.
+ */
+async function rotateActiveSession(userId: string, opts: { passwordChanged?: boolean } = {}): Promise<string> {
+  const newSessionId = crypto.randomUUID();
   try {
-    return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(verifyHash, 'hex'));
-  } catch {
-    return false;
+    const rows = await queryDb(`SELECT metadata FROM users WHERE id = $1 LIMIT 1`, [userId]);
+    const meta = (rows[0]?.metadata && typeof rows[0].metadata === 'object') ? rows[0].metadata : {};
+    const updated: Record<string, any> = { ...meta, activeSessionId: newSessionId };
+    if (opts.passwordChanged) updated.passwordChangedAt = Date.now();
+    await queryDb(`UPDATE users SET metadata = $1::jsonb, updated_at = NOW() WHERE id = $2`, [JSON.stringify(updated), userId]);
+  } catch (err) {
+    console.error('[Gateway] rotateActiveSession failed:', (err as any)?.message);
   }
+  return newSessionId;
+}
+
+const sessionErr = (status: 401 | 403, errorCode: string, message: string, code?: string) =>
+  NextResponse.json({ success: false, statusCode: status, errorCode, code, message, timestamp: new Date().toISOString() }, { status });
+
+/**
+ * Enforces, for an authenticated native route, that the account is still ACTIVE and that the token carries the
+ * current active session id. Returns a response to short-circuit with, or null to proceed. Admin OTP tokens
+ * (no sessionId) get the status check only; their role is enforced separately by requirePersistedAdmin.
+ */
+async function assertSessionCurrent(auth: IAuthContext | null): Promise<NextResponse | null> {
+  if (!auth || !isUuidSub(auth.sub)) return null;
+  let u: any;
+  try {
+    const rows = await queryDb(`SELECT status, metadata FROM users WHERE id = $1 LIMIT 1`, [auth.sub]);
+    u = rows[0];
+  } catch {
+    return sessionErr(401, 'UNAUTHORIZED', 'A valid session is required.');
+  }
+  if (!u) return sessionErr(401, 'UNAUTHORIZED', 'A valid session is required.');
+  if (u.status === 'SUSPENDED' || u.status === 'INACTIVE') {
+    return sessionErr(403, 'ACCOUNT_INACTIVE', 'Your account has been deactivated. Please contact support.');
+  }
+  const tokenSid = auth.payload?.sessionId;
+  const activeSid = (u.metadata as any)?.activeSessionId;
+  if (tokenSid && activeSid && tokenSid !== activeSid) {
+    return sessionErr(401, 'UNAUTHORIZED', 'Your account has been logged in on another device. Please log in again.', 'SESSION_SUPERSEDED');
+  }
+  return null;
 }
 
 async function handleLogin(req: NextRequest): Promise<NextResponse> {
-  const body = await req.json().catch(() => ({}));
+  const body = await readJson(req).catch(() => ({}));
   const email = String(body?.email || '').trim().toLowerCase();
   const password = String(body?.password || '').trim();
 
@@ -1335,10 +1470,15 @@ async function handleLogin(req: NextRequest): Promise<NextResponse> {
     );
   }
 
+  // S-09: throttle credential stuffing per source IP and per targeted account.
+  if (gatewayRateLimited(`login:ip:${clientIpOf(req)}`, 30, 5 * 60000) || gatewayRateLimited(`login:acct:${email}`, 10, 5 * 60000)) {
+    return tooManyRequests('Too many login attempts. Please wait a few minutes and try again.');
+  }
+
   let dbUser: any = null;
   try {
     const rows = await queryDb(
-      `SELECT id, email, password_hash, first_name, last_name, display_name, role, status, organization_name, phone_number, avatar_url, metadata FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+      `SELECT id, email, password_hash, first_name, last_name, display_name, role, status, organization_name, phone_number, avatar_url, metadata, two_factor_enabled FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
       [email]
     );
     if (rows && rows.length > 0) {
@@ -1349,18 +1489,37 @@ async function handleLogin(req: NextRequest): Promise<NextResponse> {
   }
 
   if (!dbUser || !dbUser.password_hash) {
+    await burnPasswordCheck(password); // same cost as a wrong password: no timing hint that the account does not exist
     return NextResponse.json(
       { success: false, statusCode: 401, message: 'Invalid email or password.' },
       { status: 401 }
     );
   }
 
-  const isPasswordValid = verifyPassword(password, dbUser.password_hash);
+  const isPasswordValid = await verifyPassword(password, dbUser.password_hash);
   if (!isPasswordValid) {
     return NextResponse.json(
       { success: false, statusCode: 401, message: 'Invalid email or password.' },
       { status: 401 }
     );
+  }
+
+  // This native login has no second step. An account with MFA enabled must complete the API's TOTP challenge, so when the API is
+  // unavailable these accounts are refused here rather than signed in with the password alone (fail closed).
+  if (dbUser.two_factor_enabled === true) {
+    return NextResponse.json(
+      { success: false, statusCode: 503, message: 'Sign-in with two-factor authentication is temporarily unavailable. Please try again shortly.' },
+      { status: 503 }
+    );
+  }
+
+  // Transparent upgrade: a correct password verified against a legacy / weaker hash is re-hashed with the current parameters.
+  if (needsRehash(dbUser.password_hash)) {
+    try {
+      await queryDb(`UPDATE users SET password_hash = $1 WHERE id = $2 AND password_hash = $3`, [await hashPassword(password), dbUser.id, dbUser.password_hash]);
+    } catch (err: any) {
+      console.error('[Gateway] password hash upgrade failed:', err?.message);
+    }
   }
 
   if (dbUser.status === 'SUSPENDED' || dbUser.status === 'INACTIVE') {
@@ -1384,8 +1543,9 @@ async function handleLogin(req: NextRequest): Promise<NextResponse> {
     console.error('[Gateway] Failed to update active session ID in user metadata:', err);
   }
 
-  const accessSecret = sanitizeEnvValue(process.env.JWT_ACCESS_SECRET) || process.env.JWT_SECRET || 'orion-jwt-access-secret-production-fallback';
-  const refreshSecret = sanitizeEnvValue(process.env.JWT_REFRESH_SECRET) || process.env.JWT_SECRET || 'orion-jwt-refresh-secret-production-fallback';
+  const accessSecret = gwAccessSecret();
+  const refreshSecret = gwRefreshSecret();
+  if (!accessSecret || !refreshSecret) return authNotConfigured();
 
   const firstName = dbUser.first_name || '';
   const lastName = dbUser.last_name || '';
@@ -1406,8 +1566,8 @@ async function handleLogin(req: NextRequest): Promise<NextResponse> {
     sessionId,
   };
 
-  const accessToken = signJwt(userPayload, accessSecret, 24 * 3600);
-  const refreshToken = signJwt({ sub: dbUser.id, email: dbUser.email, type: 'refresh', sessionId }, refreshSecret, 7 * 24 * 3600);
+  const accessToken = signJwt(userPayload, accessSecret, ACCESS_TOKEN_TTL_SEC);
+  const refreshToken = signJwt({ sub: dbUser.id, email: dbUser.email, type: 'refresh', sessionId }, refreshSecret, REFRESH_TOKEN_TTL_SEC);
 
   const walletData = await getOrSyncUserWallet(dbUser.id);
 
@@ -1457,24 +1617,54 @@ async function handleLogin(req: NextRequest): Promise<NextResponse> {
     timestamp: new Date().toISOString(),
   });
 
-  const isLocal = (req.headers.get('host') || '').includes('localhost');
+  const isLocal = isLocalRequestHost(req.headers.get('host'));
+  // S-11: HttpOnly + Secure so the cookie copy of the session token is not readable by page scripts.
   res.cookies.set('orion_access_token', accessToken, {
     path: '/',
-    httpOnly: false,
+    httpOnly: true,
     secure: !isLocal,
     sameSite: 'lax',
-    maxAge: 24 * 3600,
+    maxAge: ACCESS_TOKEN_TTL_SEC,
   });
 
   return res;
 }
 
+/** Sign-up e-mail verification (the same rules and table as the NestJS API; see lib/email-otp.ts). */
+async function handleSendOtp(req: NextRequest): Promise<NextResponse> {
+  const body = await readJson(req).catch(() => null);
+  if (body === null) return NextResponse.json({ success: false, statusCode: 400, message: 'Invalid JSON body' }, { status: 400 });
+  const ip = clientIpOf(req);
+  if (gatewayRateLimited(`otp-send:ip:${ip}`, 12, 10 * 60000)) return tooManyRequests('Too many verification requests. Please wait a few minutes and try again.');
+  const pool = getDbPool();
+  if (!pool) return NextResponse.json({ success: false, statusCode: 503, errorCode: 'SERVICE_UNAVAILABLE', message: 'Verification is temporarily unavailable.' }, { status: 503 });
+  const result = await sendEmailOtp(poolAdapter(pool as any), {
+    email: body?.email,
+    purpose: body?.purpose,
+    ip,
+    accountExists: async (email) => ((await queryDb(`SELECT id FROM users WHERE LOWER(email) = $1 LIMIT 1`, [email])) || []).length > 0,
+    mailer: sendSignupOtpEmail,
+  });
+  return NextResponse.json(result.body, { status: result.status });
+}
+
+async function handleVerifyOtp(req: NextRequest): Promise<NextResponse> {
+  const body = await readJson(req).catch(() => null);
+  if (body === null) return NextResponse.json({ success: false, statusCode: 400, message: 'Invalid JSON body' }, { status: 400 });
+  if (gatewayRateLimited(`otp-verify:ip:${clientIpOf(req)}`, 30, 10 * 60000)) return tooManyRequests('Too many attempts. Please wait a few minutes and try again.');
+  const pool = getDbPool();
+  if (!pool) return NextResponse.json({ success: false, statusCode: 503, errorCode: 'SERVICE_UNAVAILABLE', message: 'Verification is temporarily unavailable.' }, { status: 503 });
+  const result = await verifyEmailOtp(poolAdapter(pool as any), { email: body?.email, otp: body?.otp, purpose: body?.purpose });
+  return NextResponse.json(result.body, { status: result.status });
+}
+
 async function handleRegister(req: NextRequest): Promise<NextResponse> {
-  const body = await req.json().catch(() => ({}));
+  const body = await readJson(req).catch(() => ({}));
   const email = String(body?.email || '').trim().toLowerCase();
   const password = String(body?.password || '').trim();
-  const firstName = String(body?.firstName || body?.name?.split(' ')[0] || '').trim();
-  const lastName = String(body?.lastName || body?.name?.split(' ').slice(1).join(' ') || '').trim();
+  const fullNameText = typeof body?.name === 'string' ? body.name : '';
+  const firstName = String(body?.firstName || fullNameText.split(' ')[0] || '').trim();
+  const lastName = String(body?.lastName || fullNameText.split(' ').slice(1).join(' ') || '').trim();
   const companyName = String(body?.companyName || body?.organizationName || '').trim();
   const phone = String(body?.phone || body?.phoneNumber || '').trim();
 
@@ -1485,9 +1675,32 @@ async function handleRegister(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  if (password.length < 8) {
+  // S-09: throttle automated sign-up abuse per source IP.
+  if (gatewayRateLimited(`register:ip:${clientIpOf(req)}`, 10, 10 * 60000)) {
+    return tooManyRequests('Too many sign-up attempts. Please wait a few minutes and try again.');
+  }
+
+  // S-16: reject malformed emails and trivially weak passwords at the edge (the NestJS ValidationPipe never
+  // runs for gateway-native routes).
+  if (!isValidEmail(email)) {
     return NextResponse.json(
-      { success: false, statusCode: 400, message: 'Password must be at least 8 characters long.' },
+      { success: false, statusCode: 400, message: 'Please enter a valid email address.' },
+      { status: 400 }
+    );
+  }
+  // New accounts need the one-time proof from /auth/verify-otp (always in production). Checked before any other work is spent.
+  const otpRequired = registrationOtpRequired();
+  const proof = otpRequired ? parseProof(body?.verificationToken) : null;
+  if (otpRequired && !proof) {
+    return NextResponse.json(
+      { success: false, statusCode: 403, errorCode: 'EMAIL_OTP_REQUIRED', message: 'Please verify your email address with the code we send you before creating an account.' },
+      { status: 403 }
+    );
+  }
+  const pwComplaint = passwordComplaint(password);
+  if (pwComplaint) {
+    return NextResponse.json(
+      { success: false, statusCode: 400, message: pwComplaint },
       { status: 400 }
     );
   }
@@ -1505,29 +1718,39 @@ async function handleRegister(req: NextRequest): Promise<NextResponse> {
   }
 
   const userId = crypto.randomUUID();
-  const passwordHash = hashPassword(password);
+  const passwordHash = await hashPassword(password);
   const fullName = `${firstName} ${lastName}`.trim() || email.split('@')[0];
   const sessionId = crypto.randomUUID();
   const metadata = { activeSessionId: sessionId };
 
   try {
-    await queryDb(
+    if (otpRequired && proof) {
+      // One statement: the proof is spent and the account inserted together. A proof that is not live and unspent for exactly this address
+      // inserts nothing; a failed insert (for example a duplicate address) leaves the proof unspent. Fails closed when there is no database.
+      const created = await queryDbStrict(REGISTER_WITH_PROOF_SQL, [userId, email, passwordHash, firstName || null, lastName || null, fullName, companyName || null, phone || null, JSON.stringify(metadata), proof.id, proof.hash]);
+      if (!created || created.length === 0) {
+        return NextResponse.json(
+          { success: false, statusCode: 403, errorCode: 'EMAIL_OTP_REQUIRED', message: 'Please verify your email address with the code we send you before creating an account.' },
+          { status: 403 }
+        );
+      }
+    } else {
+    await queryDbStrict(
       `INSERT INTO users (id, email, password_hash, first_name, last_name, display_name, organization_name, phone_number, role, status, provider, metadata, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'USER', 'ACTIVE', 'EMAIL', $9::jsonb, NOW(), NOW())`,
       [userId, email, passwordHash, firstName || null, lastName || null, fullName, companyName || null, phone || null, JSON.stringify(metadata)]
     );
+    }
   } catch (err: any) {
-    console.error('[Gateway] DB error inserting new user:', err);
-    return NextResponse.json(
-      { success: false, statusCode: 500, message: 'Failed to create user account. Please try again.' },
-      { status: 500 }
-    );
+    console.error('[Gateway] DB error inserting new user:', (err as { code?: string })?.code);
+    return writeFailure(err);
   }
 
   const walletData = await getOrSyncUserWallet(userId);
 
-  const accessSecret = sanitizeEnvValue(process.env.JWT_ACCESS_SECRET) || process.env.JWT_SECRET || 'orion-jwt-access-secret-production-fallback';
-  const refreshSecret = sanitizeEnvValue(process.env.JWT_REFRESH_SECRET) || process.env.JWT_SECRET || 'orion-jwt-refresh-secret-production-fallback';
+  const accessSecret = gwAccessSecret();
+  const refreshSecret = gwRefreshSecret();
+  if (!accessSecret || !refreshSecret) return authNotConfigured();
 
   const userPayload = {
     sub: userId,
@@ -1543,8 +1766,8 @@ async function handleRegister(req: NextRequest): Promise<NextResponse> {
     sessionId,
   };
 
-  const accessToken = signJwt(userPayload, accessSecret, 24 * 3600);
-  const refreshToken = signJwt({ sub: userId, email, type: 'refresh', sessionId }, refreshSecret, 7 * 24 * 3600);
+  const accessToken = signJwt(userPayload, accessSecret, ACCESS_TOKEN_TTL_SEC);
+  const refreshToken = signJwt({ sub: userId, email, type: 'refresh', sessionId }, refreshSecret, REFRESH_TOKEN_TTL_SEC);
 
   const res = NextResponse.json(
     {
@@ -1593,20 +1816,21 @@ async function handleRegister(req: NextRequest): Promise<NextResponse> {
     { status: 201 }
   );
 
-  const isLocal = (req.headers.get('host') || '').includes('localhost');
+  const isLocal = isLocalRequestHost(req.headers.get('host'));
+  // S-11: HttpOnly + Secure so the cookie copy of the session token is not readable by page scripts.
   res.cookies.set('orion_access_token', accessToken, {
     path: '/',
-    httpOnly: false,
+    httpOnly: true,
     secure: !isLocal,
     sameSite: 'lax',
-    maxAge: 24 * 3600,
+    maxAge: ACCESS_TOKEN_TTL_SEC,
   });
 
   return res;
 }
 
 async function handleRefresh(req: NextRequest): Promise<NextResponse> {
-  const body = await req.json().catch(() => ({}));
+  const body = await readJson(req).catch(() => ({}));
   const refreshToken = String(body?.refreshToken || '').trim();
 
   if (!refreshToken) {
@@ -1616,11 +1840,12 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const refreshSecret = sanitizeEnvValue(process.env.JWT_REFRESH_SECRET) || process.env.JWT_SECRET || 'orion-jwt-refresh-secret-production-fallback';
-  const accessSecret = sanitizeEnvValue(process.env.JWT_ACCESS_SECRET) || process.env.JWT_SECRET || 'orion-jwt-access-secret-production-fallback';
-  const tokenData = decodeJwtPayload(refreshToken);
+  const refreshSecret = gwRefreshSecret();
+  const accessSecret = gwAccessSecret();
+  if (!refreshSecret || !accessSecret) return authNotConfigured();
+  const tokenData = verifyToken(refreshToken, refreshSecret, 'refresh');
 
-  if (!tokenData || tokenData.type !== 'refresh' || !tokenData.sub) {
+  if (!tokenData || !tokenData.sub) {
     return NextResponse.json(
       { success: false, statusCode: 401, message: 'Invalid refresh token.' },
       { status: 401 }
@@ -1630,7 +1855,24 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
   const walletData = await getOrSyncUserWallet(tokenData.sub);
   const dbUser = walletData.user;
 
-  const sessionId = tokenData.sessionId || crypto.randomUUID();
+  // S-05 / S-08: the refresh token is honoured only while it still carries the account's current active session
+  // id and the account is active. After a logout, password change or a login elsewhere (all of which rotate the
+  // session id), a previously issued refresh token is rejected here instead of silently minting fresh tokens.
+  if (dbUser && (dbUser.status === 'SUSPENDED' || dbUser.status === 'INACTIVE')) {
+    return NextResponse.json(
+      { success: false, statusCode: 403, errorCode: 'ACCOUNT_INACTIVE', message: 'Your account has been deactivated. Please contact support.' },
+      { status: 403 }
+    );
+  }
+  const activeSessionId = (dbUser?.metadata as any)?.activeSessionId;
+  if (activeSessionId && tokenData.sessionId && tokenData.sessionId !== activeSessionId) {
+    return NextResponse.json(
+      { success: false, statusCode: 401, code: 'SESSION_SUPERSEDED', message: 'This session is no longer valid. Please log in again.' },
+      { status: 401 }
+    );
+  }
+
+  const sessionId = tokenData.sessionId || activeSessionId || crypto.randomUUID();
   const firstName = dbUser?.first_name || '';
   const lastName = dbUser?.last_name || '';
   const fullName = dbUser?.display_name || (firstName ? `${firstName} ${lastName}`.trim() : tokenData.email?.split('@')[0] || 'User');
@@ -1648,8 +1890,8 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
     sessionId,
   };
 
-  const newAccessToken = signJwt(userPayload, accessSecret, 24 * 3600);
-  const newRefreshToken = signJwt({ sub: tokenData.sub, email: tokenData.email, type: 'refresh', sessionId }, refreshSecret, 7 * 24 * 3600);
+  const newAccessToken = signJwt(userPayload, accessSecret, ACCESS_TOKEN_TTL_SEC);
+  const newRefreshToken = signJwt({ sub: tokenData.sub, email: tokenData.email, type: 'refresh', sessionId }, refreshSecret, REFRESH_TOKEN_TTL_SEC);
 
   return NextResponse.json({
     success: true,
@@ -1663,7 +1905,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
 }
 
 async function handleForgotPassword(req: NextRequest): Promise<NextResponse> {
-  const body = await req.json().catch(() => ({}));
+  const body = await readJson(req).catch(() => ({}));
   const email = String(body?.email || '').trim().toLowerCase();
   if (!email) {
     return NextResponse.json(
@@ -1672,10 +1914,26 @@ async function handleForgotPassword(req: NextRequest): Promise<NextResponse> {
     );
   }
 
+  const jwtSecret = gwResetSecret();
+  if (!jwtSecret) return authNotConfigured();
+
+  // S-09: throttle reset-email flooding, per source IP and per targeted address.
+  if (gatewayRateLimited(`forgot:ip:${clientIpOf(req)}`, 10, 10 * 60000) || gatewayRateLimited(`forgot:acct:${email}`, 5, 10 * 60000)) {
+    return tooManyRequests('Too many password reset requests. Please wait a few minutes and try again.');
+  }
+
+  // S-14: one generic response whether or not the address is registered, so this endpoint cannot be used
+  // to enumerate accounts. An email is dispatched only when a matching account exists.
+  const genericOk = NextResponse.json({
+    success: true,
+    statusCode: 200,
+    message: 'If an account exists for this address, a password reset link has been sent.',
+  });
+
   let user: any = null;
   try {
     const rows = await queryDb(
-      `SELECT id, email, first_name, last_name FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+      `SELECT id, email, first_name, last_name, metadata FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
       [email]
     );
     if (rows && rows.length > 0) {
@@ -1686,50 +1944,35 @@ async function handleForgotPassword(req: NextRequest): Promise<NextResponse> {
   }
 
   if (!user) {
-    return NextResponse.json(
-      {
-        success: false,
-        statusCode: 404,
-        message: 'No account found with this email address. Please check your spelling or register for an account.',
-      },
-      { status: 404 }
-    );
+    return genericOk;
   }
 
-  const jwtSecret = process.env.JWT_SECRET || 'orion-fallback-secret-2026';
-  const resetToken = signJwt({ sub: user.id, email: user.email, type: 'password_reset' }, jwtSecret, 900);
+  // S-06: bind the token to the password's current state. A successful reset bumps passwordChangedAt, so the
+  // same token (carrying the old value) can never be replayed. A short jti aids log correlation.
+  const pwc = Number((user.metadata as any)?.passwordChangedAt) || 0;
+  const resetToken = signJwt(
+    { sub: user.id, email: user.email, type: 'password_reset', pwc, jti: crypto.randomBytes(8).toString('hex') },
+    jwtSecret,
+    900,
+  );
 
-  const origin = req.headers.get('origin') || req.nextUrl.origin || 'http://localhost:3000';
-  const resetUrl = `${origin}/reset-password?token=${resetToken}`;
+  // S-02: the reset-link host comes ONLY from server configuration, never from a request header.
+  const origin = appBaseUrl(req);
+  const resetUrl = `${origin}/reset-password?token=${encodeURIComponent(resetToken)}`;
   const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email.split('@')[0];
 
-  const emailResult = await sendPasswordResetEmail({
+  await sendPasswordResetEmail({
     email: user.email,
     name: userName,
     resetUrl,
     expiresInMinutes: 15,
-  });
+  }).catch((e) => console.error('[Gateway] reset email dispatch error:', (e as any)?.message));
 
-  if (!emailResult.success) {
-    return NextResponse.json(
-      {
-        success: false,
-        statusCode: 500,
-        message: emailResult.error || 'Failed to send password reset email. Please try again later.',
-      },
-      { status: 500 }
-    );
-  }
-
-  return NextResponse.json({
-    success: true,
-    statusCode: 200,
-    message: 'Password reset link sent successfully to your email address.',
-  });
+  return genericOk;
 }
 
 async function handleResetPassword(req: NextRequest): Promise<NextResponse> {
-  const body = await req.json().catch(() => ({}));
+  const body = await readJson(req).catch(() => ({}));
   const token = String(body?.token || '').trim();
   const newPassword = String(body?.newPassword || body?.password || '').trim();
 
@@ -1747,9 +1990,11 @@ async function handleResetPassword(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const tokenData = decodeJwtPayload(token);
+  const resetKey = gwResetSecret();
+  if (!resetKey) return authNotConfigured();
+  const tokenData = verifyToken(token, resetKey, 'password_reset');
 
-  if (!tokenData || tokenData.type !== 'password_reset') {
+  if (!tokenData || !isUuid(tokenData.sub)) {
     return NextResponse.json(
       { success: false, statusCode: 400, message: 'Invalid or expired password reset link. Please request a new one.' },
       { status: 400 }
@@ -1765,28 +2010,38 @@ async function handleResetPassword(req: NextRequest): Promise<NextResponse> {
   }
 
   const userId = tokenData.sub;
-  const email = tokenData.email;
 
-  if (!userId && !email) {
+  // Identity for a reset is always the token's verified subject (a UUID), never a free-form email.
+  if (!isUuid(userId)) {
     return NextResponse.json(
-      { success: false, statusCode: 400, message: 'Invalid password reset token payload.' },
+      { success: false, statusCode: 400, message: 'Invalid or expired password reset link. Please request a new one.' },
       { status: 400 }
     );
   }
 
   try {
-    const newPasswordHash = hashPassword(newPassword);
-    if (userId) {
-      await queryDb(`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`, [
-        newPasswordHash,
-        userId,
-      ]);
-    } else if (email) {
-      await queryDb(`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE LOWER(email) = LOWER($2)`, [
-        newPasswordHash,
-        email,
-      ]);
+    // S-06: the token is single-use. It carries the passwordChangedAt value from when it was issued; if the
+    // stored value has moved on (because this token, or another, already completed a reset), it is refused.
+    const rows = await queryDb(`SELECT metadata FROM users WHERE id = $1 LIMIT 1`, [userId]);
+    if (!rows[0]) {
+      return NextResponse.json(
+        { success: false, statusCode: 400, message: 'Invalid or expired password reset link. Please request a new one.' },
+        { status: 400 }
+      );
     }
+    const currentPwc = Number((rows[0].metadata as any)?.passwordChangedAt) || 0;
+    const tokenPwc = Number(tokenData.pwc) || 0;
+    if (tokenPwc !== currentPwc) {
+      return NextResponse.json(
+        { success: false, statusCode: 400, message: 'This password reset link has already been used or has expired. Please request a new one.' },
+        { status: 400 }
+      );
+    }
+
+    const newPasswordHash = await hashPassword(newPassword);
+    await queryDbStrict(`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`, [newPasswordHash, userId]);
+    // Invalidate the token (passwordChangedAt bumps) and revoke every existing session for this account (S-05).
+    await rotateActiveSession(userId, { passwordChanged: true });
 
     return NextResponse.json({
       success: true,
@@ -1866,7 +2121,12 @@ async function handleGetUserProfile(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const email = dbUser?.email || tokenData?.email || 'user@example.com';
+  // Identity is the persisted account or the verified token subject, never a placeholder: with neither there is no profile to show.
+  const profileId: string | undefined = dbUser?.id || tokenData?.sub || undefined;
+  if (!profileId) {
+    return NextResponse.json({ success: false, statusCode: 401, message: 'A valid session is required.' }, { status: 401 });
+  }
+  const email = dbUser?.email || tokenData?.email || '';
   const firstName = dbUser?.first_name || tokenData?.firstName || '';
   const lastName = dbUser?.last_name || tokenData?.lastName || '';
   const fullName = dbUser?.display_name || (firstName ? `${firstName} ${lastName}`.trim() : email.split('@')[0]);
@@ -1875,7 +2135,7 @@ async function handleGetUserProfile(req: NextRequest): Promise<NextResponse> {
     success: true,
     statusCode: 200,
     data: {
-      id: dbUser?.id || walletData.userId || 'usr_default',
+      id: profileId,
       email,
       firstName,
       lastName,
@@ -1956,7 +2216,7 @@ async function handleUpdateUserProfile(req: NextRequest): Promise<NextResponse> 
 
   let body: any = {};
   try {
-    body = await req.json();
+    body = await readJson(req);
   } catch {}
 
   const rawName = String(body.name || body.displayName || '').trim();
@@ -1981,7 +2241,7 @@ async function handleUpdateUserProfile(req: NextRequest): Promise<NextResponse> 
     updatedMeta.jobTitle = String(jobTitle).trim();
   }
 
-  const rows = await queryDb(
+  const rows = await queryDbStrict(
     `UPDATE users
      SET first_name = COALESCE($1, first_name),
          last_name = COALESCE($2, last_name),
@@ -2043,15 +2303,19 @@ async function handleUploadUserAvatar(req: NextRequest): Promise<NextResponse> {
 
   let body: any = {};
   try {
-    body = await req.json();
+    body = await readJson(req);
   } catch {}
 
-  const image = body.image || body.avatarUrl || body.avatar_url || body.data;
-  if (!image || typeof image !== 'string') {
-    return NextResponse.json({ success: false, statusCode: 400, message: 'Image data is required' }, { status: 400 });
+  const rawImage = body.image || body.avatarUrl || body.avatar_url || body.data;
+  // S-16: only a bounded base64 image, or an https URL on one of our own storage/CDN hosts, is accepted.
+  // Arbitrary external URLs (tracking pixels) and multi-megabyte blobs are rejected before any DB write.
+  const avatarCheck = validateAvatar(rawImage);
+  if (!avatarCheck.ok) {
+    return NextResponse.json({ success: false, statusCode: 400, message: avatarCheck.error }, { status: 400 });
   }
+  const image = avatarCheck.value;
 
-  const rows = await queryDb(
+  const rows = await queryDbStrict(
     `UPDATE users
      SET avatar_url = $1,
          profile_picture = $1,
@@ -2089,7 +2353,7 @@ async function handleUpdateUserCompany(req: NextRequest): Promise<NextResponse> 
 
   let body: any = {};
   try {
-    body = await req.json();
+    body = await readJson(req);
   } catch {}
 
   const organizationName = body.companyName || body.organizationName || body.name;
@@ -2102,7 +2366,7 @@ async function handleUpdateUserCompany(req: NextRequest): Promise<NextResponse> 
     updatedMeta.jobTitle = String(jobTitle).trim();
   }
 
-  const rows = await queryDb(
+  const rows = await queryDbStrict(
     `UPDATE users
      SET organization_name = COALESCE($1, organization_name),
          phone_number = COALESCE($2, phone_number),
@@ -2124,7 +2388,7 @@ async function handleUpdateUserCompany(req: NextRequest): Promise<NextResponse> 
   return NextResponse.json({
     success: true,
     statusCode: 200,
-    message: 'Company details saved directly to Neon PostgreSQL database',
+    message: 'Company details saved directly to the PostgreSQL database',
     data: {
       companyName: updatedUser.organization_name,
       phone: updatedUser.phone_number,
@@ -2145,20 +2409,22 @@ async function handleUpdateUserNotifications(req: NextRequest): Promise<NextResp
 
   let body: any = {};
   try {
-    body = await req.json();
+    body = await readJson(req);
   } catch {}
 
   const currentMeta = (dbUser?.metadata as any) || {};
+  // S-16: merge only known boolean notification flags, so arbitrary/oversized keys cannot be stashed in
+  // users.metadata.
   const updatedNotifications = {
     ...(currentMeta.notifications || {}),
-    ...body,
+    ...pickBooleanKeys(body, NOTIFICATION_KEYS as unknown as string[]),
   };
   const updatedMeta = {
     ...currentMeta,
     notifications: updatedNotifications,
   };
 
-  const rows = await queryDb(
+  const rows = await queryDbStrict(
     `UPDATE users
      SET metadata = $1::jsonb,
          updated_at = NOW()
@@ -2176,7 +2442,7 @@ async function handleUpdateUserNotifications(req: NextRequest): Promise<NextResp
   return NextResponse.json({
     success: true,
     statusCode: 200,
-    message: 'Notification preferences saved to Neon PostgreSQL database',
+    message: 'Notification preferences saved to the PostgreSQL database',
     data: updatedUser.metadata?.notifications || updatedNotifications,
     timestamp: new Date().toISOString(),
   });
@@ -2193,20 +2459,21 @@ async function handleUpdateUserPreferences(req: NextRequest): Promise<NextRespon
 
   let body: any = {};
   try {
-    body = await req.json();
+    body = await readJson(req);
   } catch {}
 
   const currentMeta = (dbUser?.metadata as any) || {};
+  // S-16: keep only known, length-bounded preference keys.
   const updatedPreferences = {
     ...(currentMeta.preferences || {}),
-    ...body,
+    ...pickPreferences(body),
   };
   const updatedMeta = {
     ...currentMeta,
     preferences: updatedPreferences,
   };
 
-  const rows = await queryDb(
+  const rows = await queryDbStrict(
     `UPDATE users
      SET metadata = $1::jsonb,
          updated_at = NOW()
@@ -2224,7 +2491,7 @@ async function handleUpdateUserPreferences(req: NextRequest): Promise<NextRespon
   return NextResponse.json({
     success: true,
     statusCode: 200,
-    message: 'App preferences saved to Neon PostgreSQL database',
+    message: 'App preferences saved to the PostgreSQL database',
     data: updatedUser.metadata?.preferences || updatedPreferences,
     timestamp: new Date().toISOString(),
   });
@@ -2239,9 +2506,14 @@ async function handleUpdateUserPassword(req: NextRequest): Promise<NextResponse>
     return NextResponse.json({ success: false, statusCode: 401, message: 'Unauthorized' }, { status: 401 });
   }
 
+  // The current password is verified here, so a stolen session token could otherwise be used to guess it without limit.
+  if (gatewayRateLimited(`pwchange:${userId || email}`, 5, 10 * 60000)) {
+    return tooManyRequests('Too many password change attempts. Please wait a few minutes and try again.');
+  }
+
   let body: any = {};
   try {
-    body = await req.json();
+    body = await readJson(req);
   } catch {}
 
   const currentPassword = String(body.currentPassword || '').trim();
@@ -2260,15 +2532,15 @@ async function handleUpdateUserPassword(req: NextRequest): Promise<NextResponse>
     if (!currentPassword) {
       return NextResponse.json({ success: false, statusCode: 400, message: 'Current password is required' }, { status: 400 });
     }
-    const isValid = verifyPassword(currentPassword, existingHash);
+    const isValid = await verifyPassword(currentPassword, existingHash);
     if (!isValid) {
       return NextResponse.json({ success: false, statusCode: 400, message: 'Incorrect current password. Verification failed.' }, { status: 400 });
     }
   }
 
-  const newHashStr = hashPassword(newPassword);
+  const newHashStr = await hashPassword(newPassword);
 
-  await queryDb(
+  await queryDbStrict(
     `UPDATE users
      SET password_hash = $1,
          updated_at = NOW()
@@ -2276,11 +2548,43 @@ async function handleUpdateUserPassword(req: NextRequest): Promise<NextResponse>
     [newHashStr, userId || '00000000-0000-0000-0000-000000000000', email || '']
   );
 
-  return NextResponse.json({
+  // S-05: a password change revokes all existing sessions for the account. To keep the caller signed in
+  // seamlessly, we rotate to a fresh session id and hand them a new token pair; every token minted before
+  // this point (including any the change was meant to lock out) is now rejected by assertSessionCurrent.
+  const data: Record<string, any> = { passwordUpdated: true, hasPassword: true };
+  let res: NextResponse | null = null;
+  if (userId && isUuidSub(userId)) {
+    const newSessionId = await rotateActiveSession(userId, { passwordChanged: true });
+    const accessSecret = gwAccessSecret();
+    const refreshSecret = gwRefreshSecret();
+    if (accessSecret && refreshSecret) {
+      const fullName = dbUser?.display_name || `${dbUser?.first_name || ''} ${dbUser?.last_name || ''}`.trim() || (email || '').split('@')[0];
+      const accessToken = signJwt(
+        { sub: userId, email, name: fullName, displayName: fullName, role: dbUser?.role || 'USER', status: dbUser?.status || 'ACTIVE', provider: dbUser?.provider || 'EMAIL', sessionId: newSessionId },
+        accessSecret,
+        ACCESS_TOKEN_TTL_SEC,
+      );
+      const refreshToken = signJwt({ sub: userId, email, type: 'refresh', sessionId: newSessionId }, refreshSecret, REFRESH_TOKEN_TTL_SEC);
+      data.accessToken = accessToken;
+      data.refreshToken = refreshToken;
+      data.tokens = { accessToken, refreshToken };
+      res = NextResponse.json({
+        success: true,
+        statusCode: 200,
+        message: existingHash ? 'Password updated successfully' : 'New password set successfully',
+        data,
+        timestamp: new Date().toISOString(),
+      });
+      const isLocal = isLocalRequestHost(req.headers.get('host'));
+      res.cookies.set('orion_access_token', accessToken, { path: '/', httpOnly: true, secure: !isLocal, sameSite: 'lax', maxAge: ACCESS_TOKEN_TTL_SEC });
+    }
+  }
+
+  return res || NextResponse.json({
     success: true,
     statusCode: 200,
-    message: existingHash ? 'Password updated successfully in PostgreSQL database' : 'New password set successfully in PostgreSQL database',
-    data: { passwordUpdated: true, hasPassword: true },
+    message: existingHash ? 'Password updated successfully' : 'New password set successfully',
+    data,
     timestamp: new Date().toISOString(),
   });
 }
@@ -2300,6 +2604,32 @@ async function proxyRequest(
   }
 
   const fullPath = path.join('/');
+
+  // Access gate (Phase 6.17) for every route the gateway handles itself: verified token, role and customer-account checks
+  // happen here, once, before any handler runs. Routes that are proxied to the NestJS API are authenticated by it.
+  const gatePolicy = routePolicy(fullPath, req.method);
+  const gate = decideAccess(gatePolicy, req.headers);
+  if (!gate.allow) {
+    return NextResponse.json(
+      { success: false, statusCode: gate.status, errorCode: gate.errorCode, message: gate.message, timestamp: new Date().toISOString() },
+      { status: gate.status },
+    );
+  }
+  const notAdmin = await requirePersistedAdmin(gatePolicy, gate.auth);
+  if (notAdmin) return notAdmin;
+
+  // S-05 / S-08 / S-13: for every authenticated native route, confirm the account is still ACTIVE and the
+  // token carries the current active session id (so logout, password change and suspension take effect at once,
+  // and a superseded single-device session is rejected everywhere, not only on /auth/me).
+  if (gatePolicy === 'USER' || gatePolicy === 'ADMIN') {
+    const staleSession = await assertSessionCurrent(gate.auth);
+    if (staleSession) return staleSession;
+  }
+
+  // User logout: revoke the session natively (S-05) regardless of upstream reachability.
+  if (fullPath === 'auth/logout' && req.method === 'POST') {
+    return await handleUserLogout(req);
+  }
 
   // Customer Panel - Profile & User Settings Database Handlers
   if (fullPath === 'auth/me' || fullPath === 'user/profile') {
@@ -2353,7 +2683,7 @@ async function proxyRequest(
           headers: req.headers,
           body: await req.clone().arrayBuffer(),
         });
-        if (upstreamRes.ok) return upstreamRes as any;
+        if (isDefinitiveUpstream(upstreamRes.status)) return upstreamRes as any;
       } catch {
         // Fall back to native handler
       }
@@ -2376,7 +2706,7 @@ async function proxyRequest(
           headers: req.headers,
           body: await req.clone().arrayBuffer(),
         });
-        if (upstreamRes.ok) return upstreamRes as any;
+        if (isDefinitiveUpstream(upstreamRes.status)) return upstreamRes as any;
       } catch {
         // Fall back to native handler
       }
@@ -2386,7 +2716,7 @@ async function proxyRequest(
 
   // Admin Auth - Logout
   if (fullPath === 'admin/auth/logout') {
-    return handleAdminLogout();
+    return handleAdminLogout(req);
   }
 
   // Admin Import Template CSV Download
@@ -2417,27 +2747,9 @@ async function proxyRequest(
     return handleAdminImportPreview(req);
   }
 
-  // Admin Import Submit - Ingest batch
+  // Admin Import Submit - always the NestJS import pipeline
   if (fullPath === 'admin/import/submit') {
-    if (
-      process.env.BACKEND_API_URL &&
-      !process.env.BACKEND_API_URL.includes('127.0.0.1') &&
-      !process.env.BACKEND_API_URL.includes('localhost')
-    ) {
-      try {
-        const backendBase = getBackendUrl();
-        const targetUrl = new URL(`${backendBase}/${fullPath}${req.nextUrl.search}`);
-        const upstreamRes = await fetch(targetUrl.toString(), {
-          method: req.method,
-          headers: req.headers,
-          body: await req.clone().arrayBuffer(),
-        });
-        if (upstreamRes.ok) return upstreamRes as any;
-      } catch {
-        // Fall back to native handler
-      }
-    }
-    return handleAdminImportSubmit(req);
+    return forwardImportSubmit(req);
   }
 
 let serverPublishedBusinessesStore: any[] | null = null;
@@ -2445,13 +2757,13 @@ let serverPublishedBusinessesStore: any[] | null = null;
 async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
   const searchParams = req.nextUrl.searchParams;
 
-  const q = searchParams.get('q')?.trim() || '';
-  const state = searchParams.get('state')?.trim() || '';
-  const city = searchParams.get('city')?.trim() || '';
+  const q = clampText(searchParams.get('q'), MAX_QUERY_LENGTH);
+  const state = clampText(searchParams.get('state'), MAX_FILTER_TEXT);
+  const city = clampText(searchParams.get('city'), MAX_FILTER_TEXT);
   const citiesParam = searchParams.get('cities')?.trim() || '';
-  const district = searchParams.get('district')?.trim() || '';
+  const district = clampText(searchParams.get('district'), MAX_FILTER_TEXT);
   const districtsParam = searchParams.get('districts')?.trim() || '';
-  const pincode = searchParams.get('pincode')?.trim() || '';
+  const pincode = clampText(searchParams.get('pincode'), 20);
   
   const industriesParam = searchParams.get('industries')?.trim() || '';
   const subIndustriesParam = searchParams.get('subIndustries')?.trim() || searchParams.get('categories')?.trim() || searchParams.get('businessCategories')?.trim() || '';
@@ -2466,8 +2778,8 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
   const verified = searchParams.get('verified');
 
   const sort = searchParams.get('sort') || searchParams.get('sortOption') || 'highest_orion_score';
-  const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
-  const limit = Math.max(1, Math.min(100, parseInt(searchParams.get('limit') || '25', 10)));
+  const page = parsePage(searchParams.get('page'));
+  const limit = parseLimit(searchParams.get('limit'), 25, 100);
   const offset = (page - 1) * limit;
 
   // Enforce strictly PUBLISHED businesses filter
@@ -2489,19 +2801,19 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
       COALESCE(b.business_type::text, '') ILIKE $${paramIdx} OR
       COALESCE(b.description, '') ILIKE $${paramIdx}
     )`);
-    queryValues.push(`%${q}%`);
+    queryValues.push(`%${escapeLike(q)}%`);
     paramIdx++;
   }
 
   if (state) {
     whereClauses.push(`LOWER(bl.state) LIKE $${paramIdx}`);
-    queryValues.push(`%${state.toLowerCase()}%`);
+    queryValues.push(`%${escapeLike(state.toLowerCase())}%`);
     paramIdx++;
   }
 
   const districts = [
     ...(district ? [district] : []),
-    ...(districtsParam ? districtsParam.split(',').map((s) => s.trim()).filter(Boolean) : []),
+    ...(districtsParam ? splitList(districtsParam) : []),
   ];
   if (districts.length > 0) {
     whereClauses.push(`LOWER(bl.district) = ANY($${paramIdx}::text[])`);
@@ -2511,7 +2823,7 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
 
   const cities = [
     ...(city ? [city] : []),
-    ...(citiesParam ? citiesParam.split(',').map((s) => s.trim()).filter(Boolean) : []),
+    ...(citiesParam ? splitList(citiesParam) : []),
   ];
   if (cities.length > 0) {
     whereClauses.push(`LOWER(bl.city) = ANY($${paramIdx}::text[])`);
@@ -2521,12 +2833,12 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
 
   if (pincode) {
     whereClauses.push(`bl.pincode ILIKE $${paramIdx}`);
-    queryValues.push(`%${pincode}%`);
+    queryValues.push(`%${escapeLike(pincode)}%`);
     paramIdx++;
   }
 
   if (industriesParam) {
-    const inds = industriesParam.split(',').map((s) => s.trim()).filter(Boolean);
+    const inds = splitList(industriesParam);
     if (inds.length > 0) {
       whereClauses.push(`LOWER(i.name) = ANY($${paramIdx}::text[])`);
       queryValues.push(inds.map((i) => i.toLowerCase()));
@@ -2535,7 +2847,7 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
   }
 
   if (subIndustriesParam) {
-    const subs = subIndustriesParam.split(',').map((s) => s.trim()).filter(Boolean);
+    const subs = splitList(subIndustriesParam);
     if (subs.length > 0) {
       whereClauses.push(`LOWER(c.name) = ANY($${paramIdx}::text[])`);
       queryValues.push(subs.map((s) => s.toLowerCase()));
@@ -2544,7 +2856,7 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
   }
 
   if (businessTypesParam) {
-    const bTypes = businessTypesParam.split(',').map((s) => s.trim()).filter(Boolean);
+    const bTypes = splitList(businessTypesParam);
     if (bTypes.length > 0) {
       whereClauses.push(`(
         LOWER(b.business_type::text) = ANY($${paramIdx}::text[]) OR
@@ -2556,7 +2868,7 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
   }
 
   if (msmeCategoriesParam) {
-    const msmes = msmeCategoriesParam.split(',').map((s) => s.trim()).filter(Boolean);
+    const msmes = splitList(msmeCategoriesParam);
     if (msmes.length > 0) {
       whereClauses.push(`(
         LOWER(b.msme_category::text) = ANY($${paramIdx}::text[]) OR
@@ -2587,6 +2899,47 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
 
   if (verified === 'true') {
     whereClauses.push(`b.is_verified = true`);
+  }
+
+  // Decision-maker (People layer) filters. Same rules as the NestJS PeopleSearchService: only
+  // PUBLISHED people with current roles count, and "verified" needs role-scoped verified evidence
+  // plus a verification newer than 365 days. Tables are only touched when a filter is sent.
+  const DM_TYPES = [
+    'FOUNDER_CEO', 'MANAGING_DIRECTOR', 'DIRECTOR_PARTNER', 'GENERAL_MANAGER', 'SALES_DECISION_MAKER',
+    'MARKETING_DECISION_MAKER', 'BUSINESS_DEVELOPMENT_DECISION_MAKER', 'TECHNOLOGY_DECISION_MAKER',
+    'OPERATIONS_DECISION_MAKER', 'FINANCE_DECISION_MAKER', 'HR_DECISION_MAKER', 'PROCUREMENT_DECISION_MAKER',
+  ];
+  const dmTypes = (searchParams.get('decisionMakerType') || '')
+    .split(',')
+    .map((t) => t.trim().toUpperCase())
+    .filter((t) => DM_TYPES.includes(t));
+  const wantsDm = searchParams.get('hasDecisionMaker') === 'true';
+  const wantsVerifiedDm = searchParams.get('hasVerifiedDecisionMaker') === 'true';
+  const wantsDmContact = searchParams.get('hasDecisionMakerContact') === 'true';
+  if (dmTypes.length > 0 || wantsDm || wantsVerifiedDm || wantsDmContact) {
+    const dmParts = [`cp.business_id = b.id`, `cp.is_current = true`, `cp.is_published = true`, `cp.review_status = 'APPROVED'`, `p.data_status = 'PUBLISHED'`];
+    if (dmTypes.length > 0) {
+      dmParts.push(`cp.decision_maker_type = ANY($${paramIdx}::text[])`);
+      queryValues.push(dmTypes);
+      paramIdx++;
+    } else {
+      dmParts.push(`cp.decision_maker_type IS NOT NULL`);
+    }
+    if (wantsVerifiedDm) {
+      dmParts.push(`cp.verification_status = 'VERIFIED'`);
+      dmParts.push(`cp.last_verified_at > now() - interval '365 days'`);
+      dmParts.push(
+        `EXISTS (SELECT 1 FROM people_evidence ev WHERE ev.verified_at IS NOT NULL AND ev.company_person_id = cp.id)`,
+      );
+    }
+    if (wantsDmContact) {
+      dmParts.push(
+        `EXISTS (SELECT 1 FROM person_contacts pc WHERE pc.person_id = cp.person_id AND pc.is_published = true)`,
+      );
+    }
+    whereClauses.push(
+      `EXISTS (SELECT 1 FROM company_people cp JOIN people p ON p.id = cp.person_id WHERE ${dmParts.join(' AND ')})`,
+    );
   }
 
   const whereSql = whereClauses.join(' AND ');
@@ -2653,11 +3006,38 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
 
   const rows = await queryDb(dataSql, [...queryValues, limit, offset]);
 
-  const items = rows.map((r: any, i: number) => {
+  // S-01: resolve the caller's unlocked businesses BEFORE building the response, so paid contact
+  // fields (phone / email / LinkedIn) are only ever serialised for rows this user has unlocked.
+  // Identity comes only from a signature-verified access token; an anonymous caller unlocks nothing.
+  const authHeader = req.headers.get('authorization') || '';
+  const rawToken = authHeader.replace(/^Bearer\s+/i, '');
+  const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
+  const userIdentifier = tokenData?.sub || null;
+  const unlockedIdsSet = new Set<string>();
+  try {
+    if (userIdentifier) {
+      const wallet = await getOrSyncUserWallet(userIdentifier);
+      if (wallet.userId) {
+        const unlockedRows = await queryDb(
+          `SELECT business_id FROM lead_unlocks WHERE user_id = $1`,
+          [wallet.userId]
+        );
+        unlockedRows.forEach((u: any) => unlockedIdsSet.add(String(u.business_id)));
+      }
+    }
+  } catch (e) {}
+
+  const itemsWithUnlock = rows.map((r: any, i: number) => {
     const bType = r.business_type ? String(r.business_type).replace(/_/g, ' ') : 'Private Limited';
-    const msme = r.msme_category && r.msme_category !== 'NOT_APPLICABLE' 
+    const msme = r.msme_category && r.msme_category !== 'NOT_APPLICABLE'
       ? String(r.msme_category).replace(/_/g, ' ')
       : 'Medium';
+    const isUnlocked = unlockedIdsSet.has(String(r.id));
+    // Presence flags describe whether contact data EXISTS (drives the lock badges); the raw values
+    // themselves are withheld until the row is unlocked.
+    const hasPhone = Boolean(r.phone);
+    const hasEmail = Boolean(r.email);
+    const hasLinkedIn = Boolean(r.linkedin_url);
     return {
       id: r.id || `BIZ-${10001 + i}`,
       name: r.name,
@@ -2671,18 +3051,18 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
       address: r.address || '',
       zipCode: r.pincode || '',
       pincode: r.pincode || '',
-      phone: r.phone || null,
-      email: r.email || null,
+      phone: isUnlocked ? (r.phone || null) : null,
+      email: isUnlocked ? (r.email || null) : null,
       website: r.website || null,
-      linkedin: r.linkedin_url || null,
-      linkedInUrl: r.linkedin_url || null,
-      hasLinkedIn: Boolean(r.linkedin_url),
-      linkedinStatus: r.linkedin_url ? 'available' : 'not_available',
-      phoneStatus: r.phone ? 'available' : 'not_available',
-      emailStatus: r.email ? 'available' : 'not_available',
-      hasWhatsApp: Boolean(r.phone),
-      verified: r.is_verified ?? true,
-      completeProfile: Boolean(r.phone && r.email),
+      linkedin: isUnlocked ? (r.linkedin_url || null) : null,
+      linkedInUrl: isUnlocked ? (r.linkedin_url || null) : null,
+      hasLinkedIn,
+      linkedinStatus: hasLinkedIn ? 'available' : 'not_available',
+      phoneStatus: hasPhone ? 'available' : 'not_available',
+      emailStatus: hasEmail ? 'available' : 'not_available',
+      hasWhatsApp: hasPhone,
+      verified: r.is_verified ?? false,
+      completeProfile: hasPhone && hasEmail,
       recentlyUpdated: true,
       entityType: bType,
       businessType: bType,
@@ -2693,30 +3073,10 @@ async function handleDiscoverSearch(req: NextRequest): Promise<NextResponse> {
       description: r.description || '',
       creditsRequired: 1,
       status: 'active',
+      isUnlocked,
       tags: [r.industry || 'Enterprise', r.category || 'Verified'].filter(Boolean),
     };
   });
-
-  const authHeader = req.headers.get('authorization') || '';
-  const rawToken = authHeader.replace(/^Bearer\s+/i, '');
-  const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
-  const userIdentifier = tokenData?.sub || tokenData?.email || 'kathirrajput@gmail.com';
-  let unlockedIdsSet = new Set<string>();
-  try {
-    const wallet = await getOrSyncUserWallet(userIdentifier);
-    if (wallet.userId) {
-      const unlockedRows = await queryDb(
-        `SELECT business_id FROM lead_unlocks WHERE user_id = $1`,
-        [wallet.userId]
-      );
-      unlockedRows.forEach((r: any) => unlockedIdsSet.add(String(r.business_id)));
-    }
-  } catch (e) {}
-
-  const itemsWithUnlock = items.map((item: any) => ({
-    ...item,
-    isUnlocked: Boolean(item.isUnlocked || unlockedIdsSet.has(String(item.id))),
-  }));
 
   return NextResponse.json({
     success: true,
@@ -2737,7 +3097,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
   const authHeader = req.headers.get('authorization') || '';
   const rawToken = authHeader.replace(/^Bearer\s+/i, '');
   const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
-  const userIdentifier = tokenData?.sub || tokenData?.email || 'kathirrajput@gmail.com';
+  const userIdentifier = tokenData?.sub || null;
 
   let userId: string | null = null;
   try {
@@ -2749,13 +3109,13 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
   const searchParams = req.nextUrl.searchParams;
   const queryIds = searchParams.get('ids');
   if (queryIds) {
-    requestedIds = queryIds.split(',').map((s) => s.trim()).filter(Boolean);
+    requestedIds = splitList(queryIds, MAX_EXPORT_IDS, 64);
   }
 
   if (req.method === 'POST') {
     try {
-      const body = await req.json().catch(() => ({}));
-      if (Array.isArray(body?.ids)) requestedIds = body.ids;
+      const body = await readJson(req).catch(() => ({}));
+      if (Array.isArray(body?.ids)) requestedIds = body.ids.filter((x: unknown) => typeof x === 'string').slice(0, MAX_EXPORT_IDS);
     } catch {}
   }
 
@@ -2807,9 +3167,12 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  sql += ` ORDER BY b.id, lu.unlocked_at DESC NULLS LAST`;
+  // one more row than the cap, so a truncated export can be told from one that is exactly full
+  sql += ` ORDER BY b.id, lu.unlocked_at DESC NULLS LAST LIMIT ${MAX_EXPORT_ROWS + 1}`;
 
-  const rows = await queryDb(sql, queryParams);
+  const allRows = await queryDb(sql, queryParams);
+  const exportTruncated = allRows.length > MAX_EXPORT_ROWS;
+  const rows = exportTruncated ? allRows.slice(0, MAX_EXPORT_ROWS) : allRows;
 
   const exportItems = rows.map((r: any) => {
     const bType = r.business_type ? String(r.business_type).replace(/_/g, ' ') : 'Private Limited';
@@ -2837,14 +3200,30 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
     };
   });
 
+  // P9: the gateway export is audited like the API export (who, format, requested vs delivered count; no personal data).
+  await recordGatewayAudit(req, 'EXPORT_CREATED', 'EXPORT', {
+    dataset: 'unlocked-leads',
+    format: format === 'json' ? 'json' : 'csv',
+    source: 'ON_DEMAND',
+    outcome: 'COMPLETED',
+    requestedIds: requestedIds.length,
+    rowCount: exportItems.length,
+    truncated: exportTruncated,
+    requestId: req.headers.get('x-request-id'),
+    channel: 'gateway',
+  });
+
+  const NO_STORE_HEADERS = { 'Cache-Control': 'no-store, no-cache, must-revalidate, private', Pragma: 'no-cache', 'X-Content-Type-Options': 'nosniff' };
+
   if (format === 'json') {
     return NextResponse.json({
       success: true,
       statusCode: 200,
       message: `Exported ${exportItems.length} lead(s) successfully`,
+      truncated: exportTruncated,
       data: exportItems,
       timestamp: new Date().toISOString(),
-    });
+    }, { headers: NO_STORE_HEADERS });
   }
 
   // Format as CSV
@@ -2868,22 +3247,23 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
 
   const csvLines = [csvHeaders.join(',')];
   exportItems.forEach((item: any) => {
+    // S-18: every cell is neutralised against spreadsheet formula injection (=, +, -, @, tab/CR) and quoted.
     const row = [
-      `"${String(item.businessName).replace(/"/g, '""')}"`,
-      `"${String(item.contactNames).replace(/"/g, '""')}"`,
-      `"${String(item.contactTitles).replace(/"/g, '""')}"`,
-      `"${String(item.contactDepartments).replace(/"/g, '""')}"`,
-      `"${String(item.phoneNumber).replace(/"/g, '""')}"`,
-      `"${String(item.email).replace(/"/g, '""')}"`,
-      `"${String(item.linkedInUrls).replace(/"/g, '""')}"`,
-      `"${String(item.directDialAvailable).replace(/"/g, '""')}"`,
-      `"${String(item.website).replace(/"/g, '""')}"`,
-      `"${String(item.businessType).replace(/"/g, '""')}"`,
-      `"${String(item.address).replace(/"/g, '""')}"`,
-      `"${String(item.city).replace(/"/g, '""')}"`,
-      `"${String(item.district).replace(/"/g, '""')}"`,
-      `"${String(item.state).replace(/"/g, '""')}"`,
-      `"${String(item.unlockDate).replace(/"/g, '""')}"`,
+      csvField(item.businessName),
+      csvField(item.contactNames),
+      csvField(item.contactTitles),
+      csvField(item.contactDepartments),
+      csvField(item.phoneNumber),
+      csvField(item.email),
+      csvField(item.linkedInUrls),
+      csvField(item.directDialAvailable),
+      csvField(item.website),
+      csvField(item.businessType),
+      csvField(item.address),
+      csvField(item.city),
+      csvField(item.district),
+      csvField(item.state),
+      csvField(item.unlockDate),
     ];
     csvLines.push(row.join(','));
   });
@@ -2897,6 +3277,8 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="orion-unlocked-leads-${exportDate}.csv"`,
+      'X-Export-Truncated': String(exportTruncated),
+      ...NO_STORE_HEADERS,
     },
   });
 }
@@ -2926,7 +3308,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
       try {
         let idsToDelete: string[] = [];
         try {
-          const body = await req.json();
+          const body = await readJson(req);
           if (Array.isArray(body?.ids)) idsToDelete = body.ids;
           else if (body?.id) idsToDelete = [body.id];
         } catch {
@@ -2973,7 +3355,12 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
           }
         }
 
-        console.log(`[Admin Businesses DELETE] Permanently deleted ${idsToDelete.length} records from Neon PostgreSQL database.`);
+        console.log(`[Admin Businesses DELETE] Permanently deleted ${idsToDelete.length} records from the PostgreSQL database.`);
+        // S-19: record who deleted which business records.
+        await recordGatewayAudit(req, 'ADMIN_BUSINESS_DELETE', 'BUSINESS', {
+          deletedIds: idsToDelete,
+          count: idsToDelete.length,
+        });
         return NextResponse.json({
           success: true,
           statusCode: 200,
@@ -2981,41 +3368,61 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
           timestamp: new Date().toISOString(),
         });
       } catch (err: any) {
-        console.error('[Admin Businesses DELETE Error] Failed to delete records from database:', err?.message || err);
-        return NextResponse.json(
-          { success: false, statusCode: 500, message: err?.message || 'Failed to delete records from database' },
-          { status: 500 }
-        );
+        // S-24: do not echo raw DB error text to the client.
+        return serverError('admin/businesses DELETE', err);
       }
     }
 
     if (req.method === 'POST') {
+      let body: any;
       try {
-        const body = await req.json();
+        body = await readJson(req);
+      } catch {
+        return NextResponse.json({ success: false, statusCode: 400, errorCode: 'INVALID_JSON', message: 'Invalid JSON body' }, { status: 400 });
+      }
+      try {
         const rawList = Array.isArray(body) ? body : Array.isArray(body?.businesses) ? body.businesses : [];
         serverPublishedBusinessesStore = rawList.filter((b: any) => b.status === 'published' || b.status === 'active');
 
-        // Persist status updates & record state directly into PostgreSQL businesses table
+        // Persist status updates & record state directly into PostgreSQL businesses table.
+        // R-005: a business whose recorded source is not APPROVED is never moved to PUBLISHED from here (see lib/publish-guard.ts).
+        const refused: string[] = [];
         for (const item of rawList) {
           if (item.id && item.status) {
             const dbStatus = normalizeBusinessStatus(item.status);
             const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.id);
-            if (isUuid) {
-              await queryDb(
-                `UPDATE businesses SET status = $1, updated_at = NOW() WHERE id = $2`,
-                [dbStatus, item.id]
-              );
-            } else {
-              await queryDb(
-                `UPDATE businesses SET status = $1, updated_at = NOW() WHERE slug = $2`,
-                [dbStatus, item.id]
-              );
+            const key = isUuid ? 'id' : 'slug';
+            const publishing = isPublishStatus(dbStatus);
+            const changed = await queryDb(statusUpdateSql(key), [dbStatus, item.id, publishing]);
+            if (publishing && changed.length === 0) {
+              const blocked = await queryDb(refusedLookupSql(key), [item.id]);
+              if (blocked.length > 0) refused.push(String(item.id));
             }
           }
         }
+        if (refused.length > 0) {
+          // keep the in-memory list consistent with the database: a refused record is not published
+          serverPublishedBusinessesStore = (serverPublishedBusinessesStore ?? []).filter((b: any) => !refused.includes(String(b.id)));
+        }
+        // S-19: record which records had their status/publish state changed.
+        await recordGatewayAudit(req, 'ADMIN_BUSINESS_STATUS_UPDATE', 'BUSINESS', {
+          changes: rawList
+            .filter((b: any) => b?.id && b?.status && !refused.includes(String(b.id)))
+            .map((b: any) => ({ id: b.id, status: normalizeBusinessStatus(b.status) })),
+        });
+        if (refused.length > 0) {
+          await recordGatewayAudit(req, 'ADMIN_BUSINESS_PUBLISH_REFUSED', 'BUSINESS', { refusedIds: refused, count: refused.length, reason: 'SOURCE_NOT_APPROVED' });
+          return NextResponse.json({
+            success: true,
+            statusCode: 200,
+            message: `${refused.length} business(es) were not published: ${PUBLISH_REFUSED_REASON}`,
+            refused,
+            timestamp: new Date().toISOString(),
+          });
+        }
       } catch (err: any) {
-        console.error('[Admin Businesses POST Error] Failed to update business statuses:', err?.message || err);
-        return NextResponse.json({ success: false, statusCode: 500, message: err?.message || 'Failed to update database' }, { status: 500 });
+        // S-24: generic error, detail only in the server log.
+        return serverError('admin/businesses POST', err);
       }
       return NextResponse.json({ success: true, statusCode: 200, message: 'Published businesses updated successfully in database', timestamp: new Date().toISOString() });
     }
@@ -3097,7 +3504,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
       try {
         let batchId = req.nextUrl.searchParams.get('id');
         if (!batchId) {
-          const body = await req.json().catch(() => ({}));
+          const body = await readJson(req).catch(() => ({}));
           batchId = body?.id;
         }
         if (batchId) {
@@ -3192,22 +3599,30 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
 
   // Real Database Admin - Activity / Audit Logs
   if (fullPath === 'admin/activity-logs') {
+    // S-19 / F-03: the audit_logs table has no "details" column (it has entity_type, entity_id, old_values,
+    // new_values). The previous query selected a non-existent column, which queryDb swallowed, so the admin
+    // Activity Logs view was always empty. Select the real columns.
     const rows = await queryDb(`
-      SELECT al.id, al.action, al.details, al.created_at, u.email
+      SELECT al.id, al.action, al.entity_type, al.entity_id, al.old_values, al.new_values,
+             al.ip_address, al.created_at, u.email
       FROM audit_logs al
       LEFT JOIN users u ON al.user_id = u.id
       ORDER BY al.created_at DESC
       LIMIT 50
     `);
-    const logs = rows.map(r => ({
-      id: r.id,
-      action: r.action,
-      timestamp: r.created_at ? new Date(r.created_at).toISOString().replace('T', ' ').slice(0, 16) : '',
-      actor: r.email || 'System / Automated',
-      target: (r.details as any)?.businessId || (r.details as any)?.email || 'Platform',
-      status: 'Success' as const,
-      details: typeof r.details === 'object' ? JSON.stringify(r.details) : String(r.details || '')
-    }));
+    const logs = rows.map(r => {
+      const details = r.new_values ?? r.old_values ?? {};
+      return {
+        id: r.id,
+        action: r.action,
+        timestamp: r.created_at ? new Date(r.created_at).toISOString().replace('T', ' ').slice(0, 16) : '',
+        actor: r.email || 'System / Automated',
+        target: r.entity_id || (details as any)?.businessId || (details as any)?.email || r.entity_type || 'Platform',
+        ipAddress: r.ip_address || '',
+        status: 'Success' as const,
+        details: typeof details === 'object' ? JSON.stringify(details) : String(details || ''),
+      };
+    });
     return NextResponse.json({ success: true, statusCode: 200, data: logs, timestamp: new Date().toISOString() });
   }
 
@@ -3226,7 +3641,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
           headers: req.headers,
           body: bodyBuffer,
         });
-        if (upstreamRes.ok) return upstreamRes as any;
+        if (isDefinitiveUpstream(upstreamRes.status)) return upstreamRes as any;
       } catch {
         // Fall back to native handler
       }
@@ -3249,12 +3664,58 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
           headers: req.headers,
           body: bodyBuffer,
         });
-        if (upstreamRes.ok) return upstreamRes as any;
+        if (isDefinitiveUpstream(upstreamRes.status)) return upstreamRes as any;
       } catch {
         // Fall back to native handler
       }
     }
     return handleRegister(req);
+  }
+
+  if (fullPath === 'auth/send-otp' && req.method === 'POST') {
+    if (
+      process.env.BACKEND_API_URL &&
+      !process.env.BACKEND_API_URL.includes('127.0.0.1') &&
+      !process.env.BACKEND_API_URL.includes('localhost')
+    ) {
+      try {
+        const backendBase = getBackendUrl();
+        const targetUrl = new URL(`${backendBase}/${fullPath}${req.nextUrl.search}`);
+        const bodyBuffer = await req.clone().arrayBuffer().catch(() => undefined);
+        const upstreamRes = await fetch(targetUrl.toString(), {
+          method: req.method,
+          headers: req.headers,
+          body: bodyBuffer,
+        });
+        if (isDefinitiveUpstream(upstreamRes.status)) return upstreamRes as any;
+      } catch {
+        // Fall back to native handler
+      }
+    }
+    return handleSendOtp(req);
+  }
+
+  if (fullPath === 'auth/verify-otp' && req.method === 'POST') {
+    if (
+      process.env.BACKEND_API_URL &&
+      !process.env.BACKEND_API_URL.includes('127.0.0.1') &&
+      !process.env.BACKEND_API_URL.includes('localhost')
+    ) {
+      try {
+        const backendBase = getBackendUrl();
+        const targetUrl = new URL(`${backendBase}/${fullPath}${req.nextUrl.search}`);
+        const bodyBuffer = await req.clone().arrayBuffer().catch(() => undefined);
+        const upstreamRes = await fetch(targetUrl.toString(), {
+          method: req.method,
+          headers: req.headers,
+          body: bodyBuffer,
+        });
+        if (isDefinitiveUpstream(upstreamRes.status)) return upstreamRes as any;
+      } catch {
+        // Fall back to native handler
+      }
+    }
+    return handleVerifyOtp(req);
   }
 
   if (fullPath === 'auth/refresh' && req.method === 'POST') {
@@ -3272,7 +3733,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
           headers: req.headers,
           body: bodyBuffer,
         });
-        if (upstreamRes.ok) return upstreamRes as any;
+        if (isDefinitiveUpstream(upstreamRes.status)) return upstreamRes as any;
       } catch {
         // Fall back to native handler
       }
@@ -3483,6 +3944,24 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
       err?.cause || '',
     );
 
+    // The upstream is unreachable and the gateway is about to answer itself: apply the same access decision as the NestJS API would.
+    const fallbackPolicy = routePolicy(fullPath, req.method, 'fallback');
+    const fallbackGate = decideAccess(fallbackPolicy, req.headers);
+    if (!fallbackGate.allow) {
+      return NextResponse.json(
+        { success: false, statusCode: fallbackGate.status, errorCode: fallbackGate.errorCode, message: fallbackGate.message, timestamp: new Date().toISOString() },
+        { status: fallbackGate.status },
+      );
+    }
+    const fallbackNotAdmin = await requirePersistedAdmin(fallbackPolicy, fallbackGate.auth);
+    if (fallbackNotAdmin) return fallbackNotAdmin;
+
+    // Same active-session / status enforcement as the primary path (S-05 / S-08 / S-13).
+    if (fallbackPolicy === 'USER' || fallbackPolicy === 'ADMIN') {
+      const staleSession = await assertSessionCurrent(fallbackGate.auth);
+      if (staleSession) return staleSession;
+    }
+
     // If upstream is unavailable, provide graceful fallbacks for critical session endpoints
     if (fullPath === 'auth/login' || fullPath === 'auth/jwt/login') {
       return handleLogin(req);
@@ -3500,13 +3979,13 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
       const authHeader = req.headers.get('authorization') || '';
       const rawToken = authHeader.replace(/^Bearer\s+/i, '');
       const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
-      if (tokenData && tokenData.email) {
+      if (tokenData && tokenData.email && tokenData.sub) {
         const wallet = await getOrSyncUserWallet(tokenData.sub || tokenData.email);
         return NextResponse.json({
           success: true,
           statusCode: 200,
           data: {
-            id: tokenData.sub || wallet.userId || 'usr_default',
+            id: tokenData.sub,
             email: tokenData.email,
             firstName: tokenData.firstName || tokenData.name?.split(' ')[0] || 'User',
             lastName: tokenData.lastName || '',
@@ -3539,7 +4018,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
       const authHeader = req.headers.get('authorization') || '';
       const rawToken = authHeader.replace(/^Bearer\s+/i, '');
       const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
-      const userIdentifier = tokenData?.sub || tokenData?.email || 'kathirrajput@gmail.com';
+      const userIdentifier = tokenData?.sub || null;
       const wallet = await getOrSyncUserWallet(userIdentifier);
       return NextResponse.json({
         success: true,
@@ -3700,7 +4179,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
       const authHeader = req.headers.get('authorization') || '';
       const rawToken = authHeader.replace(/^Bearer\s+/i, '');
       const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
-      const userIdentifier = tokenData?.sub || tokenData?.email || 'kathirrajput@gmail.com';
+      const userIdentifier = tokenData?.sub || null;
       const wallet = await getOrSyncUserWallet(userIdentifier);
 
       let txRows: any[] = [];
@@ -3743,6 +4222,8 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
       });
     }
 
+    // Invoices are generated by the backend from real transactions. This fallback used to render a "paid" PDF from query-string
+    // values (amount, customer, status), i.e. a receipt forger; it now fails closed.
     if (
       fullPath === 'payments/invoice/download' ||
       fullPath === 'invoices/download' ||
@@ -3751,47 +4232,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
       fullPath.startsWith('invoices/') ||
       fullPath.startsWith('admin/invoices/')
     ) {
-      const url = req.nextUrl;
-      const idParam = url.searchParams.get('id') || url.searchParams.get('txId') || '46c835ab-2c4b-4ca0-85c4-de66dd01a61d';
-      const receiptNo = url.searchParams.get('receiptNumber') || url.searchParams.get('receipt') || `RCP-${idParam.slice(0, 6).toUpperCase()}`;
-      const customerName = url.searchParams.get('customerName') || url.searchParams.get('name') || 'Kathir Rajput';
-      const customerEmail = url.searchParams.get('customerEmail') || url.searchParams.get('email') || 'google.mock.test@gmail.com';
-      const company = url.searchParams.get('company') || 'Monarch Softwares';
-      const plan = url.searchParams.get('plan') || 'Starter';
-      const amount = Number(url.searchParams.get('amount')) || 99;
-      const creditsPurchased = Number(url.searchParams.get('creditsPurchased')) || Number(url.searchParams.get('credits')) || 100;
-      const paymentMethod = url.searchParams.get('paymentMethod') || 'Razorpay UPI';
-      const date = url.searchParams.get('date') || new Date().toISOString().split('T')[0];
-
-      const tx: TransactionRecord = {
-        id: idParam,
-        receiptNumber: receiptNo,
-        customerId: 'CUST-001',
-        customerName,
-        customerEmail,
-        company,
-        plan: (plan as any) || 'Starter',
-        creditsPurchased,
-        creditsUsed: 0,
-        amount,
-        paymentMethod: (paymentMethod as any) || 'Razorpay UPI',
-        paymentStatus: 'Success',
-        date,
-        invoiceUrl: `/api/v1/invoices/download?id=${idParam}`,
-      };
-
-      const pdfBytes = generateInvoicePdfBuffer(tx);
-
-      return new NextResponse(Buffer.from(pdfBytes) as any, {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="Invoice_${receiptNo}.pdf"`,
-          'Content-Length': String(pdfBytes.byteLength),
-          'Cache-Control': 'no-store, max-age=0, must-revalidate',
-          'Pragma': 'no-cache',
-        },
-      });
+      return paymentsUnavailable();
     }
 
     if (fullPath === 'payments/history') {
@@ -3804,119 +4245,17 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
       });
     }
 
-    if (fullPath === 'payments/create-order') {
-      let parsedBody: any = {};
-      try {
-        if (body) {
-          parsedBody = JSON.parse(Buffer.from(body).toString('utf-8'));
-        }
-      } catch {}
-
-      const pkgId = parsedBody.packageId || 'starter';
-      let amount = 9900;
-      let credits = 100;
-      if (pkgId === 'cdcc091d-282c-4bd6-93d2-2f5aa1955110' || pkgId === 'growth') {
-        amount = 29900;
-        credits = 350;
-      } else if (pkgId === 'b8dfcad5-f348-40b7-801d-38124b909425' || pkgId === 'agency') {
-        amount = 99900;
-        credits = 1500;
-      }
-
-      return NextResponse.json({
-        success: true,
-        statusCode: 200,
-        message: 'Order created',
-        data: {
-          orderId: `order_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-          amount,
-          currency: parsedBody.currency || 'INR',
-          keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_orion_demo_key',
-          package: {
-            id: pkgId,
-            credits,
-            amount,
-          },
-        },
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    if (fullPath === 'payments/verify') {
-      let parsedBody: any = {};
-      try {
-        if (body) {
-          parsedBody = JSON.parse(Buffer.from(body).toString('utf-8'));
-        }
-      } catch {}
-
-      // Map package ID to credits amount
-      let creditsToAdd = 100; // default: starter
-      const pkgIdVerify = parsedBody.packageId || '';
-      if (pkgIdVerify === 'cdcc091d-282c-4bd6-93d2-2f5aa1955110' || pkgIdVerify === 'growth') {
-        creditsToAdd = 350;
-      } else if (pkgIdVerify === 'b8dfcad5-f348-40b7-801d-38124b909425' || pkgIdVerify === 'agency') {
-        creditsToAdd = 1500;
-      } else if (pkgIdVerify === '30ad3ee3-f861-4a59-b374-5af11f820194' || pkgIdVerify === 'starter') {
-        creditsToAdd = 100;
-      } else if (typeof parsedBody.credits === 'number' && parsedBody.credits > 0) {
-        creditsToAdd = parsedBody.credits;
-      }
-
-      const authHeader = req.headers.get('authorization') || '';
-      const rawToken = authHeader.replace(/^Bearer\s+/i, '');
-      const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
-      const userIdentifier = tokenData?.sub || tokenData?.email || parsedBody.userId || parsedBody.email || 'kathirrajput@gmail.com';
-      const wallet = await getOrSyncUserWallet(userIdentifier);
-
-      const newPurchased = (wallet.purchasedCredits || 0) + creditsToAdd;
-      const newBalance = (wallet.dailyCredits || 0) + newPurchased;
-      const newLifetime = (wallet.lifetimePurchased || 0) + creditsToAdd;
-
-      if (wallet.walletId && wallet.userId) {
-        await queryDb(
-          `UPDATE user_wallets
-           SET purchased_credits = $1, balance = $2, lifetime_purchased = $3, updated_at = NOW()
-           WHERE id = $4`,
-          [newPurchased, newBalance, newLifetime, wallet.walletId]
-        );
-
-        await queryDb(
-          `INSERT INTO credit_transactions (wallet_id, user_id, amount, balance_after, balance_type, daily_balance_after, purchased_balance_after, type, description, reference_id)
-           VALUES ($1, $2, $3, $4, 'PURCHASED', $5, $6, 'PACKAGE_PURCHASE', $7, $8)`,
-          [
-            wallet.walletId,
-            wallet.userId,
-            creditsToAdd,
-            newBalance,
-            wallet.dailyCredits,
-            newPurchased,
-            `Purchased ${creditsToAdd} credits (${pkgIdVerify})`,
-            parsedBody.razorpay_payment_id || `PAY-${Date.now()}`,
-          ]
-        );
-      }
-
-      return NextResponse.json({
-        success: true,
-        statusCode: 200,
-        message: `Payment verified. ${creditsToAdd} credits added to your wallet!`,
-        data: {
-          balance: newBalance,
-          dailyCredits: wallet.dailyCredits,
-          purchasedCredits: newPurchased,
-          creditsAdded: creditsToAdd,
-          verified: true,
-        },
-        timestamp: new Date().toISOString(),
-      });
+    // Payments (Phase 6.17): the gateway never creates an order, never verifies a payment and never credits a wallet. The NestJS
+    // payment module (signature-verified, bound to the order, idempotent) is the only place credits are granted for a purchase.
+    if (fullPath === 'payments/create-order' || fullPath === 'payments/verify') {
+      return paymentsUnavailable();
     }
 
     if (fullPath === 'dashboard/summary') {
       const authHeader = req.headers.get('authorization') || '';
       const rawToken = authHeader.replace(/^Bearer\s+/i, '');
       const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
-      const userIdentifier = tokenData?.sub || tokenData?.email || 'kathirrajput@gmail.com';
+      const userIdentifier = tokenData?.sub || null;
       const wallet = await getOrSyncUserWallet(userIdentifier);
 
       let unlockedLeadsCount = 0;
@@ -3977,7 +4316,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
       const authHeader = req.headers.get('authorization') || '';
       const rawToken = authHeader.replace(/^Bearer\s+/i, '');
       const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
-      const userIdentifier = tokenData?.sub || tokenData?.email || 'kathirrajput@gmail.com';
+      const userIdentifier = tokenData?.sub || null;
       const wallet = await getOrSyncUserWallet(userIdentifier);
 
       let unlockedIds: string[] = [];
@@ -4013,13 +4352,13 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
       const authHeader = req.headers.get('authorization') || '';
       const rawToken = authHeader.replace(/^Bearer\s+/i, '');
       const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
-      const userIdentifier = tokenData?.sub || tokenData?.email || 'kathirrajput@gmail.com';
+      const userIdentifier = tokenData?.sub || null;
       const wallet = await getOrSyncUserWallet(userIdentifier);
 
       let isUnlocked = false;
       if (wallet.userId && businessId) {
         const rows = await queryDb(
-          `SELECT id FROM lead_unlocks WHERE user_id = $1 AND (business_id = $2 OR business_id::text = $2) LIMIT 1`,
+          `SELECT id FROM lead_unlocks WHERE user_id = $1 AND business_id::text = $2::text LIMIT 1`,
           [wallet.userId, businessId]
         );
         isUnlocked = rows.length > 0;
@@ -4037,109 +4376,68 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
     }
 
     if (fullPath === 'unlock/business') {
+      // Credit-spending fallback (Phase 6.16). Identity comes ONLY from a signature-verified, unexpired access token; the unlock
+      // and its single deduction are one atomic statement (see lib/unlock-business.ts), so concurrent requests charge once and a
+      // failed unlock (unknown / unpublished company, no credits) never charges.
       let parsedBody: any = {};
       try {
         if (body) {
-          parsedBody = JSON.parse(Buffer.from(body).toString('utf-8'));
+          const parsed = JSON.parse(Buffer.from(body).toString('utf-8'));
+          parsedBody = parsed !== null && typeof parsed === 'object' ? parsed : {}; // null / a number / a string used to crash the next line
         }
       } catch {}
 
-      const authHeader = req.headers.get('authorization') || '';
-      const rawToken = authHeader.replace(/^Bearer\s+/i, '');
-      const tokenData = rawToken ? decodeJwtPayload(rawToken) : null;
-      const userIdentifier = tokenData?.sub || tokenData?.email || parsedBody.userId || 'kathirrajput@gmail.com';
-      const wallet = await getOrSyncUserWallet(userIdentifier);
-      const businessId = parsedBody.businessId || parsedBody.id;
+      const authResult = authenticate(req.headers);
+      if (!authResult.ok && authResult.reason === 'NOT_CONFIGURED') return authNotConfigured();
+      const callerId = authResult.ok ? authResult.auth.sub : undefined;
+      const businessId = String(parsedBody.businessId || parsedBody.id || '');
+      const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const fail = (status: number, errorCode: string, message: string) =>
+        NextResponse.json({ success: false, statusCode: status, errorCode, message, timestamp: new Date().toISOString() }, { status });
 
-      if (wallet.userId && businessId) {
-        const existing = await queryDb(
-          `SELECT id FROM lead_unlocks WHERE user_id = $1 AND (business_id = $2 OR business_id::text = $2) LIMIT 1`,
-          [wallet.userId, businessId]
-        );
-        if (existing.length > 0) {
-          return NextResponse.json({
-            success: true,
-            statusCode: 200,
-            message: 'Business contact details unlocked.',
-            data: {
-              unlocked: true,
-              alreadyUnlocked: true,
-              remainingCredits: wallet.balance,
-              balance: wallet.balance,
-              dailyCredits: wallet.dailyCredits,
-              purchasedCredits: wallet.purchasedCredits,
-              creditsSpent: 0,
-            },
-            timestamp: new Date().toISOString(),
-          });
-        }
-      }
+      if (!callerId || !UUID.test(callerId)) return fail(401, 'UNAUTHORIZED', 'A valid session is required to unlock a business.');
+      if (!UUID.test(businessId)) return fail(400, 'INVALID_BUSINESS_ID', 'A valid business id is required.');
 
-      if (wallet.balance < 1) {
-        return NextResponse.json(
-          {
-            success: false,
-            statusCode: 402,
-            message: 'Insufficient credits. Please purchase credits to continue.',
-            error: 'INSUFFICIENT_CREDITS',
+      const wallet = await getOrSyncUserWallet(callerId);
+      if (!wallet.userId || wallet.userId !== callerId || !wallet.walletId) return fail(401, 'UNAUTHORIZED', 'A valid session is required to unlock a business.');
+
+      const existing = await queryDb(`SELECT id FROM lead_unlocks WHERE user_id = $1 AND business_id = $2::uuid LIMIT 1`, [callerId, businessId]);
+      const already = existing.length > 0;
+      const rows = await queryDb(UNLOCK_BUSINESS_SQL, [wallet.walletId, callerId, businessId]);
+      const outcome = interpretUnlockRow(rows[0], already);
+
+      if (outcome.kind === 'NOT_FOUND') return fail(404, 'BUSINESS_NOT_FOUND', 'Business not found');
+      if (outcome.kind === 'INSUFFICIENT_CREDITS') return fail(402, 'INSUFFICIENT_CREDITS', 'Insufficient credits. Please purchase credits to continue.');
+      if (outcome.kind === 'ALREADY_UNLOCKED') {
+        const fresh = await getOrSyncUserWallet(callerId);
+        return NextResponse.json({
+          success: true,
+          statusCode: 200,
+          message: 'Business contact details unlocked.',
+          data: {
+            unlocked: true,
+            alreadyUnlocked: true,
+            remainingCredits: fresh.balance,
+            balance: fresh.balance,
+            dailyCredits: fresh.dailyCredits,
+            purchasedCredits: fresh.purchasedCredits,
+            creditsSpent: 0,
           },
-          { status: 402 }
-        );
+          timestamp: new Date().toISOString(),
+        });
       }
 
-      const dailyDeduct = (wallet.dailyCredits > 0) ? 1 : 0;
-      const purchasedDeduct = dailyDeduct === 0 ? 1 : 0;
-      const newDaily = wallet.dailyCredits - dailyDeduct;
-      const newPurchased = wallet.purchasedCredits - purchasedDeduct;
-      const newBalance = newDaily + newPurchased;
-      const newUsed = wallet.lifetimeUsed + 1;
-
-      if (wallet.walletId && wallet.userId && businessId) {
-        await queryDb(
-          `UPDATE user_wallets
-           SET daily_credits = $1, purchased_credits = $2, balance = $3, lifetime_used = $4, updated_at = NOW()
-           WHERE id = $5`,
-          [newDaily, newPurchased, newBalance, newUsed, wallet.walletId]
-        );
-
+      if (outcome.balance < 50) {
         try {
-          await queryDb(
-            `INSERT INTO lead_unlocks (user_id, business_id, credits_spent)
-             VALUES ($1, $2, 1)
-             ON CONFLICT (user_id, business_id) DO NOTHING`,
-            [wallet.userId, businessId]
-          );
-        } catch (insertErr) {
-          console.warn('[Unlock Gateway] Notice on lead_unlocks insert:', (insertErr as any)?.message);
-        }
-
-        await queryDb(
-          `INSERT INTO credit_transactions (wallet_id, user_id, amount, balance_after, balance_type, daily_balance_after, purchased_balance_after, type, description, reference_id)
-           VALUES ($1, $2, -1, $3, $4, $5, $6, 'UNLOCK_LEAD', $7, $8)`,
-          [
-            wallet.walletId,
-            wallet.userId,
-            newBalance,
-            dailyDeduct > 0 ? 'DAILY' : 'PURCHASED',
-            newDaily,
-            newPurchased,
-            'Unlocked business contact details',
-            businessId,
-          ]
-        );
-
-        if (newBalance < 50 && wallet.userId) {
-          try {
-            await dispatchUserNotification({
-              userId: wallet.userId,
-              type: 'creditLowWarning',
-              title: 'Credit Low Warning',
-              message: `Your credit balance is now ${newBalance}. Replenish your credits to ensure uninterrupted lead intelligence searches.`,
-              link: '/credits',
-            });
-          } catch (notifErr) {
-            console.warn('[Unlock Gateway] Notice on creditLowWarning notification dispatch:', (notifErr as any)?.message);
-          }
+          await dispatchUserNotification({
+            userId: callerId,
+            type: 'creditLowWarning',
+            title: 'Credit Low Warning',
+            message: `Your credit balance is now ${outcome.balance}. Replenish your credits to ensure uninterrupted lead intelligence searches.`,
+            link: '/credits',
+          });
+        } catch (notifErr) {
+          console.warn('[Unlock Gateway] Notice on creditLowWarning notification dispatch:', (notifErr as any)?.message);
         }
       }
 
@@ -4150,14 +4448,23 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
         data: {
           unlocked: true,
           alreadyUnlocked: false,
-          remainingCredits: newBalance,
-          balance: newBalance,
-          dailyCredits: newDaily,
-          purchasedCredits: newPurchased,
+          remainingCredits: outcome.balance,
+          balance: outcome.balance,
+          dailyCredits: outcome.dailyCredits,
+          purchasedCredits: outcome.purchasedCredits,
           creditsSpent: 1,
         },
         timestamp: new Date().toISOString(),
       });
+    }
+
+    // Offline stand-ins: they can only answer a read with an empty list. A write used to be answered with the same "success", so a
+    // customer was told a lead or search was saved when nothing was stored; it is now refused while the main service is unreachable.
+    if ((fullPath === 'saved-leads' || fullPath === 'saved-searches') && req.method !== 'GET' && req.method !== 'HEAD') {
+      return NextResponse.json(
+        { success: false, statusCode: 503, errorCode: 'TEMPORARILY_UNAVAILABLE', message: 'This cannot be saved right now because the main service is unreachable. Please try again shortly.', timestamp: new Date().toISOString() },
+        { status: 503 },
+      );
     }
 
     if (fullPath === 'saved-leads') {
@@ -4194,7 +4501,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
     }
 
     if (fullPath === 'admin/auth/logout') {
-      return handleAdminLogout();
+      return handleAdminLogout(req);
     }
 
     if (fullPath === 'admin/import/preview') {
@@ -4202,7 +4509,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
     }
 
     if (fullPath === 'admin/import/submit') {
-      return handleAdminImportSubmit(req);
+      return forwardImportSubmit(req);
     }
 
     if (fullPath === 'admin/import/template' || fullPath === 'admin/template/csv') {
@@ -4232,24 +4539,38 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
   }
 }
 
+/** Entry point for every method: nothing a handler throws reaches the client as a bare, body-less 500, and no error text is echoed. */
+async function guarded(req: NextRequest, context: { params: Promise<{ path: string[] }> }): Promise<NextResponse> {
+  try {
+    return await proxyRequest(req, context);
+  } catch (err) {
+    if (err instanceof DbWriteError) return writeFailure(err);
+    console.error('[Gateway] unhandled error in a request handler:', err instanceof Error ? err.name : typeof err);
+    return NextResponse.json(
+      { success: false, statusCode: 500, errorCode: 'INTERNAL_ERROR', message: 'An unexpected server error occurred. Please contact support.' },
+      { status: 500 },
+    );
+  }
+}
+
 export async function GET(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {
-  return proxyRequest(req, context);
+  return guarded(req, context);
 }
 
 export async function POST(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {
-  return proxyRequest(req, context);
+  return guarded(req, context);
 }
 
 export async function PUT(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {
-  return proxyRequest(req, context);
+  return guarded(req, context);
 }
 
 export async function PATCH(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {
-  return proxyRequest(req, context);
+  return guarded(req, context);
 }
 
 export async function DELETE(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {
-  return proxyRequest(req, context);
+  return guarded(req, context);
 }
 
 export async function OPTIONS(req: NextRequest) {

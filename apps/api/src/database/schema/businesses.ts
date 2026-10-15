@@ -55,6 +55,7 @@ export const businesses = pgTable(
     index('businesses_name_idx').on(table.name),
     index('businesses_legal_name_idx').on(table.legalName),
     index('businesses_status_idx').on(table.status),
+    index('businesses_source_idx').on(table.sourceId),
     index('businesses_industry_idx').on(table.industryId),
     index('businesses_category_idx').on(table.categoryId),
     index('businesses_business_type_idx').on(table.businessTypeId),

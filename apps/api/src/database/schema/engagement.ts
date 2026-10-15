@@ -8,9 +8,12 @@ import {
   timestamp,
   jsonb,
   index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { users } from './users';
 import { businesses } from './businesses';
+import { people } from './people';
 
 export const savedSearches = pgTable(
   'saved_searches',
@@ -42,6 +45,8 @@ export const savedLeads = pgTable(
     businessId: uuid('business_id')
       .notNull()
       .references(() => businesses.id, { onDelete: 'cascade' }),
+    /** When set, this lead is a person-at-company lead rather than a plain company lead. */
+    personId: uuid('person_id').references(() => people.id, { onDelete: 'cascade' }),
     notes: text('notes'),
     pipelineStage: varchar('pipeline_stage', { length: 50 }).default('NEW').notNull(),
     tags: jsonb('tags').default([]).notNull(),
@@ -51,5 +56,9 @@ export const savedLeads = pgTable(
   (table) => [
     index('saved_leads_user_idx').on(table.userId),
     index('saved_leads_business_idx').on(table.businessId),
+    index('saved_leads_person_idx').on(table.personId),
+    uniqueIndex('saved_leads_user_business_person_uq')
+      .on(table.userId, table.businessId, table.personId)
+      .where(sql`${table.personId} IS NOT NULL`),
   ]
 );

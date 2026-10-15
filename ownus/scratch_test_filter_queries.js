@@ -1,15 +1,16 @@
 const { Pool } = require('pg');
+const { requireLocalDatabaseUrl } = require('./scratch_target');
 const dotenv = require('dotenv');
 dotenv.config({ path: '.env.local' });
 dotenv.config();
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  connectionString: requireLocalDatabaseUrl(),
+  ssl: false
 });
 
 async function run() {
-  console.log('--- TESTING DYNAMIC SQL FILTER QUERIES AGAINST NEON POSTGRESQL ---');
+  console.log('--- TESTING DYNAMIC SQL FILTER QUERIES AGAINST POSTGRESQL ---');
   try {
     // Test 1: Query with state filter
     const q1 = await pool.query(`

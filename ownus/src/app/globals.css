@@ -553,10 +553,10 @@ nextjs-portal {
 
 /* ==========================================================================
    Mobile Responsive Blocking Enforcement
-   Prevents access to the website content on mobile devices / viewports < 1024px.
+   Prevents access to the website content on mobile devices / viewports < 768px (MIN_DESKTOP_WIDTH in lib/viewport-rule.ts).
    Website is available strictly on desktop and laptop devices.
    ========================================================================== */
-@media (max-width: 1023px) {
+@media (max-width: 767px) {
   #desktop-website-container {
     display: none !important;
     visibility: hidden !important;

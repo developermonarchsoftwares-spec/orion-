@@ -11,6 +11,7 @@ import { DiscoverService } from './discover.service';
 import { DiscoverSearchQueryDto, DiscoverSuggestionsDto } from './dto/discover.dto';
 import { Public } from '../../auth/decorators';
 import { IJwtPayload } from '@orion/shared';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Discover')
 @Controller('discover')
@@ -18,6 +19,7 @@ export class DiscoverController {
   constructor(private readonly discoverService: DiscoverService) {}
 
   @Public()
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @Get('search')
   @ApiOperation({ summary: 'Discover businesses with full-text search, faceted filtering, and sorting' })
   @ApiResponse({ status: 200, description: 'Paginated business discovery results' })
@@ -54,6 +56,7 @@ export class DiscoverController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @Get('suggestions')
   @ApiOperation({ summary: 'Get autocomplete search suggestions' })
   @ApiQuery({ name: 'q', required: false, description: 'Prefix query' })

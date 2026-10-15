@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Mail, Lock, Eye, EyeOff, User, Building2, Loader2, Sparkles, AlertCircle, ArrowRight } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, User, Building2, Loader2, Sparkles, AlertCircle, ArrowRight, ArrowLeft, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
+import { OtpInput } from "@/components/auth/otp-input";
+import { OTP_LENGTH, describeOtpError, isCompleteOtp, maskEmailForDisplay, resendLabel } from "@/lib/otp-flow";
 
 function GoogleIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
@@ -54,6 +56,25 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [existingAccountError, setExistingAccountError] = useState<string | null>(null);
 
+  // E-mail verification: step 1 collects the details and sends a code; step 2 checks the code, then creates the account. The browser
+  // only holds what it needs to display; the server decides whether a code or proof is valid.
+  const [step, setStep] = useState<"details" | "verify">("details");
+  const [otp, setOtp] = useState("");
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [maskedEmail, setMaskedEmail] = useState("");
+  const [cooldown, setCooldown] = useState(0);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [proof, setProof] = useState<string | null>(null);
+  const [focusSignal, setFocusSignal] = useState(0);
+  const busy = useRef(false);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = setInterval(() => setCooldown((c) => (c > 0 ? c - 1 : 0)), 1000);
+    return () => clearInterval(id);
+  }, [cooldown > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleOAuthRegister = (provider: "google" | "microsoft") => {
     const url = provider === "google" 
       ? apiClient.auth.getGoogleUrl() 
@@ -80,46 +101,151 @@ export default function RegisterPage() {
     return "w-full bg-black dark:bg-white";
   };
 
+  const startVerify = (res: any) => {
+    setStep("verify");
+    setOtp("");
+    setOtpError(null);
+    setProof(null);
+    setMaskedEmail(res?.maskedEmail || maskEmailForDisplay(email));
+    setCooldown(Number(res?.resendAfterSeconds) || 60);
+    setFocusSignal((n) => n + 1);
+  };
+
+  /** Step 1: validate locally, then ask the server to e-mail a code. Nothing is created yet. */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy.current) return;
     if (!agreeTerms) {
       toast.error("Please agree to the Terms of Service and Privacy Policy.");
       return;
     }
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters long.");
+      return;
+    }
+    busy.current = true;
+    setIsLoading(true);
+    setExistingAccountError(null);
+    try {
+      const res: any = await apiClient.auth.sendOtp(email.trim());
+      startVerify(res);
+    } catch (err: any) {
+      const f = describeOtpError(err);
+      if (f.kind === "cooldown") {
+        // a code was just sent for this address: go to the code screen with the wait that remains
+        startVerify({ resendAfterSeconds: f.retryAfterSeconds });
+        toast.info("A code was sent a moment ago. Enter it below.");
+      } else {
+        toast.error(f.message);
+      }
+    } finally {
+      busy.current = false;
+      setIsLoading(false);
+    }
+  };
 
+  /** Creates the account with the one-time proof. The session is issued by the server only now. */
+  const createAccount = async (token: string) => {
     const parts = name.trim().split(/\s+/);
     const firstName = parts[0] || "User";
     const lastName = parts.slice(1).join(" ") || firstName;
-
-    setIsLoading(true);
-    setExistingAccountError(null);
-
     try {
       await register({
-        email,
+        email: email.trim(),
         password,
         firstName,
         lastName,
         displayName: name.trim(),
         organizationName: company,
+        verificationToken: token,
       });
-      toast.success("Account created successfully! 5 daily free credits allocated.");
+      toast.success("Email verified. Account created! 5 daily free credits allocated.");
       router.push("/dashboard");
     } catch (err: any) {
       const isAlreadyExists =
         err.statusCode === 409 ||
-        err.details?.errorCode === 'EMAIL_ALREADY_EXISTS' ||
-        err.message?.toLowerCase().includes('already exists');
-
+        err.details?.errorCode === "EMAIL_ALREADY_EXISTS" ||
+        err.message?.toLowerCase().includes("already exists");
       if (isAlreadyExists) {
+        setStep("details");
+        setProof(null);
+        setOtp("");
         setExistingAccountError(err.message || "An account with this email already exists.");
         toast.error("Account already exists. Please log in to continue.");
-      } else {
-        toast.error(err.message || "Failed to create account. Please try again.");
+        return;
       }
-    } finally {
-      setIsLoading(false);
+      const f = describeOtpError(err);
+      if (f.kind === "required") {
+        setProof(null);
+        setOtp("");
+        setOtpError("Your email verification expired. Request a new code.");
+        setFocusSignal((n) => n + 1);
+        return;
+      }
+      // the address is verified and the proof is still unspent: keep it so the user can fix the problem and try again without a new code
+      setProof(token);
+      setOtpError(`Your email is verified, but the account could not be created: ${err.message || "please try again."}`);
     }
+  };
+
+  /** Step 2: check the code on the server (or reuse the proof if only account creation failed). */
+  const handleVerify = async (code: string = otp) => {
+    if (busy.current) return;
+    if (!proof && !isCompleteOtp(code)) {
+      setOtpError(`Enter the ${OTP_LENGTH}-digit code.`);
+      setFocusSignal((n) => n + 1);
+      return;
+    }
+    busy.current = true;
+    setIsVerifying(true);
+    setOtpError(null);
+    try {
+      let token = proof;
+      if (!token) {
+        const v: any = await apiClient.auth.verifyOtp(email.trim(), code);
+        token = v?.verificationToken;
+        if (!token) throw new Error("Verification failed. Please try again.");
+      }
+      await createAccount(token);
+    } catch (err: any) {
+      const f = describeOtpError(err);
+      setOtpError(f.message);
+      if (f.kind === "invalid" || f.kind === "expired" || f.kind === "locked") setOtp("");
+      setFocusSignal((n) => n + 1);
+    } finally {
+      busy.current = false;
+      setIsVerifying(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (busy.current || cooldown > 0) return;
+    busy.current = true;
+    setIsResending(true);
+    setOtpError(null);
+    try {
+      const res: any = await apiClient.auth.sendOtp(email.trim());
+      setOtp("");
+      setProof(null);
+      setCooldown(Number(res?.resendAfterSeconds) || 60);
+      setFocusSignal((n) => n + 1);
+      toast.success("A new code has been sent.");
+    } catch (err: any) {
+      const f = describeOtpError(err);
+      if (f.kind === "cooldown") setCooldown(f.retryAfterSeconds || 60);
+      setOtpError(f.message);
+    } finally {
+      busy.current = false;
+      setIsResending(false);
+    }
+  };
+
+  const handleChangeEmail = () => {
+    setStep("details");
+    setOtp("");
+    setProof(null);
+    setOtpError(null);
+    setCooldown(0);
   };
 
   return (
@@ -130,10 +256,10 @@ export default function RegisterPage() {
           5 Free Daily Credits Included
         </div>
         <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-50">
-          Create your account
+          {step === "verify" ? "Verify your email" : "Create your account"}
         </h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Instant access to verified business intelligence
+          {step === "verify" ? "One more step before your account is created" : "Instant access to verified business intelligence"}
         </p>
       </div>
 
@@ -162,6 +288,7 @@ export default function RegisterPage() {
         </div>
       )}
 
+      {step === "details" && (
       <div className="grid gap-5">
         {/* Primary Enterprise OAuth Options */}
         <div className="grid grid-cols-1 gap-2.5">
@@ -323,14 +450,103 @@ export default function RegisterPage() {
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating Account...
+                Sending code...
               </>
             ) : (
-              "Create Account"
+              "Continue"
             )}
           </button>
+          <p className="text-center text-xs text-gray-500 dark:text-gray-400">
+            We will email a 6-digit code to confirm this address before your account is created.
+          </p>
         </form>
       </div>
+      )}
+
+      {step === "verify" && (
+        <div className="grid gap-5" aria-live="polite">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
+              <ShieldCheck className="h-6 w-6 text-zinc-700 dark:text-zinc-200" aria-hidden="true" />
+            </div>
+            <p id="otp-label" className="text-sm text-gray-600 dark:text-gray-300">
+              Enter the {OTP_LENGTH}-digit code we sent to{" "}
+              <strong className="font-semibold text-gray-900 dark:text-gray-50">{maskedEmail}</strong>. It expires in 5 minutes.
+            </p>
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleVerify();
+            }}
+            className="grid gap-4"
+          >
+            <OtpInput
+              value={otp}
+              onChange={(v) => {
+                setOtp(v);
+                if (otpError) setOtpError(null);
+              }}
+              onComplete={(v) => void handleVerify(v)}
+              disabled={isVerifying || isResending || !!proof}
+              invalid={!!otpError}
+              autoFocus
+              labelledBy="otp-label"
+              describedBy={otpError ? "otp-error" : undefined}
+              focusSignal={focusSignal}
+            />
+
+            {otpError && (
+              <p id="otp-error" role="alert" className="flex items-start justify-center gap-2 text-center text-sm text-red-600 dark:text-red-400">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>{otpError}</span>
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={isVerifying || isResending || (!proof && !isCompleteOtp(otp))}
+              className="inline-flex h-10 w-full items-center justify-center rounded-md bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 px-4 py-2 text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 focus:ring-offset-2 disabled:opacity-50 transition-colors cursor-pointer"
+            >
+              {isVerifying ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Verifying...
+                </>
+              ) : proof ? (
+                "Create account"
+              ) : (
+                "Verify code"
+              )}
+            </button>
+          </form>
+
+          <div className="flex flex-col items-center gap-2 text-sm">
+            <button
+              type="button"
+              onClick={() => void handleResend()}
+              disabled={cooldown > 0 || isVerifying || isResending}
+              className="font-medium text-zinc-900 dark:text-zinc-100 hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline cursor-pointer"
+            >
+              {isResending ? "Sending..." : resendLabel(cooldown)}
+            </button>
+            <button
+              type="button"
+              onClick={handleChangeEmail}
+              disabled={isVerifying || isResending}
+              className="inline-flex items-center gap-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 disabled:opacity-50 cursor-pointer"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+              Change email
+            </button>
+            <p className="max-w-xs text-center text-xs text-gray-500 dark:text-gray-400">
+              Nothing arrived? Check your spam folder. If you already have an account with this address, no code is sent;{" "}
+              <Link href={`/login?email=${encodeURIComponent(email)}`} className="underline hover:opacity-80">sign in instead</Link>.
+            </p>
+          </div>
+        </div>
+      )}
 
       <p className="text-center text-sm text-gray-500 dark:text-gray-400">
         Already have an account?{" "}

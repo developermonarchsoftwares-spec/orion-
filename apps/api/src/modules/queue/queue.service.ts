@@ -5,6 +5,8 @@ import { DRIZZLE_DATABASE, PG_POOL } from '../../database/database.constants';
 import { DrizzleDb } from '../../database/database.provider';
 import { queueJobs, QueueJob } from '../../database/schema/queue_jobs';
 import { QUEUE_NAMES, QueueNameType } from './queue.constants';
+import { captureException } from '../../common/observability/error-tracker';
+import { restoreMode } from '../../common/utils/restore-mode';
 
 export interface IQueueStats {
   queueName: string;
@@ -37,7 +39,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    this.logger.log('Initializing Neon PostgreSQL Queue Engine...');
+    this.logger.log('Initializing PostgreSQL Queue Engine...');
+    if (restoreMode()) this.logger.warn('RESTORE_MODE: queue workers are not started; waiting jobs stay waiting');
 
     // Periodically clean up old completed/failed jobs (> 7 days) every 6 hours
     this.cleanupInterval = setInterval(
@@ -54,6 +57,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
    * Register a worker callback for a given queue
    */
   registerWorker<T = unknown, R = unknown>(queueName: string, handler: JobHandler<T, R>) {
+    if (restoreMode()) return; // jobs restored with the database must not run before the deletion ledger has been re-applied
     this.handlers.set(queueName, handler);
     this.logger.log(`Registered PostgreSQL queue worker for: ${queueName}`);
 
@@ -192,6 +196,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
             err.stack,
           );
 
+          // only the final failure is reported: a retry that then succeeds is not an incident
+          if (isFailed) captureException(err, { source: 'queue', tags: { queue: queueName, job: String(jobName), attempts: String(attempts) } });
+
           await this.db
             .update(queueJobs)
             .set({
@@ -291,7 +298,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
-    this.logger.log('Closing Neon PostgreSQL Queue Engine...');
+    this.logger.log('Closing PostgreSQL Queue Engine...');
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;

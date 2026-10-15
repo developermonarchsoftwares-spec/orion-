@@ -2,10 +2,13 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as bcrypt from 'bcrypt';
 import * as dotenv from 'dotenv';
+import { DEV_ONLY_DEFAULTS, productionRequired } from '../config/secrets';
 import { Client as TypesenseClient } from 'typesense';
 import * as schema from './schema';
 import { eq } from 'drizzle-orm';
 import { BUSINESSES_COLLECTION_SCHEMA, BUSINESSES_SEARCH_COLLECTION } from '../modules/search/search.constants';
+import { verifiedConnection } from './tls';
+import { assertLocalDatabaseAllowed } from './db-guard';
 
 dotenv.config();
 
@@ -18,12 +21,12 @@ async function seedDatabase() {
   if (databaseUrl.includes('-pooler.')) {
     databaseUrl = databaseUrl.replace('-pooler.', '.');
   }
+  assertLocalDatabaseAllowed(databaseUrl); // a local server may host other applications' databases
   console.log('Connecting to database for seeding...');
 
   const pool = new Pool({
-    connectionString: databaseUrl,
+    ...verifiedConnection(databaseUrl),
     max: 1,
-    ssl: { rejectUnauthorized: false },
   });
 
   const db = drizzle(pool, { schema });
@@ -38,7 +41,9 @@ async function seedDatabase() {
     });
 
     if (!existingAdmin) {
-      const passwordHash = await bcrypt.hash('OrionAdmin@2026!', 12);
+      // No built-in password: admins sign in through the OTP flow. A password is only set if explicitly provided for this run.
+      const seedPassword = process.env.ADMIN_SEED_PASSWORD;
+      const passwordHash = seedPassword && seedPassword.length >= 12 ? await bcrypt.hash(seedPassword, 12) : null;
       const [adminUser] = await db
         .insert(schema.users)
         .values({
@@ -392,7 +397,7 @@ async function seedDatabase() {
       const typesenseHost = process.env.TYPESENSE_HOST || 'localhost';
       const typesensePort = Number(process.env.TYPESENSE_PORT || 8108);
       const typesenseProtocol = process.env.TYPESENSE_PROTOCOL || 'http';
-      const typesenseApiKey = process.env.TYPESENSE_API_KEY || 'xyz123_orion_typesense_master_key';
+      const typesenseApiKey = productionRequired('TYPESENSE_API_KEY', DEV_ONLY_DEFAULTS.typesenseApiKey);
 
       const tsClient = new TypesenseClient({
         nodes: [

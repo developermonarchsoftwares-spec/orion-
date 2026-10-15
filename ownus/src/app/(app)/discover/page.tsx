@@ -143,6 +143,10 @@ export default function DiscoverPage() {
           hasWhatsApp: filters.contactAvailability.hasWhatsApp ? true : undefined,
           hasLinkedIn: filters.contactAvailability.hasLinkedIn ? true : undefined,
           verified: activeChips.includes('verified') || filters.businessStatus.verified ? true : undefined,
+          // People layer: active only if an admin has enabled chips with these values.
+          hasDecisionMaker: activeChips.includes('has_decision_maker') ? true : undefined,
+          hasVerifiedDecisionMaker: activeChips.includes('verified_decision_maker') ? true : undefined,
+          hasDecisionMakerContact: activeChips.includes('decision_maker_contact') ? true : undefined,
           minOrionScore: activeChips.includes('high_orion_score') ? 80 : (filters.orionScoreRange?.[0] || 0),
           maxOrionScore: filters.orionScoreRange?.[1] || 100,
           sort: sortOption,
@@ -151,7 +155,24 @@ export default function DiscoverPage() {
         });
 
         if (!isCancelled && res) {
-          const rawMapped: Business[] = (res.items || []).map((hit: any) => ({
+          const rawItems = Array.isArray(res)
+            ? res
+            : Array.isArray(res.items)
+            ? res.items
+            : Array.isArray(res.data?.items)
+            ? res.data.items
+            : Array.isArray(res.data)
+            ? res.data
+            : [];
+
+          const totalCount =
+            typeof res.total === 'number'
+              ? res.total
+              : typeof res.data?.total === 'number'
+              ? res.data.total
+              : rawItems.length;
+
+          const rawMapped: Business[] = rawItems.map((hit: any) => ({
             id: hit.id,
             name: hit.name,
             legalName: hit.legalName || hit.name,
@@ -182,7 +203,7 @@ export default function DiscoverPage() {
           const mappedItems = applyUnlockedStatusToBusinesses(rawMapped);
 
           setData(mappedItems);
-          setTotalRecords(res.total ?? mappedItems.length);
+          setTotalRecords(totalCount);
         }
       } catch (err) {
         console.warn('Live search error:', err);
@@ -265,7 +286,7 @@ export default function DiscoverPage() {
     setPageIndex(0);
   };
 
-  // Server-driven data & pagination: data is retrieved directly from Neon PostgreSQL
+  // Server-driven data & pagination: data is retrieved directly from PostgreSQL
   const filteredData = data;
   const sortedData = data;
   const totalPages = Math.ceil(totalRecords / pageSize) || 1;
@@ -354,6 +375,27 @@ export default function DiscoverPage() {
         setData((prev) => applyUnlockedStatusToBusinesses(prev));
         if (previewBusiness && previewBusiness.id === bId) {
           setPreviewBusiness({ ...previewBusiness, isUnlocked: true });
+        }
+        // Refetch the unlocked profile so the list row and the open drawer show the real
+        // contact values instead of the "Unlock to view" placeholders from the search list.
+        try {
+          const full: any = await apiClient.discover.getBusinessBySlug(bId);
+          const contact = full?.contacts?.find((c: any) => c.isPrimary) || full?.contacts?.[0];
+          const cin = full?.identifiers?.find((i: any) => i.type === 'CIN')?.value;
+          const revealed: Partial<Business> = {
+            isUnlocked: true,
+            phone: contact?.phone ?? null,
+            email: contact?.email ?? null,
+            linkedin: contact?.linkedinUrl ?? null,
+            linkedInUrl: contact?.linkedinUrl ?? null,
+            registrationNumber: cin || undefined,
+            employeeCount: full?.employeeCountRange || undefined,
+            revenue: full?.annualRevenueRange || undefined,
+          };
+          setData((prev) => prev.map((b) => (b.id === bId ? { ...b, ...revealed } : b)));
+          setPreviewBusiness((prev) => (prev && prev.id === bId ? { ...prev, ...revealed } : prev));
+        } catch (refetchErr) {
+          console.warn('Could not refresh unlocked profile:', refetchErr);
         }
         if (res?.balance !== undefined) {
           setWalletBalance(res.balance, res.dailyCredits, res.purchasedCredits);

@@ -195,6 +195,9 @@ export function Topbar() {
             <Link
               key={item.href}
               href={item.href}
+              // below 1024px the five links do not fit with their labels (the strip scrolls with no visible scrollbar and Credits was cut off): icon only, the name stays available
+              aria-label={item.label}
+              title={item.label}
               className={cn(
                 'inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap cursor-pointer',
                 isActive
@@ -203,7 +206,7 @@ export function Topbar() {
               )}
             >
               <Icon className={cn('h-3.5 w-3.5', isActive ? 'text-white dark:text-zinc-900' : 'text-zinc-400 dark:text-zinc-500')} />
-              <span>{item.label}</span>
+              <span className="hidden lg:inline">{item.label}</span>
             </Link>
           );
         })}

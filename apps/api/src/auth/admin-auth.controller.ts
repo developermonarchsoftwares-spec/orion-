@@ -12,13 +12,15 @@ import {
   Res,
   Optional,
   Inject,
+  Logger,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import * as crypto from 'crypto';
-import { eq, and, gt, lt, or } from 'drizzle-orm';
+import { eq, and, gt, lt, or, sql } from 'drizzle-orm';
 import { Public, CurrentUser } from './decorators';
+import { AdminSendOtpDto, AdminVerifyOtpDto } from './dto/auth.dto';
 import { UserRepository } from '../modules/user/user.repository';
 import { AuthTokenService } from './services/auth-token.service';
 import { DRIZZLE_DATABASE } from '../database/database.constants';
@@ -27,10 +29,35 @@ import { adminOtps } from '../database/schema';
 import { AuditLogService } from '../common/services/audit-log.service';
 import { IJwtPayload } from '@orion/shared';
 import { CsvSecurityUtil } from '../common/utils/csv-security.util';
+import { hashOtp, timingSafeHexEqual } from './admin-otp.util';
+
+const LOCAL_DB_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+function isLocalDbUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return LOCAL_DB_HOSTS.has(host) || host.endsWith('.localhost');
+  } catch {
+    return false;
+  }
+}
+/**
+ * S-03: the deterministic OTP (123456) is honoured ONLY under automated tests (NODE_ENV=test) AND when the
+ * database is local, so the well-known code can never authenticate against a remote/production database.
+ * `development` no longer enables it.
+ */
+export function fixedOtpAllowed(): boolean {
+  return process.env.NODE_ENV === 'test' && isLocalDbUrl(process.env.DATABASE_URL);
+}
+
+/** Minimum gap between two codes for the same account: a stranger cannot keep invalidating an administrator's code or flood their inbox. */
+const OTP_MIN_RESEND_SECONDS = 30;
 
 @ApiTags('Admin Authentication')
 @Controller('admin')
 export class AdminAuthController {
+  private readonly logger = new Logger(AdminAuthController.name);
+
   constructor(
     private readonly userRepository: UserRepository,
     private readonly authTokenService: AuthTokenService,
@@ -38,12 +65,19 @@ export class AdminAuthController {
     @Optional() private readonly auditLogService?: AuditLogService,
   ) {}
 
+  /** The persisted account for this email when it is an ACTIVE ADMIN or SUPER_ADMIN; otherwise undefined. */
+  private async findAdminAccount(email: string) {
+    const user = await this.userRepository.findByEmail(email);
+    if (!user || user.status !== 'ACTIVE' || (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN')) return undefined;
+    return user;
+  }
+
   @Public()
   @Throttle({ default: { limit: 5, ttl: 300000 } }) // 5 requests per 5 minutes
   @Post('auth/send-otp')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Send admin OTP verification code' })
-  async sendOtp(@Body() body: { email: string }, @Req() req: Request) {
+  async sendOtp(@Body() body: AdminSendOtpDto, @Req() req: Request) {
     const email = body?.email?.toLowerCase()?.trim();
     if (!email) {
       throw new BadRequestException('Please provide your administrator email.');
@@ -67,13 +101,41 @@ export class AdminAuthController {
       );
     }
 
-    const isProd = process.env.NODE_ENV === 'production';
-    const otp = isProd
-      ? crypto.randomInt(100000, 999999).toString()
-      : '123456';
+    // The domain is only a first filter. Administrative access requires a persisted, ACTIVE ADMIN / SUPER_ADMIN account; for any
+    // other address no code is generated and the response is identical (no account enumeration).
+    const adminUser = await this.findAdminAccount(email);
+    if (!adminUser) {
+      await this.auditLogService?.record({
+        action: 'ADMIN_OTP_NOT_AN_ADMIN',
+        entityType: 'ADMIN_AUTH',
+        entityId: email,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      return { success: true, message: `Verification code generated for ${email}`, data: { expiresIn: 300 } };
+    }
+
+    // A code issued moments ago stays valid; refusing a new one (instead of replacing it) keeps the real administrator's code
+    // from being invalidated by anyone who merely knows the address.
+    const recent = await this.db
+      .select({ id: adminOtps.id })
+      .from(adminOtps)
+      .where(and(eq(adminOtps.email, email), gt(adminOtps.createdAt, new Date(Date.now() - OTP_MIN_RESEND_SECONDS * 1000))))
+      .limit(1);
+    if (recent.length > 0) {
+      throw new HttpException(
+        'A verification code was just sent. Please wait a moment before requesting another.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    // S-03: a random code everywhere except local automated tests
+    const otp = fixedOtpAllowed()
+      ? '123456'
+      : crypto.randomInt(100000, 999999).toString();
     const ttlSeconds = 300; // 5 minutes
 
-    // Clean expired OTPs and any existing OTP for this email, then insert new OTP into Neon DB
+    // Clean expired OTPs and any existing OTP for this email, then insert new OTP into the database
     try {
       await this.db
         .delete(adminOtps)
@@ -81,20 +143,21 @@ export class AdminAuthController {
 
       await this.db.insert(adminOtps).values({
         email,
-        otp,
+        otp: hashOtp(email, otp), // S-21: store only the HMAC, never the clear-text code
         attempts: 0,
         maxAttempts: 5,
         expiresAt: new Date(Date.now() + ttlSeconds * 1000),
       });
     } catch (err: any) {
       // In case of transient db issue, log error
-      console.error('[AdminAuthController] Failed to store OTP in Neon DB:', err.message);
+      this.logger.error(`Failed to store OTP in the database: ${err.message}`, err.stack);
     }
 
     await this.auditLogService?.record({
       action: 'ADMIN_OTP_GENERATED',
       entityType: 'ADMIN_AUTH',
-      entityId: email,
+      // a short digest, not the address (Phase 13): enough to see repeated requests for the same account
+      entityId: crypto.createHash('sha256').update(String(email).trim().toLowerCase()).digest('hex').slice(0, 16),
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });
@@ -103,8 +166,8 @@ export class AdminAuthController {
       expiresIn: ttlSeconds,
     };
 
-    // previewOtp is strictly ONLY exposed during automated test execution (NODE_ENV=test)
-    if (process.env.NODE_ENV === 'test') {
+    // previewOtp is strictly ONLY exposed during local automated tests (same rule as the fixed code), never because NODE_ENV alone says "test"
+    if (fixedOtpAllowed()) {
       responseData.previewOtp = otp;
     }
 
@@ -120,7 +183,7 @@ export class AdminAuthController {
   @Post('auth/verify-otp')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify admin OTP and issue administrator session token' })
-  async verifyOtp(@Body() body: { email: string; otp: string }, @Req() req: Request) {
+  async verifyOtp(@Body() body: AdminVerifyOtpDto, @Req() req: Request) {
     const email = body?.email?.toLowerCase()?.trim();
     const otp = body?.otp?.trim();
 
@@ -138,7 +201,13 @@ export class AdminAuthController {
       );
     }
 
-    // Retrieve active OTP record from Neon DB
+    const adminAccount = await this.findAdminAccount(email);
+    if (!adminAccount) {
+      // same answer as a wrong code, and no attempt counter to burn
+      throw new BadRequestException('Invalid or expired verification code.');
+    }
+
+    // Retrieve active OTP record from the database
     let otpRecord: typeof adminOtps.$inferSelect | undefined;
     try {
       const records = await this.db
@@ -148,35 +217,37 @@ export class AdminAuthController {
         .limit(1);
       otpRecord = records[0];
     } catch (err: any) {
-      console.error('[AdminAuthController] Failed to read OTP from Neon DB:', err.message);
+      this.logger.error(`Failed to read OTP from the database: ${err.message}`, err.stack);
     }
 
-    // Check brute-force attempt lockout
-    if (otpRecord && otpRecord.attempts >= otpRecord.maxAttempts) {
-      throw new HttpException(
-        'Too many failed attempts. This verification session is locked. Please request a new code.',
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
+    // Claim an attempt BEFORE comparing the code, in one atomic statement that only succeeds while attempts remain. A read-then-
+    // increment lets a burst of parallel guesses all see "0 attempts used" and all be evaluated; claiming first caps the total
+    // number of guesses per code at maxAttempts however the requests are interleaved.
+    if (otpRecord) {
+      const claimed = await this.db
+        .update(adminOtps)
+        .set({ attempts: sql`${adminOtps.attempts} + 1` })
+        .where(and(eq(adminOtps.id, otpRecord.id), lt(adminOtps.attempts, adminOtps.maxAttempts)))
+        .returning({ id: adminOtps.id });
+      if (claimed.length === 0) {
+        throw new HttpException(
+          'Too many failed attempts. This verification session is locked. Please request a new code.',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
     }
 
-    // In dev/test, allow deterministic '123456' fallback if no record found
-    const isProd = process.env.NODE_ENV === 'production';
+    // S-03: deterministic '123456' fallback is honoured only under local automated tests
+    // S-21: the submitted code is HMAC'd and compared in constant time against the stored hash. The
+    // deterministic test code is honoured only when no record is present (cross-instance) and only under
+    // local automated tests, exactly as before.
     const isValidOtp =
       otpRecord !== undefined
-        ? String(otpRecord.otp).trim() === otp
-        : !isProd && otp === '123456';
+        ? timingSafeHexEqual(String(otpRecord.otp), hashOtp(email, otp))
+        : fixedOtpAllowed() && otp === '123456';
 
     if (!isValidOtp) {
-      // Increment failed attempt counter in Neon DB
-      if (otpRecord) {
-        try {
-          await this.db
-            .update(adminOtps)
-            .set({ attempts: otpRecord.attempts + 1 })
-            .where(eq(adminOtps.id, otpRecord.id));
-        } catch {}
-      }
-
+      // the attempt was already counted when it was claimed above
       await this.auditLogService?.record({
         action: 'ADMIN_OTP_FAILED',
         entityType: 'ADMIN_AUTH',
@@ -188,39 +259,30 @@ export class AdminAuthController {
       throw new BadRequestException('Invalid or expired verification code.');
     }
 
-    // Invalidate OTP immediately to prevent replay attacks
+    // Single use, and race-safe: the delete is the redemption, and only one concurrent request can delete the row. A second request
+    // carrying the same correct code finds nothing to delete and is refused, so a code can never mint two sessions.
     if (otpRecord) {
-      try {
-        await this.db.delete(adminOtps).where(eq(adminOtps.id, otpRecord.id));
-      } catch {}
+      const redeemed = await this.db.delete(adminOtps).where(eq(adminOtps.id, otpRecord.id)).returning({ id: adminOtps.id });
+      if (redeemed.length === 0) {
+        throw new BadRequestException('Invalid or expired verification code.');
+      }
     }
 
-    // Find or create admin user
-    let user = await this.userRepository.findByEmail(email);
-    if (!user) {
-      const nameParts = email.split('@')[0].split('.');
-      const firstName = (nameParts[0] || 'Admin').charAt(0).toUpperCase() + (nameParts[0] || 'Admin').slice(1);
-      const lastName = nameParts[1] ? nameParts[1].charAt(0).toUpperCase() + nameParts[1].slice(1) : 'Administrator';
+    // Accounts are never created here: the role comes from the persisted record (provisioned by the seed / an existing admin)
+    const user = adminAccount;
 
-      user = await this.userRepository.create({
-        email,
-        firstName,
-        lastName,
-        displayName: `${firstName} ${lastName}`,
-        role: 'SUPER_ADMIN' as any,
-        status: 'ACTIVE' as any,
-        isEmailVerified: true,
-        emailVerifiedAt: new Date(),
-        provider: 'EMAIL',
-      });
-    }
+    // A privileged session is revocable like a customer one: it carries a session id that is stored as the account's active session. A newer
+    // administrator sign-in, or a logout, replaces that id, and the JwtStrategy session check then refuses the older token at once.
+    const sessionId = crypto.randomUUID();
+    await this.setActiveSession(user.id, sessionId);
 
     const adminToken = await this.authTokenService.generateAccessToken({
       userId: user.id,
       email: user.email,
-      role: 'SUPER_ADMIN' as any,
-      status: 'ACTIVE' as any,
+      role: user.role as any,
+      status: user.status as any,
       organizationId: user.organizationId,
+      sessionId,
     });
 
     await this.auditLogService?.record({
@@ -242,10 +304,15 @@ export class AdminAuthController {
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
-          role: 'SUPER_ADMIN',
+          role: user.role,
         },
       },
     };
+  }
+
+  /** Sets the account's single active session id without touching the rest of its metadata (an MFA replay guard lives there too). */
+  private async setActiveSession(userId: string, sessionId: string): Promise<void> {
+    await this.db.execute(sql`UPDATE users SET metadata = jsonb_set(coalesce(metadata, '{}'::jsonb), '{activeSessionId}', to_jsonb(${sessionId}::text)), updated_at = now() WHERE id = ${userId}`);
   }
 
   @Public()
@@ -254,6 +321,8 @@ export class AdminAuthController {
   @ApiOperation({ summary: 'Terminate admin session' })
   async logout(@CurrentUser() user?: IJwtPayload, @Req() req?: Request) {
     if (user?.sub) {
+      // ends the session server-side: the presented token (and any other) stops working; a token that is not the current session never gets here
+      await this.setActiveSession(user.sub, crypto.randomUUID()).catch(() => undefined);
       await this.auditLogService?.record({
         userId: user.sub,
         action: 'ADMIN_LOGOUT',

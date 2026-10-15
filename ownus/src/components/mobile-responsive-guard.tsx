@@ -2,13 +2,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { Laptop } from 'lucide-react';
+import { isBlockedViewport } from '@/lib/viewport-rule';
 
 interface MobileResponsiveGuardProps {
   children: React.ReactNode;
 }
 
-// Regex to detect mobile devices from userAgent
-const MOBILE_UA_REGEX = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i;
+// The rule (minimum width, phone detection) lives in lib/viewport-rule.ts so it can be tested.
 
 function checkIsMobileOrSmallScreen(): { isBlocked: boolean; width: number } {
   if (typeof window === 'undefined') {
@@ -16,16 +16,8 @@ function checkIsMobileOrSmallScreen(): { isBlocked: boolean; width: number } {
   }
 
   const width = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth || 0;
-  const isUA = MOBILE_UA_REGEX.test(navigator.userAgent || '');
-  
-  // Block if:
-  // 1. Screen width is less than 1024px (standard desktop/laptop breakpoint)
-  // 2. Or User Agent identifies as a mobile device
-  if (isUA || (width > 0 && width < 1024)) {
-    return { isBlocked: true, width };
-  }
-
-  return { isBlocked: false, width };
+  // Blocked when the window is narrower than MIN_DESKTOP_WIDTH (768px) or the browser identifies as a phone.
+  return { isBlocked: isBlockedViewport(width, navigator.userAgent || ''), width };
 }
 
 export function MobileResponsiveGuard({ children }: MobileResponsiveGuardProps) {
@@ -88,7 +80,7 @@ export function MobileResponsiveGuard({ children }: MobileResponsiveGuardProps) 
         className={`fixed inset-0 z-[99999999] min-h-screen w-screen flex-col items-center justify-center p-5 sm:p-6 overflow-y-auto bg-[#070A11] text-zinc-100 ${
           mounted && deviceInfo.isBlocked
             ? 'flex !important'
-            : 'max-lg:flex lg:hidden'
+            : 'max-md:flex md:hidden'
         }`}
         style={{
           touchAction: 'none',
@@ -170,7 +162,7 @@ export function MobileResponsiveGuard({ children }: MobileResponsiveGuardProps) 
       {(!mounted || !deviceInfo.isBlocked) && (
         <div
           id="desktop-website-container"
-          className="w-full min-h-screen max-lg:hidden lg:block"
+          className="w-full min-h-screen max-md:hidden md:block"
         >
           {children}
         </div>

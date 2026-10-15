@@ -7,6 +7,7 @@ import {
 import { SearchRepository, ITypesenseBusinessDocument } from '../repositories/search.repository';
 import { SearchParams } from 'typesense/lib/Typesense/Documents';
 import { CursorUtil } from '../../../common/utils/cursor.util';
+import { buildTypesenseFilter, safeTypesenseSort } from '../typesense-query';
 
 @Injectable()
 export class TypesenseSearchProvider implements ISearchProvider {
@@ -19,33 +20,11 @@ export class TypesenseSearchProvider implements ISearchProvider {
     const page = query.page || 1;
     const limit = Math.min(query.limit || 20, 100);
 
-    const filterConditions: string[] = ['status:=PUBLISHED'];
-
-    if (query.industryId) filterConditions.push(`industry_id:=${query.industryId}`);
-    if (query.categoryId) filterConditions.push(`category_id:=${query.categoryId}`);
-    if (query.businessType) filterConditions.push(`business_type:=${query.businessType}`);
-    if (query.msmeCategory) filterConditions.push(`msme_category:=${query.msmeCategory}`);
-    if (query.state) filterConditions.push(`state:=${query.state}`);
-    if (query.district) filterConditions.push(`district:=${query.district}`);
-    if (query.city) filterConditions.push(`city:=${query.city}`);
-    if (query.pincode) filterConditions.push(`pincode:=${query.pincode}`);
-    if (query.hasWebsite !== undefined) filterConditions.push(`has_website:=${query.hasWebsite}`);
-    if (query.hasEmail !== undefined) filterConditions.push(`has_email:=${query.hasEmail}`);
-    if (query.hasPhone !== undefined) filterConditions.push(`has_phone:=${query.hasPhone}`);
-    if (query.hasGstin !== undefined) filterConditions.push(`has_gstin:=${query.hasGstin}`);
-    if (query.opportunityTier) filterConditions.push(`opportunity_tier:=${query.opportunityTier}`);
-
-    if (query.minOrionScore !== undefined || query.maxOrionScore !== undefined) {
-      const min = query.minOrionScore ?? 0;
-      const max = query.maxOrionScore ?? 100;
-      filterConditions.push(`orion_score:[${min}..${max}]`);
-    }
-
     const searchParams: SearchParams = {
       q: query.q?.trim() || '*',
       query_by: query.queryBy || 'name,legal_name,city,district,state,industry_name,category_name',
-      filter_by: filterConditions.join(' && '),
-      sort_by: query.sortBy || 'orion_score:desc,created_at:desc',
+      filter_by: buildTypesenseFilter(query),
+      sort_by: safeTypesenseSort(query.sortBy),
       facet_by: 'state,city,industry_name,category_name,business_type,msme_category,opportunity_tier,has_website,has_email,has_phone,has_gstin',
       page,
       per_page: limit,

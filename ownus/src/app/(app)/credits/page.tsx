@@ -6,9 +6,10 @@ import { CreditCard, Download, Check, HelpCircle, Loader2, Sparkles, Clock, Shie
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
+import { loadCheckoutScript, openCheckout, runPurchase } from "@/lib/razorpay-checkout";
 
 export default function CreditsPage() {
-  const { wallet, setWalletBalance, refreshProfile } = useAuth();
+  const { wallet, user, refreshProfile } = useAuth();
   const [activeTab, setActiveTab] = useState("transactions");
   const [historyTab, setHistoryTab] = useState("payments");
   const [isAnnual, setIsAnnual] = useState(false);
@@ -58,66 +59,42 @@ export default function CreditsPage() {
       return;
     }
 
-    const price = isAnnual && pkg.priceAnnualInr ? pkg.priceAnnualInr : pkg.priceInr;
+    const billingCycle = isAnnual ? "annual" : "monthly";
     setPurchasingPkgId(pkg.id);
 
-    // Snapshot the wallet state BEFORE the purchase so the fallback handler
-    // can correctly accumulate on top of the existing balance.
-    const snapshotDaily = wallet?.dailyCredits ?? 5;
-    const snapshotPurchased = wallet?.purchasedCredits ?? 0;
+    // The whole sequence (order, checkout window, server verification, refresh) lives in runPurchase so its rules are tested: the server sets the
+    // price, a cancelled or failed payment verifies nothing, and the wallet and history reload only after the server confirmed the payment.
+    const result = await runPurchase({
+      createOrder: () => apiClient.payments.createOrder({ packageId: pkg.id, billingCycle, currency: pricingConfig.defaultCurrency || "INR" }),
+      loadScript: () => loadCheckoutScript(),
+      open: (order) =>
+        openCheckout(order, {
+          name: "Orion",
+          description: `${pkg.name} - ${pkg.credits} credits`,
+          prefill: { name: user?.displayName || undefined, email: user?.email || undefined },
+          themeColor: "#18181b",
+          onPaymentFailed: (message) => toast.error(message),
+        }),
+      verify: (payment) =>
+        apiClient.payments.verify({
+          razorpayOrderId: payment.razorpay_order_id,
+          razorpayPaymentId: payment.razorpay_payment_id,
+          razorpaySignature: payment.razorpay_signature,
+          packageId: pkg.id,
+          billingCycle,
+        }),
+      refresh: async () => {
+        await refreshProfile();
+        const [txData, payData] = await Promise.all([apiClient.credit.getTransactions(1, 25), apiClient.payments.getHistory()]);
+        if (txData?.items) setTransactions(txData.items);
+        if (payData) setPayments(payData);
+      },
+    });
+    setPurchasingPkgId(null);
 
-    try {
-      // 1. Create Razorpay order
-      const orderData = await apiClient.payments.createOrder({
-        packageId: pkg.id,
-        billingCycle: isAnnual ? "annual" : "monthly",
-        currency: pricingConfig.defaultCurrency || "INR",
-      });
-
-      // 2. Perform payment verification (Simulation / Razorpay client checkout)
-      toast.info(`Initializing secure Razorpay checkout for ₹${price}...`);
-      
-      const verifyRes = await apiClient.payments.verify({
-        razorpayOrderId: orderData.orderId,
-        razorpayPaymentId: `pay_${Date.now()}_razorpay`,
-        razorpaySignature: "demo_verified",
-        packageId: pkg.id,
-        billingCycle: isAnnual ? "annual" : "monthly",
-        // Pass current wallet snapshot so the fallback can accumulate correctly
-        currentDailyCredits: snapshotDaily,
-        currentPurchasedCredits: snapshotPurchased,
-      });
-
-      if (verifyRes.balance !== undefined) {
-        setWalletBalance(verifyRes.balance, verifyRes.dailyCredits, verifyRes.purchasedCredits);
-      } else {
-        // Fallback: accumulate locally if the server didn't return a balance
-        const creditsAdded = verifyRes.creditsAdded ?? pkg.credits ?? 0;
-        setWalletBalance(
-          snapshotDaily + snapshotPurchased + creditsAdded,
-          snapshotDaily,
-          snapshotPurchased + creditsAdded,
-        );
-      }
-
-      const creditsAdded = verifyRes.creditsAdded ?? pkg.credits;
-      toast.success(verifyRes.message || `Successfully credited ${creditsAdded} credits to your wallet!`);
-
-      // Immediately refresh auth context from database
-      await refreshProfile();
-
-      // Refresh transactions & payments
-      const [newTxs, newPays] = await Promise.all([
-        apiClient.credit.getTransactions(1, 25),
-        apiClient.payments.getHistory(),
-      ]);
-      if (newTxs?.items) setTransactions(newTxs.items);
-      if (newPays) setPayments(newPays);
-    } catch (err: any) {
-      toast.error(err.message || "Payment process failed. Please try again.");
-    } finally {
-      setPurchasingPkgId(null);
-    }
+    if (result.status === "success") toast.success(result.message || `Payment verified. ${pkg.credits} credits added to your account.`);
+    else if (result.status === "cancelled") toast.info("Payment cancelled. You have not been charged and no credits were added.");
+    else toast.error(result.message);
   };
 
   const currentBalance = wallet?.balance ?? 5;

@@ -1,22 +1,18 @@
+// SAFETY: this script writes test data. It only runs against a disposable LOCAL Orion database named in SCRATCH_DATABASE_URL
+// (orion_scratch, orion_test_*, ...), never the real orion_db and never another application's database. See ownus/scratch_target.js.
+const { guardLegacyScratchWriter } = require('../scratch_target.js');
+const guardedUrl = guardLegacyScratchWriter();
 const { Pool } = require('pg');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const envPath = path.join(__dirname, '..', '.env.local');
-const envContent = fs.readFileSync(envPath, 'utf8');
-let dbUrl = '';
-for (const line of envContent.split('\n')) {
-  if (line.startsWith('DATABASE_URL=')) {
-    dbUrl = line.split('=')[1].trim();
-  }
-}
+const dbUrl = guardedUrl;
 
 async function runTest() {
   console.log('--- STARTING GMAIL AUTHENTICATION & EMAIL MATCHING TEST SUITE ---');
   const pool = new Pool({
-    connectionString: dbUrl,
-    ssl: { rejectUnauthorized: false }
+    connectionString: dbUrl
   });
 
   try {

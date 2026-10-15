@@ -2,7 +2,7 @@ INSERT INTO pricing_settings (id, key, value, description, updated_at) VALUES
 (gen_random_uuid(), 'DAILY_FREE_CREDITS', '{"amount": 5, "description": "Daily free credits allocated to each active user"}'::jsonb, 'Daily free credits amount', NOW()),
 (gen_random_uuid(), 'ANNUAL_DISCOUNT_PERCENTAGE', '{"percentage": 20, "description": "Discount applied to annual package purchases"}'::jsonb, 'Annual billing discount percentage', NOW()),
 (gen_random_uuid(), 'DEFAULT_CURRENCY', '{"currency": "INR", "symbol": "₹"}'::jsonb, 'Default platform billing currency', NOW())
-ON CONFLICT (key) DO NOTHING;
+ON CONFLICT (key) DO NOTHING;--> statement-breakpoint
 
 INSERT INTO credit_packages (id, slug, name, description, price_inr, credits, user_limit, billing_type, popular, features, badge_text, is_active, sort_order, created_at, updated_at) VALUES
 ('5b11b41d-4451-4ea3-9ace-be33b7a18ad4', 'free', 'Free Plan', 'Standard access for early prospecting and exploring verified business intelligence.', 0, 5, 1, 'DAILY_FREE', false, '["5 Daily Verified Leads", "Search and Discovery Engine", "Basic Contact Details", "Daily rollover at 11:59 PM", "Community Support"]'::jsonb, '5 Daily Free', true, 1, NOW(), NOW()),

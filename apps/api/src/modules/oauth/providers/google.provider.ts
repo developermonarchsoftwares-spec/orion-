@@ -2,6 +2,7 @@ import { Injectable, Logger, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { IOAuthProvider, IOAuthTokens, IOAuthUserProfile } from '../interfaces/oauth-provider.interface';
 import { BusinessException } from '../../../common/errors/business.exception';
+import { oauthSimulationAllowed } from '../oauth-simulation';
 
 @Injectable()
 export class GoogleOAuthProvider implements IOAuthProvider {
@@ -73,16 +74,19 @@ export class GoogleOAuthProvider implements IOAuthProvider {
   }
 
   async exchangeCode(code: string, codeVerifier?: string): Promise<IOAuthTokens> {
-    // Support development / testing simulation code
-    if (code.startsWith('sim_google_') || !this.isConfigured()) {
+    // Simulation exists for automated tests only (see oauth-simulation.ts); it never runs elsewhere.
+    if (oauthSimulationAllowed() && (code.startsWith('sim_google_') || !this.isConfigured())) {
       const emailPart = code.startsWith('sim_google_') ? code.replace('sim_google_', '') : '';
-      this.logger.log(`Using simulation mode for Google OAuth exchange (code: ${code})`);
+      this.logger.log('Using simulation mode for Google OAuth exchange (test environment)');
       return {
         accessToken: `google_sim_access_${emailPart || Date.now()}`,
         idToken: `google_sim_id_${Date.now()}`,
         tokenType: 'Bearer',
         expiresIn: 3600,
       };
+    }
+    if (code.startsWith('sim_google_') || !this.isConfigured()) {
+      throw new BusinessException('Google sign-in is not available', 'GOOGLE_OAUTH_UNAVAILABLE', HttpStatus.SERVICE_UNAVAILABLE);
     }
 
     try {
@@ -125,8 +129,10 @@ export class GoogleOAuthProvider implements IOAuthProvider {
   }
 
   async getUserProfile(accessToken: string, idToken?: string): Promise<IOAuthUserProfile> {
-    // Support development / testing simulation
     if (accessToken.startsWith('google_sim_access_')) {
+      if (!oauthSimulationAllowed()) {
+        throw new BusinessException('Google sign-in is not available', 'GOOGLE_OAUTH_UNAVAILABLE', HttpStatus.SERVICE_UNAVAILABLE);
+      }
       const simEmail = accessToken.replace('google_sim_access_', '');
       const email = (simEmail.includes('@') ? simEmail : null) || this.configService.get<string>('SIM_GOOGLE_EMAIL') || 'user.google@orion.ai';
       const providerId = `google_user_${Buffer.from(email).toString('hex').slice(0, 16)}`;

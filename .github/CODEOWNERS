@@ -1,0 +1,14 @@
+# Who must review changes to the files that control what runs, what ships and who may access what.
+# "Require review from Code Owners" is a repository setting that has to be switched on in GitHub (docs/CI_CD_SECURITY_REVIEW.md, section 9).
+# The only GitHub identity the repository itself shows is the account in its remote URL; replace it with a team of at least two reviewers.
+/.github/                         @developermonarchsoftwares-spec
+/ops/                             @developermonarchsoftwares-spec
+/apps/api/Dockerfile              @developermonarchsoftwares-spec
+/ownus/Dockerfile                 @developermonarchsoftwares-spec
+/docker-compose.yml               @developermonarchsoftwares-spec
+/.dockerignore                    @developermonarchsoftwares-spec
+/package-lock.json                @developermonarchsoftwares-spec
+/ownus/package-lock.json          @developermonarchsoftwares-spec
+/apps/api/src/database/migrations/ @developermonarchsoftwares-spec
+/apps/api/src/config/             @developermonarchsoftwares-spec
+/apps/api/src/auth/               @developermonarchsoftwares-spec

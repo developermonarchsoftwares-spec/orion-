@@ -7,8 +7,10 @@ import { BusinessException } from '../../common/errors/business.exception';
 import { DRIZZLE_DATABASE } from '../../database/database.constants';
 import { DrizzleDb } from '../../database/database.provider';
 import * as schema from '../../database/schema';
+import { presentCompanyContact } from '../../common/privacy/data-classification';
 import { eq, and, sql, desc, inArray } from 'drizzle-orm';
 import { AuditLogService } from '../../common/services/audit-log.service';
+import { IntegrationEventsService } from '../integrations/integration-events.service';
 
 @Injectable()
 export class UnlockService {
@@ -22,6 +24,7 @@ export class UnlockService {
     @Inject(DRIZZLE_DATABASE)
     private readonly db: DrizzleDb,
     @Optional() private readonly auditLogService?: AuditLogService,
+    @Optional() private readonly events?: IntegrationEventsService,
   ) {}
 
   /**
@@ -30,6 +33,11 @@ export class UnlockService {
   async unlockBusiness(userId: string, businessId: string) {
     const business = await this.businessRepo.findById(businessId);
     if (!business) {
+      throw new BusinessException('Business not found', 'BUSINESS_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    // Only a PUBLISHED company can be unlocked: a draft / archived one would be charged and then 404 on the profile.
+    if (business.status !== 'PUBLISHED') {
       throw new BusinessException('Business not found', 'BUSINESS_NOT_FOUND', HttpStatus.NOT_FOUND);
     }
 
@@ -53,6 +61,14 @@ export class UnlockService {
     try {
       // Deduct credit atomically and create unlock record with race condition guard
       const result = await this.db.transaction(async (tx) => {
+        // Serialise concurrent unlocks of the same (customer, business): the second waits here and then sees the first unlock,
+        // so it is never charged (previously it deducted first and relied on the unique index to roll the deduction back).
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`lead:unlock:${userId}:${businessId}`}))`);
+        // The company may have been unpublished since the check above: re-check inside the transaction, before any charge.
+        const [live] = await tx.select({ status: schema.businesses.status }).from(schema.businesses).where(eq(schema.businesses.id, businessId));
+        if (!live || live.status !== 'PUBLISHED') {
+          throw new BusinessException('Business not found', 'BUSINESS_NOT_FOUND', HttpStatus.NOT_FOUND);
+        }
         // 1. Re-verify inside locked transaction if a concurrent request already unlocked it
         const alreadyInsideTx = await tx
           .select()
@@ -109,6 +125,8 @@ export class UnlockService {
       }
 
       this.logger.log(`User ${userId} unlocked business ${businessId} (${business.name}) for ${unlockCost} credit`);
+      void this.creditService.notifyIfLow(userId);
+      void this.events?.emit(userId, 'lead.unlocked', { businessId, businessName: business.name, creditsSpent: unlockCost, balance: result.wallet?.balance ?? null });
 
       await this.auditLogService?.record({
         userId,
@@ -133,7 +151,7 @@ export class UnlockService {
       };
     } catch (err: any) {
       // Catch unique violation code 23505 (concurrent insert on leadUnlocks)
-      if (err?.code === '23505') {
+      if (err?.code === '23505' || err?.cause?.code === '23505') {
         const profile = await this.discoverService.getBusinessBySlug(businessId, userId);
         const wallet = await this.creditService.getWallet(userId);
         return {
@@ -233,13 +251,11 @@ export class UnlockService {
               isVerified: b.isVerified,
             }
           : null,
-        contacts: leadContacts.map((c) => ({
-          fullName: c.fullName,
-          title: c.title,
-          email: c.email,
-          phone: c.phone,
-          linkedinUrl: c.linkedinUrl,
-        })),
+        // the caller unlocked this company; the shared disclosure policy still decides what is shown (Phase 10)
+        contacts: leadContacts.map((c) => {
+          const p = presentCompanyContact(c, { unlocked: true });
+          return { fullName: p.fullName, title: p.title, email: p.email, phone: p.phone, linkedinUrl: p.linkedinUrl, emailKind: p.emailKind, phoneKind: p.phoneKind };
+        }),
         creditsSpent: r.creditsSpent,
         unlockedAt: r.unlockedAt,
       };

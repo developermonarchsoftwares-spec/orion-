@@ -1,4 +1,5 @@
 'use client';
+import { adminFetch } from './admin-fetch';
 
 import { useState, useEffect } from 'react';
 
@@ -189,7 +190,7 @@ export function saveFilterOptionsConfig(config: FilterOptionsConfig): void {
   }
 
   if (typeof fetch !== 'undefined') {
-    fetch('/api/v1/admin/filter-options', {
+    adminFetch('/api/v1/admin/filter-options', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

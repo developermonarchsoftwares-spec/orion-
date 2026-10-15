@@ -3,6 +3,30 @@ import { SavedSearchesRepository } from './saved-searches.repository';
 import { CreateSavedSearchDto, UpdateSavedSearchDto } from './dto/saved-searches.dto';
 import { DiscoverService } from '../discover/discover.service';
 import { BusinessException } from '../../common/errors/business.exception';
+import { plainToInstance } from 'class-transformer';
+import { validateSync } from 'class-validator';
+import { DiscoverSearchQueryDto } from '../discover/dto/discover.dto';
+
+/** A saved search is a handful of filters; anything near this size is not one. */
+const MAX_FILTERS_JSON = 20_000;
+
+/**
+ * Saved filters are stored as free-form JSON and re-run later, so they get the same checks as a live search request (lengths, types,
+ * ranges) when they are saved and again when they are run. Unknown keys are allowed (they are ignored by the search), so no
+ * existing filter is dropped; a value that is wrong for a known filter is refused with the names of the offending fields.
+ */
+export function checkedSearchFilters(filters: unknown): DiscoverSearchQueryDto {
+  const raw = filters && typeof filters === 'object' && !Array.isArray(filters) ? (filters as Record<string, unknown>) : {};
+  if (JSON.stringify(raw).length > MAX_FILTERS_JSON) {
+    throw new BusinessException('The saved filters are too large', 'INVALID_SAVED_FILTERS', HttpStatus.BAD_REQUEST);
+  }
+  const dto = plainToInstance(DiscoverSearchQueryDto, raw);
+  const errors = validateSync(dto, { whitelist: false, forbidNonWhitelisted: false });
+  if (errors.length) {
+    throw new BusinessException('Some saved filters are not valid', 'INVALID_SAVED_FILTERS', HttpStatus.BAD_REQUEST, { fields: errors.map((e) => e.property) });
+  }
+  return dto;
+}
 
 @Injectable()
 export class SavedSearchesService {
@@ -17,7 +41,7 @@ export class SavedSearchesService {
     return this.savedSearchesRepo.create({
       userId,
       name: dto.name.trim(),
-      filters: dto.filters,
+      filters: (checkedSearchFilters(dto.filters), dto.filters),
       alertEnabled: dto.alertEnabled ?? false,
       alertFrequency: dto.alertFrequency ?? 'DAILY',
     });
@@ -40,7 +64,7 @@ export class SavedSearchesService {
 
     const updated = await this.savedSearchesRepo.updateById(existing.id, {
       name: dto.name !== undefined ? dto.name.trim() : existing.name,
-      filters: dto.filters !== undefined ? dto.filters : existing.filters,
+      filters: dto.filters !== undefined ? (checkedSearchFilters(dto.filters), dto.filters) : existing.filters,
       alertEnabled: dto.alertEnabled !== undefined ? dto.alertEnabled : existing.alertEnabled,
       alertFrequency: dto.alertFrequency !== undefined ? dto.alertFrequency : existing.alertFrequency,
       updatedAt: new Date(),
@@ -57,7 +81,7 @@ export class SavedSearchesService {
 
   async runSearch(userId: string, id: string) {
     const saved = await this.findById(userId, id);
-    const filterQuery = (saved.filters as Record<string, any>) || {};
-    return this.discoverService.search(filterQuery, userId);
+    // the stored filters pass through the same validation as a live search before they are run
+    return this.discoverService.search(checkedSearchFilters(saved.filters), userId);
   }
 }

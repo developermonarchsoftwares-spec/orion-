@@ -5,6 +5,8 @@ export const QUEUE_NAMES = {
   DUPLICATE_DETECTION: 'duplicate-detection',
   NOTIFICATION: 'notification',
   AUDIT_LOG: 'audit-log',
+  PEOPLE_ACQUISITION: 'people-acquisition',
+  PEOPLE_IMPORT: 'people-import',
 } as const;
 
 export type QueueNameType = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];

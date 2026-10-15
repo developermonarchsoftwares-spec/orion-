@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsOptional, IsIn } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsIn, IsInt, Min, Max, MaxLength, MinLength } from 'class-validator';
 
 export class CreatePaymentOrderDto {
   @ApiProperty({ example: 'growth', description: 'Selected credit package slug or ID (e.g., starter, growth, agency)' })
@@ -43,4 +43,43 @@ export class VerifyPaymentDto {
   @IsOptional()
   @IsIn(['monthly', 'annual'])
   billingCycle?: 'monthly' | 'annual';
+}
+
+export class CreateTopUpOrderDto {
+  @ApiProperty({ example: 200, description: 'Number of credits to add (whole number within the configured top-up limits)' })
+  @IsInt()
+  @Min(1)
+  @Max(1_000_000)
+  credits!: number;
+}
+
+export class VerifyTopUpDto {
+  @ApiProperty({ description: 'Razorpay Order ID' })
+  @IsString()
+  @IsNotEmpty()
+  razorpayOrderId!: string;
+
+  @ApiProperty({ description: 'Razorpay Payment ID' })
+  @IsString()
+  @IsNotEmpty()
+  razorpayPaymentId!: string;
+
+  @ApiProperty({ description: 'Razorpay HMAC Signature' })
+  @IsString()
+  @IsNotEmpty()
+  razorpaySignature!: string;
+}
+
+export class RefundPaymentDto {
+  @ApiProperty({ description: 'Razorpay payment id to refund (full refund)' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(64)
+  paymentId!: string;
+
+  @ApiProperty({ description: 'Why the refund is being issued (kept on the refund, ledger and audit log)' })
+  @IsString()
+  @MinLength(5)
+  @MaxLength(255)
+  reason!: string;
 }

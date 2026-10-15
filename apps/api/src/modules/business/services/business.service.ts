@@ -27,6 +27,10 @@ export interface ICreateBusinessAggregateInput {
   employeeCountRange?: string;
   annualRevenueRange?: string;
   sourceId?: string;
+  /** Import batch the record came from; written to the creation history (Phase 15). */
+  sourceBatchId?: string;
+  /** Internal provenance, verification levels and quality notes (never returned to customers). */
+  metadata?: Record<string, unknown>;
   createdById?: string;
   locations?: Array<{
     addressLine1: string;
@@ -49,6 +53,8 @@ export interface ICreateBusinessAggregateInput {
     phone?: string;
     isPrimary?: boolean;
     isDecisionMaker?: boolean;
+    /** Per-field provenance and verification level for this contact's values (internal). */
+    metadata?: Record<string, unknown>;
   }>;
   digitalPresences?: Array<{
     platform: DigitalPlatformType;
@@ -128,6 +134,7 @@ export class BusinessService {
           employeeCountRange: input.employeeCountRange,
           annualRevenueRange: input.annualRevenueRange,
           sourceId: input.sourceId,
+          ...(input.metadata ? { metadata: input.metadata } : {}),
         })
         .returning();
 
@@ -163,6 +170,7 @@ export class BusinessService {
             phone: c.phone,
             isPrimary: c.isPrimary ?? (idx === 0),
             isDecisionMaker: c.isDecisionMaker ?? false,
+            ...(c.metadata ? { metadata: c.metadata } : {}),
           })),
         );
       }
@@ -242,6 +250,7 @@ export class BusinessService {
           scores: calculated,
         },
         changeReason: 'Initial business profile creation',
+        sourceBatchId: input.sourceBatchId,
       });
 
       this.logger.log(`Created business profile: ${business.name} (ID: ${business.id}, Score: ${calculated.orionScore})`);

@@ -1,5 +1,22 @@
-import fs from 'node:fs';
-import path from 'node:path';
+/**
+ * S-17: user-controlled values (display name, email, notification title/message) are interpolated into HTML
+ * email bodies. Without escaping, a user could inject markup/links into emails sent from our domain. Every
+ * interpolated user value is passed through escapeHtml; subject lines additionally strip CR/LF to prevent
+ * header injection.
+ */
+export function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** Strips control characters (incl. CR/LF) from a value destined for an email header such as Subject. */
+export function sanitizeHeader(value: unknown): string {
+  return String(value ?? '').replace(/[\r\n\t]+/g, ' ').trim();
+}
 
 export interface SendOtpEmailParams {
   email: string;
@@ -14,53 +31,12 @@ export interface SendEmailResult {
 }
 
 /**
- * Robust API key retriever that looks up process.env first, and falls back to
- * inspecting local .env files across the monorepo if Next.js has not reloaded them.
+ * The Resend API key comes from the process environment only (Next.js loads .env.local itself; hosting sets real variables).
+ * It used to fall back to scanning .env files across the monorepo, including the API's own .env: a key (or any secret) must never
+ * be picked up from a file this module was not given, and the scan also made the production build trace the whole project.
  */
 export function getResendApiKey(): string | undefined {
-  const directKey = process.env.RESEND_API_KEY?.trim();
-  if (directKey) {
-    return directKey;
-  }
-
-  // During automated testing (NODE_ENV=test or node:test runner), respect test suite explicit overrides
-  const isTestEnvironment =
-    process.env.NODE_ENV === 'test' ||
-    process.execArgv.some((a) => a.includes('--test')) ||
-    process.argv.some((a) => a.includes('test'));
-
-  if (isTestEnvironment) {
-    return undefined;
-  }
-
-  const candidatePaths = [
-    path.resolve(process.cwd(), '.env.local'),
-    path.resolve(process.cwd(), '.env'),
-    path.resolve(process.cwd(), '..', '.env.local'),
-    path.resolve(process.cwd(), '..', '.env'),
-    path.resolve(process.cwd(), 'ownus', '.env.local'),
-    path.resolve(process.cwd(), 'ownus', '.env'),
-    path.resolve(process.cwd(), 'apps', 'api', '.env'),
-    path.resolve(process.cwd(), '..', 'apps', 'api', '.env'),
-  ];
-
-  for (const envPath of candidatePaths) {
-    try {
-      if (fs.existsSync(envPath)) {
-        const content = fs.readFileSync(envPath, 'utf8');
-        const match = content.match(/^RESEND_API_KEY\s*=\s*["']?([^"'\r\n]+)["']?/m);
-        if (match?.[1]?.trim()) {
-          const key = match[1].trim();
-          process.env.RESEND_API_KEY = key;
-          return key;
-        }
-      }
-    } catch {
-      // Continue searching
-    }
-  }
-
-  return undefined;
+  return process.env.RESEND_API_KEY?.trim() || undefined;
 }
 
 /**
@@ -71,41 +47,7 @@ export function getResendApiKey(): string | undefined {
  * - Fallback: "Monarch Security <security@monarchsoftwares.com>"
  */
 export function getResendSenderAddress(): string {
-  const isTestEnvironment =
-    process.env.NODE_ENV === 'test' ||
-    process.execArgv.some((a) => a.includes('--test')) ||
-    process.argv.some((a) => a.includes('test'));
-
-  let customFrom = process.env.RESEND_FROM_EMAIL?.trim();
-
-  if (!customFrom && !isTestEnvironment) {
-    const candidatePaths = [
-      path.resolve(process.cwd(), '.env.local'),
-      path.resolve(process.cwd(), '.env'),
-      path.resolve(process.cwd(), '..', '.env.local'),
-      path.resolve(process.cwd(), '..', '.env'),
-      path.resolve(process.cwd(), 'ownus', '.env.local'),
-      path.resolve(process.cwd(), 'ownus', '.env'),
-      path.resolve(process.cwd(), 'apps', 'api', '.env'),
-      path.resolve(process.cwd(), '..', 'apps', 'api', '.env'),
-    ];
-
-    for (const envPath of candidatePaths) {
-      try {
-        if (fs.existsSync(envPath)) {
-          const content = fs.readFileSync(envPath, 'utf8');
-          const match = content.match(/^RESEND_FROM_EMAIL\s*=\s*["']?([^"'\r\n]+)["']?/m);
-          if (match?.[1]?.trim()) {
-            customFrom = match[1].trim();
-            process.env.RESEND_FROM_EMAIL = customFrom;
-            break;
-          }
-        }
-      } catch {
-        // Continue searching
-      }
-    }
-  }
+  const customFrom = process.env.RESEND_FROM_EMAIL?.trim();
 
   if (!customFrom) {
     return 'Monarch Security <security@monarchsoftwares.com>';
@@ -170,7 +112,7 @@ export function getAdminOtpHtml(otp: string, recipientEmail: string, expiresInMi
                 Hello Administrator,
               </p>
               <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #a1a1aa;">
-                A request was made to authenticate into the <strong>Monarch Softwares Administrator Console</strong> using your email address (<span style="color: #ffffff;">${recipientEmail}</span>). Use the 6-digit one-time passcode below to proceed:
+                A request was made to authenticate into the <strong>Monarch Softwares Administrator Console</strong> using your email address (<span style="color: #ffffff;">${escapeHtml(recipientEmail)}</span>). Use the 6-digit one-time passcode below to proceed:
               </p>
 
               <!-- OTP Code Display Card -->
@@ -302,12 +244,12 @@ export async function sendPreferenceNotificationEmail(params: SendPreferenceEmai
   }
 
   const fromAddress = getResendSenderAddress();
-  const subject = `[Orion Notification] ${title}`;
+  const subject = `[Orion Notification] ${sanitizeHeader(title)}`;
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>${title}</title>
+  <title>${escapeHtml(title)}</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #09090b; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #f4f4f5;">
   <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="padding: 40px 20px;">
@@ -316,9 +258,9 @@ export async function sendPreferenceNotificationEmail(params: SendPreferenceEmai
         <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 520px; background-color: #121215; border: 1px solid #27272a; border-radius: 16px; padding: 32px;">
           <tr>
             <td>
-              <h2 style="margin: 0 0 12px 0; color: #ffffff; font-size: 20px;">${title}</h2>
-              <p style="margin: 0 0 16px 0; color: #a1a1aa; font-size: 14px; line-height: 1.6;">Hello ${name},</p>
-              <p style="margin: 0 0 24px 0; color: #d4d4d8; font-size: 14px; line-height: 1.6;">${message}</p>
+              <h2 style="margin: 0 0 12px 0; color: #ffffff; font-size: 20px;">${escapeHtml(title)}</h2>
+              <p style="margin: 0 0 16px 0; color: #a1a1aa; font-size: 14px; line-height: 1.6;">Hello ${escapeHtml(name)},</p>
+              <p style="margin: 0 0 24px 0; color: #d4d4d8; font-size: 14px; line-height: 1.6;">${escapeHtml(message)}</p>
               ${
                 link
                   ? `<a href="http://localhost:3000${link}" style="display: inline-block; background-color: #ffffff; color: #09090b; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 13px; text-decoration: none;">View in Orion</a>`
@@ -396,10 +338,10 @@ export function getPasswordResetHtml(resetUrl: string, recipientEmail: string, n
           <tr>
             <td style="padding: 32px 32px 24px 32px;">
               <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #d4d4d8;">
-                Hello ${name || 'Valued User'},
+                Hello ${escapeHtml(name || 'Valued User')},
               </p>
               <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #a1a1aa;">
-                A request was made to reset the password for your Orion account registered under <span style="color: #ffffff; font-weight: 600;">${recipientEmail}</span>. Click the button below to set a new password:
+                A request was made to reset the password for your Orion account registered under <span style="color: #ffffff; font-weight: 600;">${escapeHtml(recipientEmail)}</span>. Click the button below to set a new password:
               </p>
 
               <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 28px 0; text-align: center;">
@@ -494,5 +436,45 @@ export async function sendPasswordResetEmail(params: SendPasswordResetEmailParam
       success: false,
       error: `Network error delivering email: ${err.message}`,
     };
+  }
+}
+
+/** The sign-up verification code e-mail (web gateway path). The subject carries no code; the body is never logged. */
+export function getSignupOtpContent(otp: string, minutes: number = 5): { subject: string; text: string; html: string } {
+  const brand = sanitizeHeader(process.env.APP_NAME || "Orion").replace(/[<>]/g, "").slice(0, 60) || "Orion";
+  const spaced = `${otp.slice(0, 3)} ${otp.slice(3)}`;
+  const text = [
+    `Your ${brand} verification code is ${otp}.`,
+    "",
+    `It expires in ${minutes} minutes and can be used once.`,
+    "Never share this code with anyone. We will never ask you for it by phone, chat or e-mail.",
+    "",
+    `If you did not try to create a ${brand} account, you can ignore this message; nothing was created.`,
+  ].join("\n");
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(brand)} verification code</title></head><body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#18181b;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px;"><tr><td align="center"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border:1px solid #e4e4e7;border-radius:12px;"><tr><td style="padding:28px 32px 8px 32px;font-size:18px;font-weight:700;">${escapeHtml(brand)}</td></tr><tr><td style="padding:8px 32px 0 32px;font-size:15px;line-height:1.6;color:#3f3f46;">Use this code to verify your email address and finish creating your account:</td></tr><tr><td align="center" style="padding:24px 32px;"><div style="display:inline-block;padding:14px 24px;background:#fafafa;border:1px solid #e4e4e7;border-radius:10px;font-size:32px;font-weight:700;letter-spacing:8px;font-family:Consolas,monospace;">${spaced}</div></td></tr><tr><td style="padding:0 32px 8px 32px;font-size:14px;line-height:1.6;color:#52525b;">This code expires in <strong>${minutes} minutes</strong> and can be used only once.</td></tr><tr><td style="padding:0 32px 24px 32px;font-size:14px;line-height:1.6;color:#b91c1c;"><strong>Do not share this code with anyone.</strong> We will never ask you for it.</td></tr><tr><td style="padding:16px 32px 28px 32px;border-top:1px solid #f4f4f5;font-size:12px;line-height:1.6;color:#a1a1aa;">If you did not try to create a ${escapeHtml(brand)} account, you can ignore this message. Nothing was created.</td></tr></table></td></tr></table></body></html>`;
+  return { subject: `${brand}: your verification code`, text, html };
+}
+
+/** Sends the sign-up code through Resend. Resolves true only when the provider accepted the message. Never logs the code or the address. */
+export async function sendSignupOtpEmail(email: string, otp: string, minutes: number = 5): Promise<boolean> {
+  const key = getResendApiKey();
+  if (!key) {
+    console.error("[EMAIL_SERVICE] Cannot send a sign-up code: RESEND_API_KEY is not set.");
+    return false;
+  }
+  const { subject, text, html } = getSignupOtpContent(otp, minutes);
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: getResendSenderAddress(), to: [email], subject, html, text }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok && json.id) return true;
+    console.error("[EMAIL_SERVICE] Sign-up code was not accepted by the mail provider", { status: res.status });
+    return false;
+  } catch (err: any) {
+    console.error("[EMAIL_SERVICE] Sign-up code delivery error", { message: String(err?.message || err).slice(0, 120) });
+    return false;
   }
 }

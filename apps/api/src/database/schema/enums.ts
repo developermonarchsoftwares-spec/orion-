@@ -155,6 +155,14 @@ export const packageBillingTypeEnum = pgEnum('package_billing_type', [
   'CUSTOM',
 ]);
 
+export const personVerificationStatusEnum = pgEnum('person_verification_status', [
+  'UNVERIFIED',
+  'PARTIALLY_VERIFIED',
+  'VERIFIED',
+  'STALE',
+  'CONFLICTED',
+]);
+
 export const storageProviderTypeEnum = pgEnum('storage_provider_type', [
   's3',
   'r2',

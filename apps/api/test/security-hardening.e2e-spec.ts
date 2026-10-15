@@ -2,6 +2,8 @@ import supertest from 'supertest';
 const request = (supertest as any).default || supertest;
 import { INestApplication } from '@nestjs/common';
 import { TestAppHelper } from './helpers/test-app.helper';
+import { TEST_SECRETS } from './helpers/test-secrets';
+import * as crypto from 'crypto';
 import * as schema from '../src/database/schema';
 import { eq } from 'drizzle-orm';
 import { CsvSecurityUtil } from '../src/common/utils/csv-security.util';
@@ -12,7 +14,7 @@ describe('Enterprise Security Hardening & Data Protection E2E Tests', () => {
 
   const userAEmail = 'user.a.sec@orion.ai';
   const userBEmail = 'user.b.sec@orion.ai';
-  const adminEmail = 'super.admin.sec@orion.ai';
+  const adminEmail = 'super.admin.sec@monarchsoftwares.com';
 
   let userAToken: string;
   let userBToken: string;
@@ -28,6 +30,7 @@ describe('Enterprise Security Hardening & Data Protection E2E Tests', () => {
     app = await testApp.init();
 
     await testApp.cleanupUsers([userAEmail, userBEmail, adminEmail]);
+    await testApp.provisionAdmin(adminEmail, 'SUPER_ADMIN');
 
     // 1. Register User A
     const resA = await request(app.getHttpServer())
@@ -311,55 +314,43 @@ describe('Enterprise Security Hardening & Data Protection E2E Tests', () => {
       // 1. Get packages to find a valid package
       const pkgRes = await request(app.getHttpServer()).get('/api/v1/credit/packages');
       const packages = pkgRes.body.data || pkgRes.body;
-      const starterPkg = packages[0];
+      const starterPkg = packages.find((p: any) => p.slug === 'starter');
 
-      const duplicatePaymentId = `pay_replay_test_${Date.now()}`;
-      const duplicateOrderId = `order_replay_test_${Date.now()}`;
-
-      // Mock verify payment: first call will fail signature check, proving validation
-      const resSigFail = await request(app.getHttpServer())
-        .post('/api/v1/payments/verify')
+      // The order is created by the API for THIS customer and package (its id carries an integrity tag)
+      const orderRes = await request(app.getHttpServer())
+        .post('/api/v1/payments/create-order')
         .set('Authorization', `Bearer ${userBToken}`)
-        .send({
-          packageId: starterPkg.id,
-          razorpayOrderId: duplicateOrderId,
-          razorpayPaymentId: duplicatePaymentId,
-          razorpaySignature: 'invalid_tampered_signature',
-        });
+        .send({ packageId: starterPkg.id });
+      expect([200, 201]).toContain(orderRes.status);
+      const orderId = (orderRes.body.data || orderRes.body).orderId as string;
+      const paymentId = `pay_replay_test_${Date.now()}`;
+      const body = (signature: string) => ({ packageId: starterPkg.id, razorpayOrderId: orderId, razorpayPaymentId: paymentId, razorpaySignature: signature });
+      const validSignature = crypto.createHmac('sha256', TEST_SECRETS.razorpayKeySecret).update(`${orderId}|${paymentId}`).digest('hex');
+      const verify = (signature: string, token = userBToken) =>
+        request(app.getHttpServer()).post('/api/v1/payments/verify').set('Authorization', `Bearer ${token}`).send(body(signature));
 
-      expect(resSigFail.status).toBe(400);
-      expect(resSigFail.body.errorCode).toBe('PAYMENT_VERIFICATION_FAILED');
+      // A tampered signature, and the old demo signatures, never credit anything
+      for (const bad of ['invalid_tampered_signature', 'demo_verified', 'mock_sig_1']) {
+        const r = await verify(bad);
+        expect(r.status).toBe(400);
+        expect(r.body.errorCode).toBe('PAYMENT_VERIFICATION_FAILED');
+      }
+      const balanceBefore = (await testApp.db.select().from(schema.userWallets).where(eq(schema.userWallets.userId, userBId)))[0].purchasedCredits;
 
-      // Now manually insert a completed transaction to simulate a verified payment
-      const [wallet] = await testApp.db
-        .select()
-        .from(schema.userWallets)
-        .where(eq(schema.userWallets.userId, userBId));
+      // The real signature credits once; replays and a concurrent duplicate add nothing; another customer cannot redeem it
+      const first = await verify(validSignature);
+      expect(first.status).toBe(200);
+      expect((first.body.data || first.body).alreadyProcessed).toBe(false);
+      const [replay, concurrent] = await Promise.all([verify(validSignature), verify(validSignature)]);
+      for (const r of [replay, concurrent]) {
+        expect(r.status).toBe(200);
+        expect((r.body.data || r.body).alreadyProcessed).toBe(true);
+      }
+      const stolen = await verify(validSignature, userAToken);
+      expect([400, 409]).toContain(stolen.status);
 
-      await testApp.db.insert(schema.creditTransactions).values({
-        walletId: wallet.id,
-        userId: userBId,
-        amount: starterPkg.credits,
-        balanceAfter: wallet.balance + starterPkg.credits,
-        type: 'PACKAGE_PURCHASE',
-        description: `Purchased ${starterPkg.name}`,
-        referenceId: duplicatePaymentId,
-      });
-
-      // Attempt replay attack with the same payment ID
-      const replayRes = await request(app.getHttpServer())
-        .post('/api/v1/payments/verify')
-        .set('Authorization', `Bearer ${userBToken}`)
-        .send({
-          packageId: starterPkg.id,
-          razorpayOrderId: duplicateOrderId,
-          razorpayPaymentId: duplicatePaymentId,
-          razorpaySignature: 'any_signature',
-        });
-
-      expect(replayRes.status).toBe(200);
-      const replayData = replayRes.body.data || replayRes.body;
-      expect(replayData.alreadyProcessed).toBe(true);
+      const after = (await testApp.db.select().from(schema.userWallets).where(eq(schema.userWallets.userId, userBId)))[0].purchasedCredits;
+      expect(after - balanceBefore).toBe(starterPkg.credits);
     });
   });
 

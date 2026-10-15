@@ -5,7 +5,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD (see .env.docker.example)}"
       POSTGRES_DB: orion_db
     ports:
       - "127.0.0.1:5433:5432"
@@ -27,7 +27,7 @@ services:
     restart: always
     environment:
       TYPESENSE_DATA_DIR: /data
-      TYPESENSE_API_KEY: xyz123_orion_typesense_master_key
+      TYPESENSE_API_KEY: "${TYPESENSE_API_KEY:?Set TYPESENSE_API_KEY (see .env.docker.example)}"
       TYPESENSE_ENABLE_CORS: "true"
     ports:
       - "127.0.0.1:8108:8108"
@@ -46,7 +46,7 @@ services:
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD (see .env.docker.example)}"
     ports:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9001:9001"
@@ -73,19 +73,19 @@ services:
       APP_NAME: Orion Backend API
       APP_URL: http://localhost:4000
       CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/orion_db
+      DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD (see .env.docker.example)}@postgres:5432/orion_db"
       SEARCH_PROVIDER: postgres
       TYPESENSE_NODES: typesense
       TYPESENSE_PORT: 8108
       TYPESENSE_PROTOCOL: http
-      TYPESENSE_API_KEY: xyz123_orion_typesense_master_key
+      TYPESENSE_API_KEY: "${TYPESENSE_API_KEY:?Set TYPESENSE_API_KEY (see .env.docker.example)}"
       STORAGE_PROVIDER: minio
       STORAGE_ENDPOINT: http://minio:9000
       STORAGE_BUCKET: orion-assets
       STORAGE_ACCESS_KEY: minioadmin
-      STORAGE_SECRET_KEY: minioadmin
-      JWT_ACCESS_SECRET: 2xrh5c9e7eh4JkswgApDMaIAUE3m964SBT7no0K+KJKcMNFhWkKisWRWjx3A3+ut6K7khy2x4OSsyuFpX9leBA==
-      JWT_REFRESH_SECRET: in5jXCmR/2+0ThF8DBF0F5tM+1q5nfrfx8sYVmn5NvHfnvVUri1P+ZD4ZGQ05MmUWPZTUJXNsGwug6j9Po4cDQ==
+      STORAGE_SECRET_KEY: "${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD (see .env.docker.example)}"
+      JWT_ACCESS_SECRET: "${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET (see .env.docker.example)}"
+      JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET (see .env.docker.example)}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -113,8 +113,8 @@ services:
       PORT: 3000
       BACKEND_API_URL: http://api:4000/api/v1
       NEXT_PUBLIC_APP_URL: http://localhost:3000
-      JWT_ACCESS_SECRET: 2xrh5c9e7eh4JkswgApDMaIAUE3m964SBT7no0K+KJKcMNFhWkKisWRWjx3A3+ut6K7khy2x4OSsyuFpX9leBA==
-      JWT_REFRESH_SECRET: in5jXCmR/2+0ThF8DBF0F5tM+1q5nfrfx8sYVmn5NvHfnvVUri1P+ZD4ZGQ05MmUWPZTUJXNsGwug6j9Po4cDQ==
+      JWT_ACCESS_SECRET: "${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET (see .env.docker.example)}"
+      JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET (see .env.docker.example)}"
     depends_on:
       api:
         condition: service_healthy

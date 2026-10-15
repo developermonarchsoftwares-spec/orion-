@@ -1,6 +1,7 @@
 const { Pool } = require('pg');
+const { requireLocalDatabaseUrl } = require('./scratch_target');
 
-const dbUrl = "postgresql://neondb_owner:npg_CFOGv20pEALD@ep-weathered-surf-aefvqpls-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require";
+const dbUrl = requireLocalDatabaseUrl();
 
 async function testSingleDeviceLoginEnforcement() {
   console.log("==========================================================================================");
@@ -9,7 +10,7 @@ async function testSingleDeviceLoginEnforcement() {
 
   let pool = new Pool({
     connectionString: dbUrl,
-    ssl: { rejectUnauthorized: false },
+    ssl: false,
   });
 
   try {

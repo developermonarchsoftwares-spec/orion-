@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BusinessModule } from '../business/business.module';
+import { PeopleModule } from '../people/people.module';
+import { ImportPeopleBridge } from './people/import-people.bridge';
 import {
   ImportBatchRepository,
   ImportRecordRepository,
@@ -21,10 +23,16 @@ import { PublishWorker } from './workers/publish.worker';
 
 import { AdminImportController } from './controllers/admin-import.controller';
 import { AdminImportService } from './services/admin-import.service';
+import { SourceTrustService } from './services/source-trust.service';
+import { ImportSourcesController } from './controllers/import-sources.controller';
+import { ImportOperationsController } from './controllers/import-operations.controller';
+import { ImportRecoveryController } from './controllers/import-recovery.controller';
+import { ImportOperationsService } from './services/import-operations.service';
+import { ImportRecoveryService } from './services/import-recovery.service';
 
 @Module({
-  imports: [BusinessModule],
-  controllers: [AdminImportController],
+  imports: [BusinessModule, PeopleModule],
+  controllers: [AdminImportController, ImportOperationsController, ImportRecoveryController, ImportSourcesController],
   providers: [
     ImportBatchRepository,
     ImportRecordRepository,
@@ -37,8 +45,12 @@ import { AdminImportService } from './services/admin-import.service';
     DuplicateDetectionService,
     ReviewService,
     PublishingService,
+    SourceTrustService,
     ImportPipelineService,
     AdminImportService,
+    ImportOperationsService,
+    ImportRecoveryService,
+    ImportPeopleBridge,
     ImportBatchWorker,
     PublishWorker,
   ],
@@ -54,6 +66,7 @@ import { AdminImportService } from './services/admin-import.service';
     DuplicateDetectionService,
     ReviewService,
     PublishingService,
+    SourceTrustService,
     ImportPipelineService,
     AdminImportService,
     ImportBatchWorker,

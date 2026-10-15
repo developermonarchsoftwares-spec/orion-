@@ -24,12 +24,17 @@ export class CreditRepository extends BaseRepository<typeof schema.userWallets> 
     return rows[0] || null;
   }
 
+  /**
+   * The customer's wallet, created on first use. The wallet and its welcome ledger row are written in one transaction, and a
+   * parallel first call that loses the race on the unique index reads the winner's row instead of failing (it used to raise a unique
+   * violation, a 500). The welcome credits previously had no ledger row, so the ledger did not add up to the balance.
+   */
   async ensureWallet(userId: string) {
+    const existing = await this.getWallet(userId);
+    if (existing) return existing;
     const todayStr = new Date().toISOString().slice(0, 10);
-    let wallet = await this.getWallet(userId);
-
-    if (!wallet) {
-      const [created] = await this.db
+    return this.db.transaction(async (tx) => {
+      const [created] = await tx
         .insert(schema.userWallets)
         .values({
           userId,
@@ -40,11 +45,25 @@ export class CreditRepository extends BaseRepository<typeof schema.userWallets> 
           lifetimePurchased: 0,
           lifetimeUsed: 0,
         })
+        .onConflictDoNothing({ target: schema.userWallets.userId })
         .returning();
-      wallet = created;
-    }
-
-    return wallet;
+      if (!created) {
+        const [winner] = await tx.select().from(schema.userWallets).where(eq(schema.userWallets.userId, userId)).limit(1);
+        return winner;
+      }
+      await tx.insert(schema.creditTransactions).values({
+        walletId: created.id,
+        userId,
+        amount: 5,
+        balanceAfter: 5,
+        balanceType: 'DAILY',
+        dailyBalanceAfter: 5,
+        purchasedBalanceAfter: 0,
+        type: 'DAILY_ALLOCATION',
+        description: 'Welcome daily free credits',
+      });
+      return created;
+    });
   }
 
   async getTransactions(userId: string, page = 1, limit = 20) {
@@ -94,15 +113,12 @@ export class CreditRepository extends BaseRepository<typeof schema.userWallets> 
   }
 
   async getPackageByIdOrSlug(idOrSlug: string) {
+    // a slug is not a uuid: comparing it with the uuid column would be a database error (a 500) instead of "not found"
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug ?? '');
     const rows = await this.db
       .select()
       .from(schema.creditPackages)
-      .where(
-        or(
-          eq(schema.creditPackages.id, idOrSlug as any),
-          eq(schema.creditPackages.slug, idOrSlug),
-        ),
-      )
+      .where(isUuid ? or(eq(schema.creditPackages.id, idOrSlug as any), eq(schema.creditPackages.slug, idOrSlug)) : eq(schema.creditPackages.slug, String(idOrSlug ?? '')))
       .limit(1);
 
     return rows[0] || null;

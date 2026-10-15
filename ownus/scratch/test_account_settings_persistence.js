@@ -1,16 +1,13 @@
+// SAFETY: this script writes test data. It only runs against a disposable LOCAL Orion database named in SCRATCH_DATABASE_URL
+// (orion_scratch, orion_test_*, ...), never the real orion_db and never another application's database. See ownus/scratch_target.js.
+const { guardLegacyScratchWriter } = require('../scratch_target.js');
+const guardedUrl = guardLegacyScratchWriter();
 const { Pool } = require('pg');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const envPath = path.join(__dirname, '..', '.env.local');
-const envContent = fs.readFileSync(envPath, 'utf8');
-let dbUrl = '';
-for (const line of envContent.split('\n')) {
-  if (line.startsWith('DATABASE_URL=')) {
-    dbUrl = line.split('=')[1].trim();
-  }
-}
+const dbUrl = guardedUrl;
 
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -32,8 +29,7 @@ function verifyPassword(password, storedHashStr) {
 async function runTest() {
   console.log('--- STARTING ACCOUNT SETTINGS DATABASE PERSISTENCE SUITE ---');
   const pool = new Pool({
-    connectionString: dbUrl,
-    ssl: { rejectUnauthorized: false }
+    connectionString: dbUrl
   });
 
   try {
@@ -42,7 +38,7 @@ async function runTest() {
     let userRes = await pool.query(`SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`, [testEmail]);
     
     if (userRes.rows.length === 0) {
-      console.log('Creating test user in Neon PostgreSQL...');
+      console.log('Creating test user in PostgreSQL...');
       userRes = await pool.query(
         `INSERT INTO users (email, first_name, last_name, display_name, role, status)
          VALUES (LOWER($1), 'Subash', 'Administrator', 'Subash Administrator', 'USER', 'ACTIVE')
@@ -83,7 +79,7 @@ async function runTest() {
       verifiedUser.phone_number === updatedPhone &&
       verifiedUser.metadata?.jobTitle === updatedJobTitle
     ) {
-      console.log('[PASS 2] Profile & Company updates successfully written and verified in Neon PostgreSQL users table.');
+      console.log('[PASS 2] Profile & Company updates successfully written and verified in PostgreSQL users table.');
     } else {
       throw new Error('[FAIL 2] Profile update mismatch in database!');
     }
@@ -111,7 +107,7 @@ async function runTest() {
       readNotif?.savedSearchAlerts === false &&
       readNotif?.weeklyDigest === true
     ) {
-      console.log('[PASS 3] Notification preferences successfully persisted into JSONB metadata column in Neon PostgreSQL.');
+      console.log('[PASS 3] Notification preferences successfully persisted into JSONB metadata column in PostgreSQL.');
     } else {
       throw new Error('[FAIL 3] Notification preferences update mismatch in database!');
     }
@@ -137,7 +133,7 @@ async function runTest() {
       readPref?.defaultView === 'Grid View' &&
       readPref?.dateFormat === 'YYYY-MM-DD'
     ) {
-      console.log('[PASS 4] App preferences successfully persisted into JSONB metadata column in Neon PostgreSQL.');
+      console.log('[PASS 4] App preferences successfully persisted into JSONB metadata column in PostgreSQL.');
     } else {
       throw new Error('[FAIL 4] App preferences update mismatch in database!');
     }
@@ -156,7 +152,7 @@ async function runTest() {
     const isWrongPasswordInvalid = !verifyPassword('WrongPassword123!', storedHash);
 
     if (storedHash && isPasswordValid && isWrongPasswordInvalid) {
-      console.log('[PASS 5] Password security & hashing successfully updated and verified in Neon PostgreSQL users table.');
+      console.log('[PASS 5] Password security & hashing successfully updated and verified in PostgreSQL users table.');
     } else {
       throw new Error('[FAIL 5] Password hashing verification failed!');
     }

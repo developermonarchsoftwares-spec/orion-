@@ -8,6 +8,7 @@ import {
   Param,
   Query,
   UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { CreditService } from './credit.service';
@@ -15,6 +16,11 @@ import { CurrentUser, Public, Roles } from '../../auth/decorators';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { IJwtPayload, UserRole } from '@orion/shared';
+import { AdminAdjustCreditsDto } from './dto/admin-adjust-credits.dto';
+import { UpdatePricingSettingDto } from './dto/pricing-setting.dto';
+import { CreateCreditPackageDto, UpdateCreditPackageDto } from './dto/credit-package.dto';
+import { boundedPage } from '../../common/utils/pagination.util';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Credits & Wallet')
 @Controller('credit')
@@ -27,7 +33,7 @@ export class CreditController {
   @ApiOperation({ summary: 'Get current user credit balance and wallet statistics' })
   @ApiResponse({ status: 200, description: 'Wallet balance, daily credits, and lifetime metrics' })
   async getWallet(@CurrentUser() user: IJwtPayload) {
-    return this.creditService.getWallet(user.sub);
+    return this.creditService.getWalletWithStatus(user.sub);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -42,7 +48,8 @@ export class CreditController {
     @Query('page') page = 1,
     @Query('limit') limit = 20,
   ) {
-    return this.creditService.getTransactions(user.sub, Number(page), Number(limit));
+    const p = boundedPage(page, limit);
+    return this.creditService.getTransactions(user.sub, p.page, p.limit);
   }
 
   @Public()
@@ -77,8 +84,8 @@ export class CreditController {
   @Post('admin/packages')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin: Create new credit package' })
-  async adminCreatePackage(@Body() dto: any) {
-    return this.creditService.createPackage(dto);
+  async adminCreatePackage(@CurrentUser() admin: IJwtPayload, @Body() dto: CreateCreditPackageDto) {
+    return this.creditService.createPackage(dto, admin.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -86,8 +93,8 @@ export class CreditController {
   @Put('admin/packages/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin: Update credit package' })
-  async adminUpdatePackage(@Param('id') id: string, @Body() dto: any) {
-    return this.creditService.updatePackage(id, dto);
+  async adminUpdatePackage(@CurrentUser() admin: IJwtPayload, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateCreditPackageDto) {
+    return this.creditService.updatePackage(id, dto, admin.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -95,8 +102,8 @@ export class CreditController {
   @Delete('admin/packages/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin: Delete credit package' })
-  async adminDeletePackage(@Param('id') id: string) {
-    return this.creditService.deletePackage(id);
+  async adminDeletePackage(@CurrentUser() admin: IJwtPayload, @Param('id', ParseUUIDPipe) id: string) {
+    return this.creditService.deletePackage(id, admin.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -104,18 +111,19 @@ export class CreditController {
   @Put('admin/config')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin: Update pricing settings config' })
-  async adminUpdateConfig(@Body() body: { key: string; value: any; description?: string }) {
-    return this.creditService.updatePricingSetting(body.key, body.value, body.description);
+  async adminUpdateConfig(@CurrentUser() admin: IJwtPayload, @Body() body: UpdatePricingSettingDto) {
+    return this.creditService.updatePricingSetting(body.key, body.value, body.description, admin.sub);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @Post('admin/adjust')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin: Adjust user wallet credits' })
   async adminAdjustCredits(
     @CurrentUser() admin: IJwtPayload,
-    @Body() body: { userId: string; dailyDelta: number; purchasedDelta: number; reason: string },
+    @Body() body: AdminAdjustCreditsDto,
   ) {
     return this.creditService.adjustUserCredits(
       body.userId,

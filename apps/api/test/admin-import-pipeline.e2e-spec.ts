@@ -2,6 +2,7 @@ import supertest from 'supertest';
 const request = (supertest as any).default || supertest;
 import { INestApplication } from '@nestjs/common';
 import { TestAppHelper } from './helpers/test-app.helper';
+import { createApprovedSource } from './helpers/approved-source';
 import * as jwt from 'jsonwebtoken';
 import * as schema from '../src/database/schema';
 import { eq, like, or } from 'drizzle-orm';
@@ -127,7 +128,7 @@ describe('Phase 1: Real Business Data Ingestion & Data Validation E2E Tests', ()
   let testApp: TestAppHelper;
   let app: INestApplication;
 
-  const adminEmail = 'admin@orion.ai';
+  const adminEmail = 'qa.import.admin@monarchsoftwares.com'; // admin access is restricted to the company domain
   let adminToken: string;
 
   const testUserEmail = 'import.customer.tester@orion-test.io';
@@ -135,11 +136,15 @@ describe('Phase 1: Real Business Data Ingestion & Data Validation E2E Tests', ()
   let userToken: string;
   let userId: string;
 
+  let approvedSourceId = '';
+
   beforeAll(async () => {
     testApp = new TestAppHelper();
     app = await testApp.init();
+    approvedSourceId = await createApprovedSource(testApp.db);
 
     await testApp.cleanupUsers([testUserEmail, adminEmail]);
+    await testApp.provisionAdmin(adminEmail, 'SUPER_ADMIN');
 
     // 1. Authenticate real Super Admin via OTP flow (persists admin user with valid FK)
     const otpRes = await request(app.getHttpServer())
@@ -280,6 +285,7 @@ describe('Phase 1: Real Business Data Ingestion & Data Validation E2E Tests', ()
           filename: 'real_indian_enterprises.csv',
           rows: rowsToImport,
           autoPublish: true,
+          sourceId: approvedSourceId,
         });
 
       expect(res.status).toBe(201);

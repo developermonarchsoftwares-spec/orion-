@@ -3,6 +3,7 @@ const request = (supertest as any).default || supertest;
 import { INestApplication } from '@nestjs/common';
 import { TestAppHelper } from './helpers/test-app.helper';
 import * as jwt from 'jsonwebtoken';
+import { TEST_SECRETS } from './helpers/test-secrets';
 
 describe('Sprint 16: Credit & Wallet E2E Tests (Jest + Supertest)', () => {
   let testApp: TestAppHelper;
@@ -13,7 +14,7 @@ describe('Sprint 16: Credit & Wallet E2E Tests (Jest + Supertest)', () => {
   let testUserId: string;
   let userToken: string;
 
-  const adminEmail = 'admin@orion.ai';
+  const adminEmail = 'qa.credit.admin@monarchsoftwares.com'; // admin access is restricted to the company domain
   let adminToken: string;
 
   beforeAll(async () => {
@@ -35,15 +36,17 @@ describe('Sprint 16: Credit & Wallet E2E Tests (Jest + Supertest)', () => {
     testUserId = regData.user.id;
     userToken = regData.tokens.accessToken;
 
-    // 2. Create admin token
+    // 2. Provision a persisted admin and sign its token (the role is checked against the database, not the claim)
+    await testApp.cleanupUsers([adminEmail]);
+    const adminId = await testApp.provisionAdmin(adminEmail, 'SUPER_ADMIN');
     adminToken = jwt.sign(
       {
-        sub: '00000000-0000-0000-0000-000000000001',
+        sub: adminId,
         email: adminEmail,
         role: 'SUPER_ADMIN',
         status: 'ACTIVE',
       },
-      process.env.JWT_ACCESS_SECRET || 'orion_super_secret_access_jwt_key_2026_change_in_production',
+      TEST_SECRETS.jwtAccess, // explicit test-only secret (no built-in default exists)
       { expiresIn: '1h', issuer: 'orion-api', audience: 'orion-client' },
     );
   });
@@ -167,6 +170,29 @@ describe('Sprint 16: Credit & Wallet E2E Tests (Jest + Supertest)', () => {
       const walletData = walletRes.body.data || walletRes.body;
       expect(walletData.purchasedCredits).toBe(25);
       expect(walletData.balance).toBe(30); // 5 daily + 25 purchased
+    });
+
+    describe('admin/adjust input validation (regression: the body used to be an unvalidated inline type)', () => {
+      const missing = '00000000-0000-4000-8000-000000000001';
+      const adjust = (body: Record<string, unknown>) =>
+        request(app.getHttpServer()).post('/api/v1/credit/admin/adjust').set('Authorization', `Bearer ${adminToken}`).send(body);
+
+      it.each([
+        ['a non-UUID userId', { userId: 'not-a-uuid', purchasedDelta: 1 }],
+        ['a missing userId', { purchasedDelta: 1 }],
+        ['a non-numeric delta', { userId: missing, purchasedDelta: '5; DROP' }],
+        ['a fractional delta', { userId: missing, dailyDelta: 1.5 }],
+        ['an absurdly large delta', { userId: missing, purchasedDelta: 10_000_000 }],
+        ['an unknown field', { userId: missing, purchasedDelta: 1, role: 'SUPER_ADMIN' }],
+        ['an over-long reason', { userId: missing, purchasedDelta: 1, reason: 'x'.repeat(256) }],
+      ])('rejects %s with 400 and leaves the wallet unchanged', async (_label, body) => {
+        const res = await adjust(body);
+        expect(res.status).toBe(400);
+
+        const walletRes = await request(app.getHttpServer()).get('/api/v1/credit/wallet').set('Authorization', `Bearer ${userToken}`);
+        const walletData = walletRes.body.data || walletRes.body;
+        expect(walletData.balance).toBe(30);
+      });
     });
   });
 });

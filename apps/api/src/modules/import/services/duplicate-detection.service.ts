@@ -30,13 +30,17 @@ export class DuplicateDetectionService {
 
     // 1. Identifier Matching (100% confidence for statutory IDs)
     if (record.identifiers && record.identifiers.length > 0) {
-      const normalizedValues = record.identifiers.map((i) => i.normalizedValue);
-      const identifierHits = await this.db.query.businessIdentifiers.findMany({
-        where: inArray(schema.businessIdentifiers.normalizedValue, normalizedValues),
-        with: { business: true },
-      });
+      // a blank value matches nothing, and a value only matches an identifier of the SAME kind (a registration number is not a GSTIN)
+      const wanted = record.identifiers.filter((i) => (i.normalizedValue ?? '').trim().length >= 4);
+      const identifierHits = wanted.length
+        ? await this.db.query.businessIdentifiers.findMany({
+            where: inArray(schema.businessIdentifiers.normalizedValue, wanted.map((i) => i.normalizedValue)),
+            with: { business: true },
+          })
+        : [];
 
       for (const hit of identifierHits) {
+        if (!wanted.some((w) => w.type === hit.type && w.normalizedValue === hit.normalizedValue)) continue;
         matches.push({
           matchedBusinessId: hit.businessId,
           confidenceScore: 100.0,

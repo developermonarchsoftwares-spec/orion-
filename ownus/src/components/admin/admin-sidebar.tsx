@@ -12,6 +12,7 @@ import {
   Layers,
   Sparkles,
   CheckCircle2,
+  UserCheck,
   Users,
   CreditCard,
   BarChart3,
@@ -77,6 +78,8 @@ export function AdminSidebar({
         { id: 'records', label: 'Business Records', icon: Database, badge: '1.2M+' },
         { id: 'import', label: 'Import Data', icon: UploadCloud },
         { id: 'history', label: 'Import History', icon: History, alertCount: badgeCounts.failedImports },
+        { id: 'upload_ops', label: 'Upload Operations', icon: UploadCloud },
+        { id: 'people_import', label: 'People Import', icon: UserCheck },
       ]
     },
     {
@@ -85,6 +88,8 @@ export function AdminSidebar({
         { id: 'validation', label: 'Data Validation', icon: ShieldAlert, alertCount: badgeCounts.validationErrors },
         { id: 'duplicates', label: 'Duplicate Manager', icon: CopyX, alertCount: badgeCounts.duplicates },
         { id: 'publish_queue', label: 'Publish Queue', icon: Layers, alertCount: badgeCounts.pendingReviews },
+        { id: 'people_review', label: 'People Review', icon: UserCheck },
+        { id: 'data_quality', label: 'Data Quality Metrics', icon: ShieldAlert },
         { id: 'enrichment', label: 'Data Enrichment', icon: Sparkles, tag: 'LEGACY' },
         { id: 'published', label: 'Published Businesses', icon: CheckCircle2 },
       ]

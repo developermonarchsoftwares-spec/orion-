@@ -1,3 +1,7 @@
+// SAFETY: this script writes test data. It only runs against a disposable LOCAL Orion database named in SCRATCH_DATABASE_URL
+// (orion_scratch, orion_test_*, ...), never the real orion_db and never another application's database. See ownus/scratch_target.js.
+const { guardLegacyScratchWriter } = require('../ownus/scratch_target.js');
+const guardedUrl = guardLegacyScratchWriter();
 const { Pool } = require('pg');
 require('dotenv').config({ path: 'ownus/.env.local' });
 

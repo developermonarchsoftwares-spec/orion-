@@ -15,3 +15,26 @@ node_modules
 dist
 build
 .git
+
+# Phase 14: secrets and private artifacts never enter an image. The Dockerfiles COPY whole directories (apps/api, ownus), so a local .env file
+# used to be copied into the image layers; only the *.example templates are kept.
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.production.example
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/id_rsa*
+**/.npmrc
+**/*.log
+**/*.tsbuildinfo
+**/scratch
+**/scratch_*
+**/.claude
+docs
+ops
+tests
+brag-output*
+showreel*

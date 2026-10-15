@@ -1,3 +1,7 @@
+// SAFETY: this script writes test data. It only runs against a disposable LOCAL Orion database named in SCRATCH_DATABASE_URL
+// (orion_scratch, orion_test_*, ...), never the real orion_db and never another application's database. See ownus/scratch_target.js.
+const { guardLegacyScratchWriter } = require('../scratch_target.js');
+const guardedUrl = guardLegacyScratchWriter();
 const { Pool } = require('pg');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -20,12 +24,11 @@ function getDatabaseUrl() {
   return process.env.DATABASE_URL;
 }
 
-const dbUrl = getDatabaseUrl();
+const dbUrl = guardedUrl;
 console.log('Connecting to PostgreSQL database for login test...');
 
 const pool = new Pool({
-  connectionString: dbUrl,
-  ssl: { rejectUnauthorized: false },
+  connectionString: dbUrl
 });
 
 function verifyPassword(password, storedHashStr) {

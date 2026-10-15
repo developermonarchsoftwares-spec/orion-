@@ -8,7 +8,7 @@ import { IRefreshTokenPayload } from '@orion/shared';
 @Injectable()
 export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
   constructor(configService: ConfigService) {
-    const secret = configService.get<string>('jwt.refreshSecret') || 'orion_refresh_secret_key_default_2026';
+    const secret = configService.getOrThrow<string>('jwt.refreshSecret'); // no built-in fallback
     const issuer = configService.get<string>('jwt.issuer') || 'orion-api';
     const audience = configService.get<string>('jwt.audience') || 'orion-client';
 
@@ -20,6 +20,7 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
       ]),
       ignoreExpiration: false,
       secretOrKey: secret,
+      algorithms: ['HS256'],
       passReqToCallback: true,
       issuer,
       audience,

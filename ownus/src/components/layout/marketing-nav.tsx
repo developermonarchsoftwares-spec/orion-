@@ -10,7 +10,10 @@ export function MarketingNav() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { resolvedTheme, setTheme } = useTheme();
-  const isDark = resolvedTheme === 'dark';
+  // The theme is only known in the browser; rendering it before mount made the server HTML (moon) differ from the client's first render (sun).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const isDark = mounted && resolvedTheme === 'dark';
 
   const toggleTheme = () => setTheme(isDark ? 'light' : 'dark');
 

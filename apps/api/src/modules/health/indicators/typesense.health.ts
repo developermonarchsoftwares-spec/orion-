@@ -15,11 +15,12 @@ export class TypesenseHealthIndicator extends HealthIndicator {
   async isHealthy(key = 'typesense'): Promise<HealthIndicatorResult> {
     const provider = (this.configService.get<string>('SEARCH_PROVIDER') || 'postgres').toLowerCase();
     if (provider !== 'typesense') {
-      return this.getStatus(key, true, { status: 'skipped_postgres_active' });
+      // Terminus lists only results whose status is exactly "up" or "down": "skipped" is up with a note (it used to vanish from the report)
+      return this.getStatus(key, true, { note: 'skipped_postgres_active' });
     }
 
     const isConnected = await this.typesenseService.ping();
-    const result = this.getStatus(key, isConnected, { status: isConnected ? 'up' : 'down' });
+    const result = this.getStatus(key, isConnected);
 
     if (isConnected) {
       return result;

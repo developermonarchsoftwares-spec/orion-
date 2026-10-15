@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  ParseUUIDPipe,
   Query,
   UseGuards,
   HttpCode,
@@ -23,6 +24,7 @@ import {
 import { CurrentUser } from '../../auth/decorators';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { IJwtPayload } from '@orion/shared';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Saved Leads')
 @Controller('saved-leads')
@@ -57,7 +59,7 @@ export class SavedLeadsController {
   @ApiResponse({ status: 200, description: 'Lead updated' })
   async updateSavedLead(
     @CurrentUser() user: IJwtPayload,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateSavedLeadDto,
   ) {
     return this.savedLeadsService.updateSavedLead(user.sub, id, dto);
@@ -68,11 +70,12 @@ export class SavedLeadsController {
   @ApiResponse({ status: 200, description: 'Lead removed' })
   async removeLead(
     @CurrentUser() user: IJwtPayload,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     return this.savedLeadsService.removeLead(user.sub, id);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('bulk-save')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Bulk save multiple businesses' })
@@ -84,6 +87,7 @@ export class SavedLeadsController {
     return this.savedLeadsService.bulkSave(user.sub, dto);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('bulk-delete')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Bulk remove multiple saved leads' })

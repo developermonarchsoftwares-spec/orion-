@@ -1,6 +1,17 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { adminFetch, ADMIN_SESSION_EXPIRED_EVENT } from '@/lib/admin-fetch';
+import { normalizeActivityLogs } from '@/lib/admin-activity';
+import {
+  OTP_TTL_SECONDS,
+  RESEND_AFTER_SECONDS,
+  clearPending,
+  interpretSendResponse,
+  interpretVerifyFailure,
+  loadPending,
+  savePending,
+} from '@/lib/admin-otp-flow';
 import { useAdminTheme } from '@/components/admin/admin-theme-context';
 import { 
   ShieldCheck, 
@@ -71,6 +82,11 @@ import { ImportHistoryView } from '@/components/admin/views/import-history-view'
 import { DataValidationView } from '@/components/admin/views/data-validation-view';
 import { DuplicateManagerView } from '@/components/admin/views/duplicate-manager-view';
 import { PublishQueueView } from '@/components/admin/views/publish-queue-view';
+import { PeopleReviewView } from '@/components/admin/views/people-review-view';
+import { isReviewUrl } from '@/lib/people-review-url';
+import { UploadOperationsView } from '@/components/admin/views/upload-operations-view';
+import { PeopleImportView } from '@/components/admin/views/people-import-view';
+import { DataQualityMetricsView } from '@/components/admin/views/data-quality-metrics-view';
 import { DataEnrichmentView } from '@/components/admin/views/data-enrichment-view';
 import { PublishedBusinessesView } from '@/components/admin/views/published-businesses-view';
 import { UsersManagementView } from '@/components/admin/views/users-management-view';
@@ -106,16 +122,20 @@ export default function AdminPortalPage() {
   const [otpCode, setOtpCode] = useState<string>('');
   const [authLoading, setAuthLoading] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [otpCountdown, setOtpCountdown] = useState<number>(300);
+  const [otpCountdown, setOtpCountdown] = useState<number>(OTP_TTL_SECONDS);
+  // set when the server locked the current code (too many wrong tries): a new code may be requested at once
+  const [otpLocked, setOtpLocked] = useState<boolean>(false);
 
   // Navigation State
-  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
+  // a People Review link (?section=people_review...) opens that section; no other section is addressable by URL. (Only rendered after the
+  // sign-in gate, which is client-only, so reading the URL here cannot cause a hydration mismatch.)
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => (typeof window !== 'undefined' && isReviewUrl(window.location.search) ? 'people_review' : 'dashboard'));
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Independent Admin Theme State (completely isolated from Customer Portal theme)
   const { isDark, toggleAdminTheme } = useAdminTheme();
 
-  // Core Data Stores with Full Workflow Persistence via Neon PostgreSQL
+  // Core Data Stores with Full Workflow Persistence via PostgreSQL
   const [records, setRecords] = useState<AdminBusinessRecord[]>(INITIAL_ADMIN_BUSINESSES);
   const [batches, setBatches] = useState<ImportBatch[]>(INITIAL_IMPORT_BATCHES);
   const [duplicatePairs, setDuplicatePairs] = useState<DuplicatePair[]>(INITIAL_DUPLICATES);
@@ -167,8 +187,28 @@ export default function AdminPortalPage() {
     if (token && storedEmail && isAuthEmail(storedEmail)) {
       setAdminEmail(storedEmail.trim().toLowerCase());
       setIsAdminAuthenticated(true);
+    } else {
+      // a code was sent shortly before this page was refreshed or reopened: go straight back to the code step
+      const pending = loadPending(typeof window !== 'undefined' ? window.sessionStorage : null);
+      if (pending && isAuthEmail(pending.email)) {
+        setInputEmail(pending.email);
+        setOtpCountdown(pending.secondsLeft);
+        setAuthStep('otp');
+      }
     }
     setIsCheckingAuth(false);
+  }, []);
+
+  // A 401 from any admin call (token expired or revoked) returns the console to its sign-in screen
+  useEffect(() => {
+    const onExpired = () => {
+      setIsAdminAuthenticated(false);
+      setAuthStep('email');
+      setOtpCode('');
+      setAuthError('Your administrator session has ended. Please sign in again.');
+    };
+    window.addEventListener(ADMIN_SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(ADMIN_SESSION_EXPIRED_EVENT, onExpired);
   }, []);
 
   // OTP Countdown timer
@@ -206,14 +246,24 @@ export default function AdminPortalPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: cleanEmail }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Failed to generate verification code.');
+      const data = await res.json().catch(() => ({}));
+      const outcome = interpretSendResponse(res.status, data);
+      if (outcome.kind === 'error') {
+        throw new Error(outcome.error);
       }
+      const storage = typeof window !== 'undefined' ? window.sessionStorage : null;
+      if (outcome.kind === 'sent') {
+        savePending(storage, cleanEmail);
+        setOtpCountdown(OTP_TTL_SECONDS);
+      } else {
+        // 429: the previous code is still valid, so continue to the code step with the time that remains for it
+        const pending = loadPending(storage);
+        setOtpCountdown(pending && pending.email === cleanEmail ? pending.secondsLeft : OTP_TTL_SECONDS - RESEND_AFTER_SECONDS);
+      }
+      setOtpLocked(false);
       setAuthStep('otp');
-      setOtpCountdown(300);
       setOtpCode('');
-      showToast(data.message || `Verification code sent to ${cleanEmail}. Check your inbox.`);
+      showToast(outcome.notice);
     } catch (err: any) {
       setAuthError(err.message || 'Unable to send verification code. Please try again.');
     } finally {
@@ -240,11 +290,15 @@ export default function AdminPortalPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: cleanEmail, otp: cleanOtp }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Invalid or expired verification code.');
+        const failure = interpretVerifyFailure(res.status, data?.message);
+        if (failure.reason === 'locked') setOtpLocked(true);
+        setOtpCode('');
+        throw new Error(failure.error);
       }
       if (typeof window !== 'undefined') {
+        clearPending(window.sessionStorage);
         localStorage.setItem('orion_admin_token', data.data.adminToken);
         localStorage.setItem('orion_admin_email', cleanEmail);
       }
@@ -284,11 +338,11 @@ export default function AdminPortalPage() {
     const fetchAdminData = async () => {
       try {
         const [bizRes, batchRes, usersRes, txRes, logsRes] = await Promise.all([
-          fetch('/api/v1/admin/businesses').then(r => r.ok ? r.json() : null),
-          fetch('/api/v1/admin/import/batches').then(r => r.ok ? r.json() : null),
-          fetch('/api/v1/admin/users').then(r => r.ok ? r.json() : null),
-          fetch('/api/v1/admin/transactions').then(r => r.ok ? r.json() : null),
-          fetch('/api/v1/admin/activity-logs').then(r => r.ok ? r.json() : null),
+          adminFetch('/api/v1/admin/businesses').then(r => r.ok ? r.json() : null),
+          adminFetch('/api/v1/admin/import/batches').then(r => r.ok ? r.json() : null),
+          adminFetch('/api/v1/admin/users').then(r => r.ok ? r.json() : null),
+          adminFetch('/api/v1/admin/transactions').then(r => r.ok ? r.json() : null),
+          adminFetch('/api/v1/admin/activity-logs').then(r => r.ok ? r.json() : null),
         ]);
 
         if (!isMounted) return;
@@ -296,7 +350,7 @@ export default function AdminPortalPage() {
         if (batchRes && Array.isArray(batchRes.data)) setBatches(batchRes.data);
         if (usersRes && Array.isArray(usersRes.data)) setCustomerUsers(usersRes.data);
         if (txRes && Array.isArray(txRes.data)) setTransactions(txRes.data);
-        if (logsRes && Array.isArray(logsRes.data)) setActivityLogs(logsRes.data);
+        if (logsRes && Array.isArray(logsRes.data)) setActivityLogs(normalizeActivityLogs(logsRes.data));
       } catch (err) {
         console.error('Failed to fetch admin live data:', err);
       }
@@ -370,11 +424,13 @@ export default function AdminPortalPage() {
     };
     setActivityLogs(prev => [newLog, ...prev]);
 
-    fetch('/api/v1/admin/businesses', {
+    adminFetch('/api/v1/admin/businesses', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ businesses: [{ id: recordId, status: newStatus }] }),
-    }).catch(() => {});
+    })
+      .then((res) => { if (!res.ok && res.status !== 401) showToast(`Could not save the change (HTTP ${res.status}). It was not stored; reload to see the current state.`); })
+      .catch(() => showToast('Could not reach the server. The change was not stored; reload to see the current state.'));
 
     showToast(`Status updated to ${newStatus.toUpperCase()}`);
   };
@@ -399,11 +455,13 @@ export default function AdminPortalPage() {
       return updated;
     });
 
-    fetch('/api/v1/admin/businesses', {
+    adminFetch('/api/v1/admin/businesses', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ businesses: ids.map(id => ({ id, status: newStatus })) }),
-    }).catch(() => {});
+    })
+      .then((res) => { if (!res.ok && res.status !== 401) showToast(`Could not save the change (HTTP ${res.status}). It was not stored; reload to see the current state.`); })
+      .catch(() => showToast('Could not reach the server. The change was not stored; reload to see the current state.'));
 
     const newLog: ActivityLogEntry = {
       id: `act-${Date.now()}`,
@@ -431,7 +489,7 @@ export default function AdminPortalPage() {
       entityType: 'Business',
       entityId: 'BULK_DELETE',
       entityName: `${ids.length} Business Records`,
-      details: `Bulk deleted ${ids.length} records from repository and Neon PostgreSQL database.`,
+      details: `Bulk deleted ${ids.length} records from repository and the PostgreSQL database.`,
       ipAddress: '192.168.1.1',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     };
@@ -1081,6 +1139,9 @@ export default function AdminPortalPage() {
                   <p className="text-xs text-zinc-400 max-w-[280px] mx-auto leading-relaxed">
                     We sent a 6-digit verification code to <span className="font-semibold text-white">{inputEmail}</span>. Enter it below to access the console.
                   </p>
+                  <p className="text-[11px] text-zinc-500 max-w-[300px] mx-auto leading-relaxed">
+                    Not there yet? Check spam. Codes are sent only to active administrator accounts, and each code works for 5 minutes and 5 tries.
+                  </p>
                 </div>
 
                 <div className="space-y-1.5 pt-2">
@@ -1106,7 +1167,7 @@ export default function AdminPortalPage() {
                     <button
                       type="button"
                       onClick={() => handleSendOtp()}
-                      disabled={authLoading || otpCountdown > 240}
+                      disabled={authLoading || (!otpLocked && otpCountdown > OTP_TTL_SECONDS - RESEND_AFTER_SECONDS)}
                       className="text-zinc-300 hover:text-white disabled:opacity-40 disabled:hover:text-zinc-500 transition-colors cursor-pointer"
                     >
                       Resend Code
@@ -1136,8 +1197,10 @@ export default function AdminPortalPage() {
                   <button
                     type="button"
                     onClick={() => {
+                      if (typeof window !== 'undefined') clearPending(window.sessionStorage);
                       setAuthStep('email');
                       setOtpCode('');
+                      setOtpLocked(false);
                       setAuthError(null);
                     }}
                     className="text-xs text-zinc-400 hover:text-zinc-200 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -1231,7 +1294,7 @@ export default function AdminPortalPage() {
                 onRetryBatch={batchId => showToast(`Retrying batch ${batchId}...`)}
                 onDeleteBatch={async (batchId) => {
                   setBatches(prev => prev.filter(b => b.id !== batchId));
-                  await fetch('/api/v1/admin/import/batches', {
+                  await adminFetch('/api/v1/admin/import/batches', {
                     method: 'DELETE',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: batchId }),
@@ -1275,6 +1338,16 @@ export default function AdminPortalPage() {
                 onBulkStatusChange={handleBulkStatusChange}
                 onBulkDelete={handleBulkDelete}
               />
+            )}
+
+            {activeTab === 'upload_ops' && <UploadOperationsView />}
+
+            {activeTab === 'people_import' && <PeopleImportView />}
+
+            {activeTab === 'data_quality' && <DataQualityMetricsView />}
+
+            {activeTab === 'people_review' && (
+              <PeopleReviewView />
             )}
 
             {activeTab === 'enrichment' && (

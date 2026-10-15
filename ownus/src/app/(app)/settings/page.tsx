@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
-import { User, Lock, Bell, CreditCard, Settings2, Palette, Code, Check, Copy, RefreshCw, Loader2, Eye, EyeOff } from "lucide-react";
+import { User, Lock, Bell, CreditCard, Settings2, Palette, Code, ShieldCheck, Check, Copy, RefreshCw, Loader2, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
+import { PrivacyPanel } from "@/components/privacy/privacy-panel";
 
 function GoogleIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
@@ -50,6 +51,7 @@ const tabs = [
   { id: "preferences", label: "Preferences", icon: Settings2 },
   { id: "theme", label: "Theme", icon: Palette },
   { id: "api", label: "API", icon: Code },
+  { id: "privacy", label: "Privacy & Data", icon: ShieldCheck },
 ];
 
 export default function SettingsPage() {
@@ -847,6 +849,9 @@ export default function SettingsPage() {
               </div>
             </div>
           )}
+
+          {/* Privacy Tab */}
+          {activeTab === "privacy" && <PrivacyPanel />}
 
           {/* API Tab */}
           {activeTab === "api" && (

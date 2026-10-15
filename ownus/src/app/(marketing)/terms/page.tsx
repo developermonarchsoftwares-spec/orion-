@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 export default function TermsPage() {
-  const lastUpdated = 'September 18, 2026';
+  const lastUpdated = 'October 7, 2026';
 
   const sections = [
     { id: 'acceptance', title: '1. Acceptance of Terms' },
@@ -228,7 +228,7 @@ export default function TermsPage() {
                 <li>Your usage imposes an abnormal burden on our platform infrastructure or endangers system security.</li>
               </ul>
               <p>
-                You may terminate your account at any time by contacting support or deleting your account via your settings dashboard.
+                You may terminate your account at any time by contacting support or deleting your account in Settings → Privacy & Data. Deletion takes effect after a 7-day cooling-off period, handles your personal data as described in our <Link href="/privacy" className="underline">Privacy Policy</Link>, and does not release unpaid amounts or remove records we must keep by law.
               </p>
             </section>
 

@@ -28,6 +28,7 @@ export class CreateSavedSearchDto {
   @ApiPropertyOptional({ default: 'DAILY', description: 'Alert frequency: DAILY, WEEKLY, REALTIME' })
   @IsOptional()
   @IsString()
+  @MaxLength(20)
   alertFrequency?: string;
 }
 
@@ -51,5 +52,6 @@ export class UpdateSavedSearchDto {
   @ApiPropertyOptional({ description: 'Alert frequency' })
   @IsOptional()
   @IsString()
+  @MaxLength(20)
   alertFrequency?: string;
 }

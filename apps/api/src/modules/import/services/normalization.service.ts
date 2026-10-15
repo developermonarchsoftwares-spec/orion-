@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { StringUtil } from '../../../common/utils/string.util';
+import { parseLinkedinPageUrl, parsePublicUrl } from '../../../common/utils/public-url.util';
 import { IdentifierType } from '@orion/shared';
 
 export interface INormalizedRecordResult {
@@ -30,6 +31,8 @@ export interface INormalizedRecordResult {
     url: string;
     domain?: string;
   }>;
+  /** URL values that were supplied but are not safe public http(s) addresses; they were not stored (see ValidationService). */
+  rejectedUrls?: Array<{ field: string; reason: string }>;
   identifiers: Array<{
     type: IdentifierType;
     value: string;
@@ -88,21 +91,23 @@ export class NormalizationService {
 
     // 4. Digital Presence Normalization
     const digitalPresences: INormalizedRecordResult['digitalPresences'] = [];
+    const rejectedUrls: NonNullable<INormalizedRecordResult['rejectedUrls']> = [];
+    // Imported URLs are untrusted text that customers will later see as links. Only a clean public http(s) address is stored; anything
+    // else (javascript:, data:, credentials, an internal host, a non-LinkedIn page in the LinkedIn field) is left out and reported as a
+    // validation warning, so the record still flows through the normal review and publish steps without the bad link.
     if (raw.website || raw.websiteUrl) {
-      const rawWeb = String(raw.website || raw.websiteUrl).trim();
-      const domain = StringUtil.extractDomain(rawWeb);
-      digitalPresences.push({
-        platform: 'WEBSITE',
-        url: rawWeb.startsWith('http') ? rawWeb : `https://${rawWeb}`,
-        domain: domain || undefined,
-      });
+      const web = parsePublicUrl(String(raw.website || raw.websiteUrl));
+      if (web.ok) {
+        digitalPresences.push({ platform: 'WEBSITE', url: web.url, domain: StringUtil.extractDomain(web.url) || undefined });
+      } else {
+        rejectedUrls.push({ field: 'website', reason: web.reason });
+      }
     }
 
     if (raw.linkedin || raw.linkedinUrl) {
-      digitalPresences.push({
-        platform: 'LINKEDIN',
-        url: String(raw.linkedin || raw.linkedinUrl).trim(),
-      });
+      const li = parseLinkedinPageUrl(String(raw.linkedin || raw.linkedinUrl));
+      if (li.ok) digitalPresences.push({ platform: 'LINKEDIN', url: li.url });
+      else rejectedUrls.push({ field: 'linkedin', reason: li.reason });
     }
 
     // 5. Identifiers Normalization (GSTIN, PAN, CIN, UDYAM)
@@ -153,6 +158,7 @@ export class NormalizationService {
       locations,
       contacts,
       digitalPresences,
+      rejectedUrls: rejectedUrls.length ? rejectedUrls : undefined,
       identifiers,
       raw,
     };

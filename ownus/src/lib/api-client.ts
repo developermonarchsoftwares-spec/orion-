@@ -73,13 +73,15 @@ export class ApiClient {
       headers.set('Content-Type', 'application/json');
     }
 
-    const effectiveToken =
-      this.accessToken ||
-      (typeof window !== 'undefined'
-        ? localStorage.getItem('orion_access_token') || localStorage.getItem('orion_admin_token')
-        : null);
+    const isAdminEndpoint = endpoint.includes('/admin');
+    const adminToken = typeof window !== 'undefined' ? localStorage.getItem('orion_admin_token') : null;
+    const customerToken = this.accessToken || (typeof window !== 'undefined' ? localStorage.getItem('orion_access_token') : null);
 
-    if (effectiveToken && !this.accessToken) {
+    const effectiveToken = isAdminEndpoint
+      ? (adminToken || customerToken)
+      : (customerToken || adminToken);
+
+    if (effectiveToken && !this.accessToken && !isAdminEndpoint) {
       this.accessToken = effectiveToken;
     }
 
@@ -93,9 +95,13 @@ export class ApiClient {
         headers,
       });
 
-      // Handle 401 Unauthorized with automatic Token Refresh
-      if (response.status === 401 && this.refreshToken && !endpoint.includes('/auth/')) {
-        const refreshed = await this.tryRefreshToken();
+      // Handle 401 Unauthorized with automatic Token Refresh. Refresh tokens are single-use (a replay revokes the whole
+      // session), so every request that fails at the same time must share ONE refresh, never start its own.
+      if (response.status === 401 && !endpoint.includes('/auth/') && (this.refreshToken || this.readStoredRefreshToken())) {
+        const sentAuth = headers.get('Authorization');
+        // another request already refreshed while this one was in flight: just retry with the new access token
+        const alreadyRefreshed = !!this.accessToken && sentAuth !== `Bearer ${this.accessToken}`;
+        const refreshed = alreadyRefreshed || (await this.tryRefreshToken());
         if (refreshed) {
           headers.set('Authorization', `Bearer ${this.accessToken}`);
           const retryResponse = await fetch(url, { ...options, headers });
@@ -117,7 +123,30 @@ export class ApiClient {
     }
   }
 
-  private async tryRefreshToken(): Promise<boolean> {
+  private refreshInFlight: Promise<boolean> | null = null;
+
+  /** The refresh token another tab may have rotated since this page loaded. */
+  private readStoredRefreshToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      return localStorage.getItem('orion_refresh_token');
+    } catch {
+      return null;
+    }
+  }
+
+  /** One refresh at a time: concurrent callers await the same request. */
+  private tryRefreshToken(): Promise<boolean> {
+    if (!this.refreshInFlight) {
+      this.refreshInFlight = this.doRefreshToken().finally(() => {
+        this.refreshInFlight = null;
+      });
+    }
+    return this.refreshInFlight;
+  }
+
+  private async doRefreshToken(): Promise<boolean> {
+    this.refreshToken = this.readStoredRefreshToken() || this.refreshToken;
     if (!this.refreshToken) return false;
     try {
       const baseUrl = this.getBaseUrl();
@@ -194,6 +223,9 @@ export class ApiClient {
 
   auth = {
     getMe: () => this.request('/auth/me'),
+    /** Sign-up e-mail verification: ask for a code (also used to resend), then exchange it for a one-time proof that `register` must carry. */
+    sendOtp: (email: string) => this.request('/auth/send-otp', { method: 'POST', body: JSON.stringify({ email, purpose: 'REGISTER' }) }),
+    verifyOtp: (email: string, otp: string) => this.request('/auth/verify-otp', { method: 'POST', body: JSON.stringify({ email, otp, purpose: 'REGISTER' }) }),
     register: (dto: any) => this.request('/auth/register', { method: 'POST', body: JSON.stringify(dto) }),
     login: (dto: any) => this.request('/auth/login', { method: 'POST', body: JSON.stringify(dto) }),
     refresh: (refreshToken: string) => this.request('/auth/refresh', { method: 'POST', body: JSON.stringify({ refreshToken }) }),
@@ -261,6 +293,19 @@ export class ApiClient {
       if (params.format) queryStr.append('format', params.format);
       return this.request(`/discover/export?${queryStr.toString()}`);
     },
+  };
+
+  /** People / Decision Maker layer. Contact values only arrive for people the user has unlocked. */
+  people = {
+    taxonomy: () => this.request('/people/taxonomy'),
+    listForCompany: (businessId: string, params: Record<string, string> = {}) =>
+      this.request(`/companies/${businessId}/people?${new URLSearchParams(params).toString()}`),
+    get: (personId: string) => this.request(`/people/${personId}`),
+    unlock: (personId: string) => this.request(`/people/${personId}/unlock`, { method: 'POST', body: '{}' }),
+    listUnlocked: (page = 1, limit = 20) => this.request(`/people/unlocked?page=${page}&limit=${limit}`),
+    /** CSV of the caller's unlocked people (server-enforced). Resolves to the CSV text. */
+    exportUnlocked: (personIds?: string[]) =>
+      this.request<string>('/people/export', { method: 'POST', body: JSON.stringify(personIds?.length ? { personIds } : {}) }),
   };
 
   businesses = {
@@ -332,11 +377,14 @@ export class ApiClient {
         date: tx.date || new Date().toISOString().split('T')[0],
       });
 
+      const adminToken = typeof window !== 'undefined' ? localStorage.getItem('orion_admin_token') : null;
+      const effectiveToken = adminToken || this.getAccessToken();
+
       const url = `${baseUrl}/invoices/download?${params.toString()}`;
       const response = await fetch(url, {
         headers: {
           'Accept': 'application/pdf',
-          ...(this.getAccessToken() ? { 'Authorization': `Bearer ${this.getAccessToken()}` } : {}),
+          ...(effectiveToken ? { 'Authorization': `Bearer ${effectiveToken}` } : {}),
         },
       });
 

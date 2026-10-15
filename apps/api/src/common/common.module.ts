@@ -4,6 +4,7 @@ import { LoggingInterceptor } from './interceptors/logging.interceptor';
 import { TimeoutInterceptor } from './interceptors/timeout.interceptor';
 import { RequestIdMiddleware } from './middleware/request-id.middleware';
 import { AuditLogService } from './services/audit-log.service';
+import { SecuritySignalService } from './services/security-signal.service';
 
 @Global()
 @Module({
@@ -13,6 +14,7 @@ import { AuditLogService } from './services/audit-log.service';
     TimeoutInterceptor,
     RequestIdMiddleware,
     AuditLogService,
+    SecuritySignalService,
   ],
   exports: [
     TransformInterceptor,
@@ -20,6 +22,7 @@ import { AuditLogService } from './services/audit-log.service';
     TimeoutInterceptor,
     RequestIdMiddleware,
     AuditLogService,
+    SecuritySignalService,
   ],
 })
 export class CommonModule {}

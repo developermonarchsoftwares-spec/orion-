@@ -8,6 +8,9 @@ import * as schema from '../../database/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { CreditTransactionType } from '@orion/shared';
 import { AuditLogService } from '../../common/services/audit-log.service';
+import { MailService } from '../../auth/mail/mail.service';
+import { IntegrationEventsService } from '../integrations/integration-events.service';
+import { safeIntSetting, safeNumberSetting, validatePricingSetting } from './pricing-settings.validation';
 
 @Injectable()
 export class CreditService {
@@ -18,6 +21,8 @@ export class CreditService {
     @Inject(DRIZZLE_DATABASE)
     private readonly db: DrizzleDb,
     @Optional() private readonly auditLogService?: AuditLogService,
+    @Optional() private readonly mail?: MailService,
+    @Optional() private readonly events?: IntegrationEventsService,
   ) {}
 
   /**
@@ -87,8 +92,7 @@ export class CreditService {
       }
 
       // 2. Fetch configured daily credits amount
-      const dailySetting = await this.creditRepo.getPricingSetting('DAILY_FREE_CREDITS');
-      const dailyAmount = (dailySetting?.value as any)?.amount ?? 5;
+      const dailyAmount = await this.dailyAmountOn(tx);
 
       // 3. Allocate fresh daily credits
       const newDailyCredits = dailyAmount;
@@ -125,9 +129,26 @@ export class CreditService {
   }
 
   /**
+   * The configured daily allowance, read on the CALLER'S connection. It used to be read through the pool while the caller's
+   * transaction was open: each rollover then held one connection and waited for a second, so a burst of first-reads of a new day
+   * larger than the pool (60 against a pool of 20, measured) left every connection waiting for another until the 15 s connection
+   * timeout, and 56 of 60 requests failed with a 500.
+   */
+  private async dailyAmountOn(q: any): Promise<number> {
+    const [row] = await q.select().from(schema.pricingSettings).where(eq(schema.pricingSettings.key, 'DAILY_FREE_CREDITS')).limit(1);
+    return safeIntSetting(row?.value, 'amount', 5, 0, 1000);
+  }
+
+  /**
    * Retrieves or initializes wallet for user, ensuring daily credits are current
    */
   async getWallet(userId: string) {
+    // Fast path: a wallet whose daily allocation is already today's needs no write and no lock. Every wallet read used to open a
+    // transaction and take SELECT ... FOR UPDATE on the row (8 statements per request), so reads of one customer's wallet queued
+    // behind each other and behind that customer's own spending. Only the first read of a new day (and a missing wallet) goes
+    // through the locked path, which re-checks under the lock.
+    const current = await this.creditRepo.getWallet(userId);
+    if (current && current.lastDailyCreditDate === new Date().toISOString().slice(0, 10)) return current;
     await this.creditRepo.ensureWallet(userId);
     return this.syncDailyCredits(userId);
   }
@@ -149,8 +170,9 @@ export class CreditService {
       this.creditRepo.getPricingSetting('DEFAULT_CURRENCY'),
     ]);
 
-    const dailyFreeCredits = (dailySetting?.value as any)?.amount ?? 5;
-    const annualDiscountPercentage = (annualSetting?.value as any)?.percentage ?? 20;
+    // read back through the same ranges the admin endpoint enforces, so a bad stored value can never reach a wallet or a price
+    const dailyFreeCredits = safeIntSetting(dailySetting?.value, 'amount', 5, 0, 1000);
+    const annualDiscountPercentage = safeNumberSetting(annualSetting?.value, 'percentage', 20, 0, 99);
     const defaultCurrency = (currencySetting?.value as any)?.currency ?? 'INR';
     const currencySymbol = (currencySetting?.value as any)?.symbol ?? '₹';
 
@@ -214,12 +236,14 @@ export class CreditService {
     description: string,
     referenceId?: string,
     metadata?: Record<string, unknown>,
+    externalTx?: any,
   ) {
-    if (amount <= 0) {
-      throw new BusinessException('Credit amount must be greater than zero', 'INVALID_AMOUNT');
+    // whole credits only: `amount <= 0` alone lets NaN and fractions through, which would corrupt the wallet arithmetic
+    if (!Number.isInteger(amount) || amount <= 0) {
+      throw new BusinessException('Credit amount must be a whole number greater than zero', 'INVALID_AMOUNT');
     }
 
-    return this.db.transaction(async (tx) => {
+    const run = async (tx: any) => {
       // Find and lock wallet row
       let [wallet] = await tx
         .select()
@@ -285,7 +309,10 @@ export class CreditService {
         wallet: updatedWallet,
         transaction,
       };
-    });
+    };
+
+    // joins the caller's transaction when given one (so a caller can hold a lock across its own check and this credit)
+    return externalTx ? run(externalTx) : this.db.transaction(run);
   }
 
   /**
@@ -299,8 +326,8 @@ export class CreditService {
     type: CreditTransactionType | string = 'UNLOCK_LEAD',
     externalTx?: any,
   ) {
-    if (amount <= 0) {
-      throw new BusinessException('Credit deduction must be greater than zero', 'INVALID_AMOUNT');
+    if (!Number.isInteger(amount) || amount <= 0) {
+      throw new BusinessException('Credit deduction must be a whole number greater than zero', 'INVALID_AMOUNT');
     }
 
     const runner = externalTx || this.db;
@@ -335,8 +362,7 @@ export class CreditService {
           });
         }
 
-        const dailySetting = await this.creditRepo.getPricingSetting('DAILY_FREE_CREDITS');
-        const dailyAmount = (dailySetting?.value as any)?.amount ?? 5;
+        const dailyAmount = await this.dailyAmountOn(tx);
 
         wallet.dailyCredits = dailyAmount;
         wallet.balance = wallet.dailyCredits + wallet.purchasedCredits;
@@ -362,7 +388,7 @@ export class CreditService {
           `Insufficient credits. Required: ${amount}, Available: ${totalAvailable} (Daily: ${wallet.dailyCredits}, Purchased: ${wallet.purchasedCredits}). Please purchase credits to continue.`,
           'INSUFFICIENT_CREDITS',
           HttpStatus.PAYMENT_REQUIRED,
-          { required: amount, available: totalAvailable, daily: wallet.dailyCredits, purchased: wallet.purchasedCredits },
+          { required: amount, available: totalAvailable, daily: wallet.dailyCredits, purchased: wallet.purchasedCredits, creditStatus: totalAvailable <= 0 ? 'EMPTY' : 'LOW', nextDailyResetAt: CreditService.nextDailyResetAt(), canTopUp: true },
         );
       }
 
@@ -425,26 +451,124 @@ export class CreditService {
     return this.db.transaction(executeDeduction);
   }
 
+
+  // ================= WALLET STATUS, LOW-CREDIT WARNING, ZERO-CREDIT RESTRICTION =================
+
+  /** Balance at or below which the customer is warned (pricing setting LOW_CREDIT_THRESHOLD, default 2). */
+  async getLowCreditThreshold(): Promise<number> {
+    const s = await this.creditRepo.getPricingSetting('LOW_CREDIT_THRESHOLD');
+    const n = Number((s?.value as any)?.amount);
+    return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 2;
+  }
+
+  private static nextDailyResetAt(): string {
+    const d = new Date();
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1)).toISOString();
+  }
+
+  /** OK, LOW (balance at or below the threshold) or EMPTY (nothing left: credit-spending actions are refused). */
+  async creditStatusOf(balance: number): Promise<'OK' | 'LOW' | 'EMPTY'> {
+    if (balance <= 0) return 'EMPTY';
+    return balance <= (await this.getLowCreditThreshold()) ? 'LOW' : 'OK';
+  }
+
+  /** The wallet plus what a client needs to warn or restrict: status, threshold, and when free credits next refresh. */
+  async getWalletWithStatus(userId: string) {
+    const wallet = await this.getWallet(userId);
+    const status = await this.creditStatusOf(wallet.balance);
+    return {
+      ...wallet,
+      creditStatus: status,
+      lowCreditThreshold: await this.getLowCreditThreshold(),
+      restricted: status === 'EMPTY',
+      nextDailyResetAt: CreditService.nextDailyResetAt(),
+    };
+  }
+
+  /**
+   * Call after a credit-spending action has committed. E-mails the customer once per UTC day per level (LOW, then EMPTY) when
+   * the balance has fallen to the warning threshold or to zero. Never throws: a mail problem must not fail the action.
+   */
+  async notifyIfLow(userId: string): Promise<'LOW' | 'EMPTY' | null> {
+    try {
+      const [wallet] = await this.db.select().from(schema.userWallets).where(eq(schema.userWallets.userId, userId)).limit(1);
+      if (!wallet) return null;
+      const status = await this.creditStatusOf(wallet.balance);
+      if (status === 'OK') return null;
+      const [user] = await this.db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+      if (!user) return null;
+      const today = new Date().toISOString().slice(0, 10);
+      const meta = (user.metadata as Record<string, any>) || {};
+      if (meta.creditAlert?.date === today && (meta.creditAlert.level === status || meta.creditAlert.level === 'EMPTY')) return null;
+      await this.db
+        .update(schema.users)
+        .set({ metadata: { ...meta, creditAlert: { date: today, level: status } } })
+        .where(eq(schema.users.id, userId));
+      await this.events?.emit(userId, status === 'EMPTY' ? 'credits.empty' : 'credits.low', { balance: wallet.balance, threshold: await this.getLowCreditThreshold() });
+      await this.mail?.send({
+        to: user.email,
+        subject: status === 'EMPTY' ? 'You are out of credits' : 'Your credits are running low',
+        text:
+          status === 'EMPTY'
+            ? 'You have no credits left, so unlocking and exports are paused. Free credits refresh at the start of the next day (UTC), or you can top up or choose a plan any time.'
+            : `You have ${wallet.balance} credit(s) left. Top up or choose a plan to avoid interruption.`,
+      });
+      return status;
+    } catch (err) {
+      this.logger.warn(`Low-credit notification failed for ${userId}: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
   // ================= ADMIN MANAGEMENT =================
 
   async getAllPackages() {
     return this.creditRepo.getAllPackages();
   }
 
-  async createPackage(dto: any) {
-    return this.creditRepo.createPackage(dto);
+  /** What an audit entry keeps of a package: the fields that decide what a customer pays and receives. */
+  private packageFacts(p: any) {
+    return p ? { slug: p.slug, name: p.name, credits: p.credits, priceInr: p.priceInr, isActive: p.isActive } : undefined;
   }
 
-  async updatePackage(id: string, dto: any) {
-    return this.creditRepo.updatePackage(id, dto);
+  async createPackage(dto: any, adminId?: string) {
+    const created = await this.creditRepo.createPackage(dto);
+    // Phase 25: a package decides what customers pay, so each change is attributed to the administrator who made it
+    await this.auditLogService?.record({ userId: adminId, action: 'CREDIT_PACKAGE_CREATED', entityType: 'CREDIT_PACKAGE', entityId: created.id, newValues: this.packageFacts(created) });
+    return created;
   }
 
-  async deletePackage(id: string) {
-    return this.creditRepo.deletePackage(id);
+  async updatePackage(id: string, dto: any, adminId?: string) {
+    const before = await this.creditRepo.getPackageByIdOrSlug(id);
+    if (!before) throw new BusinessException('Package not found', 'NOT_FOUND', HttpStatus.NOT_FOUND);
+    const updated = await this.creditRepo.updatePackage(id, dto);
+    await this.auditLogService?.record({ userId: adminId, action: 'CREDIT_PACKAGE_UPDATED', entityType: 'CREDIT_PACKAGE', entityId: id, oldValues: this.packageFacts(before), newValues: this.packageFacts(updated) });
+    return updated;
   }
 
-  async updatePricingSetting(key: string, value: any, description?: string) {
-    return this.creditRepo.upsertPricingSetting(key, value, description);
+  async deletePackage(id: string, adminId?: string) {
+    const before = await this.creditRepo.getPackageByIdOrSlug(id);
+    if (!before) throw new BusinessException('Package not found', 'NOT_FOUND', HttpStatus.NOT_FOUND);
+    const deleted = await this.creditRepo.deletePackage(id);
+    await this.auditLogService?.record({ userId: adminId, action: 'CREDIT_PACKAGE_DELETED', entityType: 'CREDIT_PACKAGE', entityId: id, oldValues: this.packageFacts(before) });
+    return deleted;
+  }
+
+  async updatePricingSetting(key: string, value: any, description?: string, adminId?: string) {
+    const checked = validatePricingSetting(key, value); // 400 for an unknown key, a wrong shape or an out-of-range number
+    const text = typeof description === 'string' ? description.slice(0, 255) : undefined;
+    const before = await this.creditRepo.getPricingSetting(key);
+    const saved = await this.creditRepo.upsertPricingSetting(key, checked, text);
+    // pricing changes move money (checkout price, free credits, tax), so each one is attributed to the administrator who made it
+    await this.auditLogService?.record({
+      userId: adminId,
+      action: 'PRICING_SETTING_UPDATED',
+      entityType: 'PRICING_SETTING',
+      entityId: key,
+      oldValues: before ? { value: before.value } : undefined,
+      newValues: { value: checked },
+    });
+    return saved;
   }
 
   async adjustUserCredits(
@@ -454,7 +578,12 @@ export class CreditService {
     reason: string,
     adminId: string,
   ) {
-    return this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
+      // Phase 25: the target must be a live account. Without this an unknown id reached the wallet insert and failed on the foreign key
+      // as an HTTP 500, and an erased account (an anonymised shell kept for the financial records) could be given credits.
+      const [target] = await tx.select({ id: schema.users.id, deletedAt: schema.users.deletedAt }).from(schema.users).where(eq(schema.users.id, userId));
+      if (!target || target.deletedAt) throw new BusinessException('Account not found', 'NOT_FOUND', HttpStatus.NOT_FOUND);
+
       let [wallet] = await tx
         .select()
         .from(schema.userWallets)
@@ -468,7 +597,8 @@ export class CreditService {
       const newDaily = Math.max(0, wallet.dailyCredits + dailyDelta);
       const newPurchased = Math.max(0, wallet.purchasedCredits + purchasedDelta);
       const newBalance = newDaily + newPurchased;
-      const totalDelta = dailyDelta + purchasedDelta;
+      // balances never go below zero, so the ledger records what was actually applied, not what was asked for
+      const totalDelta = newDaily - wallet.dailyCredits + (newPurchased - wallet.purchasedCredits);
 
       const [updatedWallet] = await tx
         .update(schema.userWallets)
@@ -497,15 +627,23 @@ export class CreditService {
         })
         .returning();
 
-      await this.auditLogService?.record({
-        userId: adminId,
-        action: 'CREDIT_ADJUSTMENT',
-        entityType: 'USER_WALLET',
-        entityId: wallet.id,
-        newValues: { targetUserId: userId, dailyDelta, purchasedDelta, totalDelta, reason, newBalance },
-      });
+      // Phase 13: an administrator's change to somebody's balance is recorded IN THE SAME TRANSACTION. If the audit row cannot be written the
+      // adjustment is rolled back, so a balance can never change without a record of who changed it.
+      await this.auditLogService?.recordStrict(
+        {
+          userId: adminId,
+          action: 'CREDIT_ADJUSTMENT',
+          entityType: 'USER_WALLET',
+          entityId: updatedWallet.id,
+          outcome: 'SUCCESS',
+          newValues: { targetUserId: userId, dailyDelta, purchasedDelta, totalDelta, reason, newBalance, transactionId: transaction.id },
+        },
+        tx,
+      );
 
-      return { wallet: updatedWallet, transaction };
+      return { wallet: updatedWallet, transaction, totalDelta, newBalance };
     });
+
+    return { wallet: result.wallet, transaction: result.transaction };
   }
 }

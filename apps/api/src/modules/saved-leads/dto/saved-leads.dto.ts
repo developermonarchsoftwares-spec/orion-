@@ -5,16 +5,28 @@ import {
   IsString,
   IsArray,
   IsUUID,
-  IsNumber,
+  IsInt,
+  ArrayMaxSize,
   Min,
+  Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+
+/** The most identifiers one bulk request may carry: each one costs database work, so the list is bounded, not only the request size. */
+export const MAX_BULK_IDS = 100;
 
 export class SaveLeadDto {
   @ApiProperty({ description: 'Business UUID to save as lead' })
   @IsUUID()
   @IsNotEmpty()
   businessId!: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional person UUID: saves this person-at-company as the lead instead of the company itself',
+  })
+  @IsOptional()
+  @IsUUID()
+  personId?: string;
 
   @ApiPropertyOptional({ example: 'High potential prospect for Q4 expansion' })
   @IsOptional()
@@ -54,6 +66,7 @@ export class UpdateSavedLeadDto {
 export class BulkSaveLeadsDto {
   @ApiProperty({ description: 'Array of Business UUIDs to save', type: [String] })
   @IsArray()
+  @ArrayMaxSize(MAX_BULK_IDS)
   @IsUUID('all', { each: true })
   @IsNotEmpty()
   businessIds!: string[];
@@ -73,6 +86,7 @@ export class BulkSaveLeadsDto {
 export class BulkDeleteLeadsDto {
   @ApiProperty({ description: 'Array of Saved Lead UUIDs or Business UUIDs to remove', type: [String] })
   @IsArray()
+  @ArrayMaxSize(MAX_BULK_IDS)
   @IsUUID('all', { each: true })
   @IsNotEmpty()
   leadIds!: string[];
@@ -97,14 +111,16 @@ export class QuerySavedLeadsDto {
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @IsInt()
   @Min(1)
+  @Max(100000)
   page?: number = 1;
 
   @ApiPropertyOptional({ default: 20 })
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @IsInt()
   @Min(1)
+  @Max(100)
   limit?: number = 20;
 }

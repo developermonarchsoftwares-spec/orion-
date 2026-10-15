@@ -1,6 +1,7 @@
 const { Pool } = require('pg');
+const { requireLocalDatabaseUrl } = require('./scratch_target');
 
-const dbUrl = "postgresql://neondb_owner:npg_CFOGv20pEALD@ep-weathered-surf-aefvqpls-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require";
+const dbUrl = requireLocalDatabaseUrl();
 
 async function testNotificationIntegration() {
   console.log("==================================================================");
@@ -9,7 +10,7 @@ async function testNotificationIntegration() {
 
   let pool = new Pool({
     connectionString: dbUrl,
-    ssl: { rejectUnauthorized: false },
+    ssl: false,
   });
 
   try {
@@ -31,7 +32,7 @@ async function testNotificationIntegration() {
       console.log(`[SETUP] Found existing test user with ID: ${userId}`);
     }
 
-    // 1. Update Notification Preferences in Neon PostgreSQL (All 6 Keys)
+    // 1. Update Notification Preferences in PostgreSQL (All 6 Keys)
     const newPrefs = {
       emailNewBusinesses: true,
       savedSearchAlerts: true,
@@ -41,7 +42,7 @@ async function testNotificationIntegration() {
       marketingEmails: false, // Explicitly disabled
     };
 
-    console.log("\n[TEST 1] Saving notification preferences directly to Neon PostgreSQL...");
+    console.log("\n[TEST 1] Saving notification preferences directly to PostgreSQL...");
     const currentMetaRes = await pool.query("SELECT metadata FROM users WHERE id = $1", [userId]);
     const currentMeta = currentMetaRes.rows[0]?.metadata || {};
     const updatedMeta = { ...currentMeta, notifications: newPrefs };
@@ -51,13 +52,13 @@ async function testNotificationIntegration() {
       [JSON.stringify(updatedMeta), userId]
     );
 
-    // 2. Re-connect & fetch fresh data from Neon PostgreSQL to verify DB persistence
+    // 2. Re-connect & fetch fresh data from PostgreSQL to verify DB persistence
     console.log("[TEST 1] Simulating new database session to verify persistence...");
     await pool.end();
 
     pool = new Pool({
       connectionString: dbUrl,
-      ssl: { rejectUnauthorized: false },
+      ssl: false,
     });
 
     const freshRes = await pool.query("SELECT metadata FROM users WHERE id = $1", [userId]);
@@ -98,7 +99,7 @@ async function testNotificationIntegration() {
     console.log(`- Disabled Preference ('marketingEmails') Dispatch Result: Dispatched=${disabledResult.dispatched} (Reason: ${disabledResult.reason}) -> ${disabledResult.dispatched === false ? 'PASS (Suppressed)' : 'FAIL'}`);
 
     // 4. Update marketingEmails to true and re-test
-    console.log("\n[TEST 3] Updating 'marketingEmails' preference to true in Neon PostgreSQL...");
+    console.log("\n[TEST 3] Updating 'marketingEmails' preference to true in PostgreSQL...");
     updatedMeta.notifications.marketingEmails = true;
     await pool.query("UPDATE users SET metadata = $1::jsonb WHERE id = $2", [JSON.stringify(updatedMeta), userId]);
 

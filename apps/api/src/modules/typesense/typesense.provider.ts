@@ -20,10 +20,8 @@ export const typesenseProviders: Provider[] = [
         'typesense.nodes',
         [{ host: 'localhost', port: 8108, protocol: 'http' }],
       );
-      const apiKey = configService.get<string>(
-        'typesense.apiKey',
-        'xyz123_orion_typesense_master_key',
-      );
+      // validated by the configuration (required, and never the development value, in production)
+      const apiKey = configService.getOrThrow<string>('typesense.apiKey');
       const connectionTimeoutSeconds = configService.get<number>(
         'typesense.connectionTimeoutSeconds',
         5,

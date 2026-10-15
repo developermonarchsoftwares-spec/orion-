@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 export default function PrivacyPage() {
-  const lastUpdated = 'September 18, 2026';
+  const lastUpdated = 'October 7, 2026';
 
   const sections = [
     { id: 'overview', title: '1. Overview & Scope' },
@@ -222,13 +222,29 @@ export default function PrivacyPage() {
                 9. Data Retention & Deletion
               </h2>
               <p className="mb-3">
-                We retain account information for as long as your account remains active or as required to fulfill legal and accounting obligations.
+                We keep personal data only as long as we need it for the purpose it was collected for, or as the law requires. When that period ends we delete it or remove the details that identify you.
               </p>
-              <ul className="list-disc pl-5 space-y-2 mb-4">
-                <li><strong className="text-gray-900 dark:text-white">Account Deletion:</strong> You may submit an account deletion request at any time. Upon verified confirmation, personal profile records, saved searches, and unlocked lead associations will be permanently purged within 30 days.</li>
-                <li><strong className="text-gray-900 dark:text-white">CSV Upload Retention:</strong> Temporary CSV files uploaded for batch matching are retained for a maximum of 30 days to facilitate review and export, after which raw files are deleted.</li>
-                <li><strong className="text-gray-900 dark:text-white">Financial Records:</strong> Transaction logs and invoice records are preserved for the statutory minimum period required by tax authorities.</li>
-              </ul>
+              <div className="overflow-x-auto mb-4">
+                <table className="w-full text-sm border border-gray-200 dark:border-neutral-800 rounded-lg">
+                  <thead className="bg-gray-50 dark:bg-neutral-950 text-left">
+                    <tr><th className="p-2 font-semibold">Data</th><th className="p-2 font-semibold">How long we keep it</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-neutral-800">
+                    <tr><td className="p-2">Account profile, saved searches and leads, API keys, integrations</td><td className="p-2">While your account is open; erased after you delete it</td></tr>
+                    <tr><td className="p-2">Sign-in sessions and one-time tokens</td><td className="p-2">Until they expire; stale entries are purged hourly</td></tr>
+                    <tr><td className="p-2">Activity (audit) log IP address and device details</td><td className="p-2">180 days, then removed from the record</td></tr>
+                    <tr><td className="p-2">Consent records</td><td className="p-2">Kept as proof of your choices; IP address removed after 3 years</td></tr>
+                    <tr><td className="p-2">Uploaded CSV files</td><td className="p-2">Up to 30 days</td></tr>
+                    <tr><td className="p-2">Integration delivery logs and background job records</td><td className="p-2">30 days</td></tr>
+                    <tr><td className="p-2">Orders, invoices, refunds and the credit ledger</td><td className="p-2">The statutory minimum required by tax and accounting law, without your identifying details once your account is deleted</td></tr>
+                    <tr><td className="p-2">Records of your privacy requests</td><td className="p-2">3 years</td></tr>
+                    <tr><td className="p-2">Backups</td><td className="p-2">Up to 12 months; deleted data ages out of backups on that schedule and is not restored into live systems</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="mb-3">
+                <strong className="text-gray-900 dark:text-white">Deleting your account.</strong> Go to Settings &rarr; Privacy &amp; Data &rarr; Delete account. After a 7-day cooling-off period (during which you can cancel) your profile, saved searches and leads, API keys and integrations are permanently erased and your account is anonymised. We complete every deletion request within 30 days.
+              </p>
             </section>
 
             {/* Section 10: Your Rights & Choices */}
@@ -238,14 +254,32 @@ export default function PrivacyPage() {
                 10. Your Rights & Choices
               </h2>
               <p className="mb-3">
-                Depending on your jurisdiction (including GDPR in Europe and CCPA/CPRA in the United States), you have specific statutory rights:
+                You can use most of these rights yourself in <Link href="/settings" className="underline">Settings &rarr; Privacy &amp; Data</Link>, or write to us (section 11). We reply within 30 days. We may need to verify your identity first.
               </p>
+              <h3 className="font-semibold text-gray-900 dark:text-white mt-4 mb-2">Everyone</h3>
               <ul className="list-disc pl-5 space-y-2 mb-4">
-                <li><strong className="text-gray-900 dark:text-white">Right of Access & Portability:</strong> You may request a copy of all personal data held in association with your user account.</li>
-                <li><strong className="text-gray-900 dark:text-white">Right to Rectification:</strong> You may correct inaccurate or incomplete profile details via your account settings.</li>
-                <li><strong className="text-gray-900 dark:text-white">Right to Erasure:</strong> You may request deletion of your account and personal identifiers.</li>
-                <li><strong className="text-gray-900 dark:text-white">Right to Restrict or Object:</strong> You can opt out of non-essential marketing communications or withdraw consent at any time.</li>
+                <li><strong className="text-gray-900 dark:text-white">Access &amp; portability:</strong> download all the personal data we hold about you as a JSON file. Passwords and secret keys are never included.</li>
+                <li><strong className="text-gray-900 dark:text-white">Rectification:</strong> correct your profile details in Settings.</li>
+                <li><strong className="text-gray-900 dark:text-white">Erasure:</strong> delete your account as described in section 9.</li>
+                <li><strong className="text-gray-900 dark:text-white">Consent:</strong> optional uses of your data (analytics, marketing, product updates) are off until you turn them on, and you can withdraw consent at any time with the same ease. Withdrawing does not affect earlier processing.</li>
               </ul>
+              <h3 className="font-semibold text-gray-900 dark:text-white mt-4 mb-2">EEA, UK and Switzerland (GDPR)</h3>
+              <ul className="list-disc pl-5 space-y-2 mb-4">
+                <li><strong className="text-gray-900 dark:text-white">Legal bases:</strong> we process your account and billing data to perform our contract with you; security logs and service improvement under our legitimate interests; optional analytics and marketing only with your consent; and tax records to meet legal obligations.</li>
+                <li>You also have the right to restrict or object to processing, and to complain to your local data protection authority.</li>
+                <li>Where data is transferred outside your region, we rely on recognised safeguards such as Standard Contractual Clauses.</li>
+              </ul>
+              <h3 className="font-semibold text-gray-900 dark:text-white mt-4 mb-2">California and other US states (CCPA/CPRA)</h3>
+              <ul className="list-disc pl-5 space-y-2 mb-4">
+                <li><strong className="text-gray-900 dark:text-white">Right to know and delete:</strong> available as described above. The categories we collect are listed in sections 2 to 6.</li>
+                <li><strong className="text-gray-900 dark:text-white">We do not sell your personal information</strong> and do not share it for cross-context behavioural advertising. The &ldquo;Sale or sharing&rdquo; switch in Settings records your opt-out choice, and it is off by default.</li>
+                <li><strong className="text-gray-900 dark:text-white">Non-discrimination:</strong> we will not deny service, change prices or reduce quality because you exercise these rights.</li>
+                <li>You may use an authorised agent to submit a request; we will ask for proof of authorisation.</li>
+              </ul>
+              <h3 className="font-semibold text-gray-900 dark:text-white mt-4 mb-2">Cookies and similar storage</h3>
+              <p className="mb-3">
+                We use essential storage to keep you signed in and remember your theme. Analytics runs only if you choose &ldquo;Accept analytics&rdquo; in the privacy banner, and you can change that choice at any time in Settings.
+              </p>
             </section>
 
             {/* Section 11: Contacting Us */}
@@ -261,7 +295,7 @@ export default function PrivacyPage() {
                 <p className="font-semibold text-gray-900 dark:text-white mb-1">Monarch Softwares &ndash; Orion Privacy Office</p>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Email: <a href="mailto:privacy@monarchsoftwares.com" className="text-gray-900 dark:text-white underline font-medium">privacy@monarchsoftwares.com</a></p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Requests are typically reviewed and answered within 2 to 3 business days.
+                  We acknowledge requests within 3 business days and complete them within 30 days.
                 </p>
               </div>
             </section>

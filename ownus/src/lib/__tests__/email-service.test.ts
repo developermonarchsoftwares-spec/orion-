@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   getAdminOtpHtml,
   sendAdminOtpEmail,
+  getResendApiKey,
   getResendSenderAddress,
   isAuthorizedAdminEmail,
 } from '../email-service.ts';
@@ -148,6 +149,31 @@ describe('Admin Email Service & Resend HTTP Dispatch', () => {
       } else {
         delete process.env.RESEND_FROM_EMAIL;
       }
+    }
+  });
+});
+
+describe('email-service secret handling (regression)', () => {
+  it('reads the Resend key and sender from the process environment only: no filesystem scan for .env files', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const source = readFileSync(fileURLToPath(new URL('../email-service.ts', import.meta.url)), 'utf8');
+    assert.ok(!/node:fs|from 'fs'|readFileSync|existsSync/.test(source), 'email-service must not read files');
+    assert.ok(!/path\.resolve|process\.cwd\(\)/.test(source), 'email-service must not build filesystem paths');
+  });
+
+  it('getResendApiKey() returns the trimmed environment value, or undefined when unset or blank', () => {
+    const original = process.env.RESEND_API_KEY;
+    try {
+      process.env.RESEND_API_KEY = '  re_test_value  ';
+      assert.equal(getResendApiKey(), 're_test_value');
+      process.env.RESEND_API_KEY = '   ';
+      assert.equal(getResendApiKey(), undefined);
+      delete process.env.RESEND_API_KEY;
+      assert.equal(getResendApiKey(), undefined);
+    } finally {
+      if (original === undefined) delete process.env.RESEND_API_KEY;
+      else process.env.RESEND_API_KEY = original;
     }
   });
 });

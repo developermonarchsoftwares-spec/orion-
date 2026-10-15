@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { resolveSecret } from '../../../config/secrets';
 import * as crypto from 'crypto';
 
 export interface IOAuthStatePayload {
@@ -17,9 +18,8 @@ export class OAuthStateService {
   private readonly stateStore = new Map<string, IOAuthStatePayload>();
 
   constructor(private readonly configService: ConfigService) {
-    this.secret =
-      this.configService.get<string>('JWT_ACCESS_SECRET') ||
-      'orion_oauth_state_hmac_secret_key_2026';
+    // the access secret from the environment; never a built-in value (a random per-process key outside production)
+    this.secret = this.configService.get<string>('JWT_ACCESS_SECRET') || resolveSecret('JWT_ACCESS_SECRET');
   }
 
   /**

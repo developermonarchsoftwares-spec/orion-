@@ -7,6 +7,8 @@ import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
 import * as schema from '../src/database/schema';
+import { verifiedConnection } from '../src/database/tls';
+import { assertLocalDatabaseAllowed } from '../src/database/db-guard';
 
 async function main() {
   console.log('====================================================');
@@ -20,9 +22,9 @@ async function main() {
   }
 
   const directUrl = connectionString.replace('-pooler.', '.');
+  assertLocalDatabaseAllowed(directUrl);
   const pool = new Pool({
-    connectionString: directUrl,
-    ssl: { rejectUnauthorized: false },
+    ...verifiedConnection(directUrl),
     max: 2,
   });
 
@@ -33,7 +35,7 @@ async function main() {
     console.log('1. Checking database connection and record counts...');
     const bizCountRes = await db.select({ count: sql<number>`count(*)` }).from(schema.businesses);
     const bizCount = Number(bizCountRes[0]?.count ?? 0);
-    console.log(`   Published businesses count in Neon PG: ${bizCount}`);
+    console.log(`   Published businesses count in PostgreSQL PG: ${bizCount}`);
 
     const userCountRes = await db.select({ count: sql<number>`count(*)` }).from(schema.users);
     const userCount = Number(userCountRes[0]?.count ?? 0);

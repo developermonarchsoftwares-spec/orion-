@@ -24,6 +24,7 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { safeHttpHref } from '@/lib/safe-url';
 
 interface BusinessDetailsModalProps {
   business: AdminBusinessRecord | null;
@@ -272,7 +273,7 @@ export function BusinessDetailsModal({
                   <span className="text-[10px] text-zinc-500">{business.hasWebsite ? 'Active Domain' : 'Missing Website'}</span>
                 </div>
                 {business.website ? (
-                  <a href={business.website} target="_blank" rel="noreferrer" className="text-sm font-mono text-zinc-900 dark:text-zinc-100 hover:underline flex items-center gap-1">
+                  <a href={safeHttpHref(business.website)} target="_blank" rel="noreferrer" className="text-sm font-mono text-zinc-900 dark:text-zinc-100 hover:underline flex items-center gap-1">
                     <span>{business.website}</span>
                     <ExternalLink className="w-3 h-3 text-zinc-400" />
                   </a>
@@ -287,7 +288,7 @@ export function BusinessDetailsModal({
                   <span className="text-[10px] text-zinc-500">{(business.linkedin || (business as any).linkedin_url || (business as any).linkedInUrl) ? 'Profile Verified' : 'Missing'}</span>
                 </div>
                 {(business.linkedin || (business as any).linkedin_url || (business as any).linkedInUrl) ? (
-                  <a href={String(business.linkedin || (business as any).linkedin_url || (business as any).linkedInUrl).startsWith('http') ? String(business.linkedin || (business as any).linkedin_url || (business as any).linkedInUrl) : `https://${business.linkedin || (business as any).linkedin_url || (business as any).linkedInUrl}`} target="_blank" rel="noreferrer" className="text-sm font-mono text-zinc-900 dark:text-zinc-100 hover:underline flex items-center gap-1">
+                  <a href={safeHttpHref(business.linkedin || (business as any).linkedin_url || (business as any).linkedInUrl)} target="_blank" rel="noreferrer" className="text-sm font-mono text-zinc-900 dark:text-zinc-100 hover:underline flex items-center gap-1">
                     <span>{business.linkedin || (business as any).linkedin_url || (business as any).linkedInUrl}</span>
                     <ExternalLink className="w-3 h-3 text-zinc-400" />
                   </a>

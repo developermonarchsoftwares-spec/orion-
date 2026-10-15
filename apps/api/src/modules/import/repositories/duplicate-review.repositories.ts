@@ -90,6 +90,22 @@ export class PublishQueueRepository {
     return created;
   }
 
+  /** A publish-queue row by ITS OWN id (not the import record id), with its record. */
+  async findById(id: string) {
+    return this.db.query.publishQueue.findFirst({
+      where: eq(schema.publishQueue.id, id),
+      with: { record: true },
+    });
+  }
+
+  /** The most recent publish-queue row for an import record, or undefined when it was never enqueued. */
+  async findLatestByRecordId(recordId: string) {
+    return this.db.query.publishQueue.findFirst({
+      where: eq(schema.publishQueue.recordId, recordId),
+      orderBy: (q, { desc }) => [desc(q.createdAt)],
+    });
+  }
+
   async findPendingToPublish(limit = 100) {
     return this.db.query.publishQueue.findMany({
       where: eq(schema.publishQueue.status, 'PENDING'),

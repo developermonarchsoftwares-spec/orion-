@@ -11,7 +11,7 @@ import { BusinessException } from '../../common/errors/business.exception';
 import { DRIZZLE_DATABASE } from '../../database/database.constants';
 import { DrizzleDb } from '../../database/database.provider';
 import * as schema from '../../database/schema';
-import { eq, and, sql, desc, inArray } from 'drizzle-orm';
+import { eq, and, sql, desc, inArray, isNull } from 'drizzle-orm';
 
 @Injectable()
 export class SavedLeadsService {
@@ -27,27 +27,128 @@ export class SavedLeadsService {
    * Saves a business to user's saved leads / CRM pipeline
    */
   async saveLead(userId: string, dto: SaveLeadDto) {
-    const existing = await this.savedLeadsRepo.findByUserAndBusiness(userId, dto.businessId);
+    if (dto.personId) return this.savePersonLead(userId, dto as SaveLeadDto & { personId: string });
 
-    if (existing) {
-      const updated = await this.savedLeadsRepo.updateById(existing.id, {
-        notes: dto.notes !== undefined ? dto.notes : existing.notes,
-        pipelineStage: dto.pipelineStage !== undefined ? dto.pipelineStage : existing.pipelineStage,
-        tags: dto.tags !== undefined ? dto.tags : existing.tags,
-        updatedAt: new Date(),
-      });
-      return { ...updated, message: 'Lead updated successfully' };
+    return this.upsertLead(userId, dto.businessId, null, dto);
+  }
+
+  /**
+   * Find-or-create of one saved lead, serialised per (customer, company, person). A company-level lead has no unique index (the
+   * index only covers person leads), so two parallel saves used to insert the same lead twice (12 parallel saves left 10 rows on a
+   * real PostgreSQL); a person lead lost the same race as a database error. The lock is released by the commit, so the second
+   * request waits, finds the first one's row and updates it.
+   */
+  private async upsertLead(userId: string, businessId: string, personId: string | null, dto: SaveLeadDto) {
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`lead:save:${userId}:${businessId}:${personId ?? ''}`}))`);
+      const [existing] = await tx
+        .select()
+        .from(schema.savedLeads)
+        .where(
+          and(
+            eq(schema.savedLeads.userId, userId),
+            eq(schema.savedLeads.businessId, businessId),
+            personId ? eq(schema.savedLeads.personId, personId) : isNull(schema.savedLeads.personId),
+          ),
+        )
+        .limit(1);
+      if (existing) {
+        const [updated] = await tx
+          .update(schema.savedLeads)
+          .set({
+            notes: dto.notes !== undefined ? dto.notes : existing.notes,
+            pipelineStage: dto.pipelineStage !== undefined ? dto.pipelineStage : existing.pipelineStage,
+            tags: dto.tags !== undefined ? dto.tags : existing.tags,
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.savedLeads.id, existing.id))
+          .returning();
+        return { ...updated, message: 'Lead updated successfully' };
+      }
+      // a new lead needs a published company: an unknown id used to reach the foreign key and come back as a 500, and a draft or
+      // archived company must not be reachable (or its existence confirmed) through this route
+      const [biz] = await tx.select({ status: schema.businesses.status }).from(schema.businesses).where(eq(schema.businesses.id, businessId)).limit(1);
+      if (!biz || biz.status !== 'PUBLISHED') {
+        throw new BusinessException('Business not found', 'BUSINESS_NOT_FOUND', HttpStatus.NOT_FOUND);
+      }
+      const [created] = await tx
+        .insert(schema.savedLeads)
+        .values({
+          userId,
+          businessId,
+          ...(personId ? { personId } : {}),
+          notes: dto.notes || '',
+          pipelineStage: dto.pipelineStage || 'NEW',
+          tags: dto.tags || [],
+        })
+        .returning();
+      return { ...created, message: 'Lead saved successfully' };
+    });
+  }
+
+  /**
+   * Saves a person-at-company as a lead. The person must hold a role at that company and both
+   * must be published; a lead is never created for hidden or suppressed people.
+   */
+  private async savePersonLead(userId: string, dto: SaveLeadDto & { personId: string }) {
+    const [role] = await this.db
+      .select({ id: schema.companyPeople.id })
+      .from(schema.companyPeople)
+      .innerJoin(schema.people, eq(schema.people.id, schema.companyPeople.personId))
+      .innerJoin(schema.businesses, eq(schema.businesses.id, schema.companyPeople.businessId))
+      .where(
+        and(
+          eq(schema.companyPeople.businessId, dto.businessId),
+          eq(schema.companyPeople.personId, dto.personId),
+          eq(schema.companyPeople.isPublished, true),
+          eq(schema.companyPeople.reviewStatus, 'APPROVED'),
+          eq(schema.people.dataStatus, 'PUBLISHED'),
+          eq(schema.businesses.status, 'PUBLISHED'),
+        ),
+      )
+      .limit(1);
+    if (!role) {
+      throw new BusinessException('Person not found at this company', 'PERSON_NOT_FOUND', HttpStatus.NOT_FOUND);
     }
 
-    const created = await this.savedLeadsRepo.create({
-      userId,
-      businessId: dto.businessId,
-      notes: dto.notes || '',
-      pipelineStage: dto.pipelineStage || 'NEW',
-      tags: dto.tags || [],
-    });
+    return this.upsertLead(userId, dto.businessId, dto.personId, dto);
+  }
 
-    return { ...created, message: 'Lead saved successfully' };
+  /** Lightweight person summaries for saved-lead rows. Never includes contact values. */
+  private async loadPersonSummaries(userId: string, rows: Array<{ businessId: string; personId: string | null }>) {
+    const pairs = rows.filter((r): r is { businessId: string; personId: string } => !!r.personId);
+    if (pairs.length === 0) return new Map<string, { id: string; fullName: string; jobTitle: string; decisionMaker: string | null; isUnlocked: boolean }>();
+
+    const personIds = [...new Set(pairs.map((p) => p.personId))];
+    const [roles, unlocks] = await Promise.all([
+      this.db
+        .select({
+          personId: schema.companyPeople.personId,
+          businessId: schema.companyPeople.businessId,
+          fullName: schema.people.fullName,
+          jobTitle: schema.companyPeople.jobTitleAtCompany,
+          decisionMakerType: schema.companyPeople.decisionMakerType,
+        })
+        .from(schema.companyPeople)
+        .innerJoin(schema.people, eq(schema.people.id, schema.companyPeople.personId))
+        .where(and(inArray(schema.companyPeople.personId, personIds), eq(schema.companyPeople.isPublished, true), eq(schema.companyPeople.reviewStatus, 'APPROVED'), eq(schema.people.dataStatus, 'PUBLISHED'))),
+      this.db
+        .select({ personId: schema.personUnlocks.personId })
+        .from(schema.personUnlocks)
+        .where(and(eq(schema.personUnlocks.userId, userId), inArray(schema.personUnlocks.personId, personIds))),
+    ]);
+    const unlocked = new Set(unlocks.map((u) => u.personId));
+    const map = new Map<string, { id: string; fullName: string; jobTitle: string; decisionMaker: string | null; isUnlocked: boolean }>();
+    for (const r of roles) {
+      map.set(`${r.businessId}:${r.personId}`, {
+        id: r.personId,
+        fullName: r.fullName,
+        jobTitle: r.jobTitle,
+        decisionMaker: r.decisionMakerType,
+        isUnlocked: unlocked.has(r.personId),
+      });
+    }
+    return map;
   }
 
   /**
@@ -74,7 +175,7 @@ export class SavedLeadsService {
         .select()
         .from(schema.savedLeads)
         .where(whereClause)
-        .orderBy(desc(schema.savedLeads.createdAt))
+        .orderBy(desc(schema.savedLeads.createdAt), desc(schema.savedLeads.id))
         .limit(limit)
         .offset(offset),
     ]);
@@ -121,13 +222,18 @@ export class SavedLeadsService {
     const locationsMap = new Map(locations.map((l) => [l.businessId, l]));
     const unlockedSet = new Set(unlocks.map((u) => u.businessId));
 
+    const personSummaries = await this.loadPersonSummaries(userId, rows);
+
     const items = rows.map((r) => {
       const b = businessMap.get(r.businessId);
       const loc = locationsMap.get(r.businessId);
       return {
         id: r.id,
         businessId: r.businessId,
-        business: b
+        personId: r.personId,
+        person: r.personId && businessMap.get(r.businessId)?.status === 'PUBLISHED' ? (personSummaries.get(`${r.businessId}:${r.personId}`) ?? null) : null,
+        // a company that is no longer published is not shown (name, location, score), even on the owner's own saved lead
+        business: b && b.status === 'PUBLISHED'
           ? {
               id: b.id,
               slug: b.slug,

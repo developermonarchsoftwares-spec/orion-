@@ -10,6 +10,7 @@ import { Observable, throwError, TimeoutError } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
 import { Request } from 'express';
 import { REQUEST_ID_HEADER } from '../constants';
+import { scrubUrl } from '../observability/scrub';
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
@@ -26,7 +27,7 @@ export class LoggingInterceptor implements NestInterceptor {
         const response = context.switchToHttp().getResponse();
         const duration = Date.now() - now;
         this.logger.log(
-          `[${requestId}] ${method} ${url} ${response.statusCode} - ${duration}ms (${ip})`,
+          `[${requestId}] ${method} ${scrubUrl(url).path} ${response.statusCode} - ${duration}ms (${ip})`,
         );
       }),
     );

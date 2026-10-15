@@ -1,3 +1,7 @@
+// SAFETY: this script writes test data. It only runs against a disposable LOCAL Orion database named in SCRATCH_DATABASE_URL
+// (orion_scratch, orion_test_*, ...), never the real orion_db and never another application's database. See ownus/scratch_target.js.
+const { guardLegacyScratchWriter } = require('../ownus/scratch_target.js');
+const guardedUrl = guardLegacyScratchWriter();
 const { Pool } = require('pg');
 const dotenv = require('dotenv');
 const path = require('path');
@@ -6,8 +10,7 @@ const crypto = require('crypto');
 dotenv.config({ path: path.join(__dirname, '..', 'ownus', '.env.local') });
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  connectionString: process.env.DATABASE_URL
 });
 
 async function runTests() {
@@ -58,7 +61,7 @@ async function runTests() {
       [pubBiz2Id]
     );
 
-    console.log('✅ Created test records in Neon PostgreSQL DB');
+    console.log('✅ Created test records in the PostgreSQL database');
 
     // Test A: Visibility Control - Draft record MUST be hidden!
     const queryDraftCheck = await pool.query(`

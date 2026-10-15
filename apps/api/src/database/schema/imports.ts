@@ -8,8 +8,9 @@ import {
   timestamp,
   jsonb,
   index,
+  check,
 } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   dataSourceTypeEnum,
   importStatusEnum,
@@ -27,6 +28,21 @@ export const dataSources = pgTable(
     description: text('description'),
     config: jsonb('config').default({}).notNull(),
     isActive: boolean('is_active').default(true).notNull(),
+    /**
+     * Phase 15: what Orion may do with records from this source. UNREVIEWED (the default, and the honest state of every source nobody has
+     * assessed), APPROVED (records may be published), RESTRICTED (published only by an explicit, recorded override, never automatically; the
+     * restriction text says what is permitted), REVOKED (nothing from it may be published and what it supplied is held back).
+     */
+    trustStatus: varchar('trust_status', { length: 12 }).default('UNREVIEWED').notNull(),
+    /** Permitted purposes and limits, as recorded by the administrator who assessed the source. Internal: never shown to customers. */
+    usageRestrictions: text('usage_restrictions'),
+    /** How the data is obtained, as stated by the administrator (for example CSV_UPLOAD, MANUAL_ENTRY, LICENSED_DATASET, PARTNER_FEED). Not verified by Orion. */
+    collectionMethod: varchar('collection_method', { length: 40 }),
+    /** A reference to the source's terms, licence or public page, where one exists and may be recorded. */
+    sourceReference: text('source_reference'),
+    trustDecidedById: uuid('trust_decided_by_id').references(() => users.id, { onDelete: 'set null' }),
+    trustDecidedAt: timestamp('trust_decided_at', { withTimezone: true }),
+    trustReason: varchar('trust_reason', { length: 500 }),
     totalRecordsIngested: integer('total_records_ingested').default(0).notNull(),
     lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -35,6 +51,8 @@ export const dataSources = pgTable(
   (table) => [
     index('data_sources_type_idx').on(table.type),
     index('data_sources_active_idx').on(table.isActive),
+    index('data_sources_trust_idx').on(table.trustStatus),
+    check('data_sources_trust_chk', sql`${table.trustStatus} IN ('UNREVIEWED', 'APPROVED', 'RESTRICTED', 'REVOKED')`),
   ]
 );
 
@@ -57,6 +75,8 @@ export const importBatches = pgTable(
     mappingConfig: jsonb('mapping_config').default({}).notNull(),
     options: jsonb('options').default({ autoNormalize: true, autoValidate: true, autoDetectDuplicates: true }).notNull(),
     errorMessage: text('error_message'),
+    /** Aggregate outcome of the (best-effort) People ingestion stage for this batch. Null = never attempted. */
+    peopleSummary: jsonb('people_summary'),
     startedAt: timestamp('started_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -83,6 +103,8 @@ export const importRecords = pgTable(
     normalizedPayload: jsonb('normalized_payload'),
     errorDetails: jsonb('error_details'),
     targetBusinessId: uuid('target_business_id'),
+    /** Outcome of the People ingestion stage for this row (counts + per-person outcome codes). */
+    peopleResult: jsonb('people_result'),
     hasDuplicates: boolean('has_duplicates').default(false).notNull(),
     isReviewed: boolean('is_reviewed').default(false).notNull(),
     isPublished: boolean('is_published').default(false).notNull(),

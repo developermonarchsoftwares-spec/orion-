@@ -1,15 +1,16 @@
 const { Pool } = require('pg');
+const { requireLocalDatabaseUrl } = require('./scratch_target');
 
-const dbUrl = "postgresql://neondb_owner:npg_CFOGv20pEALD@ep-weathered-surf-aefvqpls-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require";
+const dbUrl = requireLocalDatabaseUrl();
 
 async function verifyProfilePersistence() {
   console.log("==================================================================");
-  console.log("STARTING PROFILE INFORMATION NEON POSTGRESQL PERSISTENCE TEST");
+  console.log("STARTING PROFILE INFORMATION POSTGRESQL PERSISTENCE TEST");
   console.log("==================================================================");
 
   let pool = new Pool({
     connectionString: dbUrl,
-    ssl: { rejectUnauthorized: false },
+    ssl: false,
   });
 
   try {
@@ -41,7 +42,7 @@ async function verifyProfilePersistence() {
       avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop"
     };
 
-    console.log(`\n[UPDATE] Updating user ${userId} in Neon PostgreSQL with:`, JSON.stringify(testData, null, 2));
+    console.log(`\n[UPDATE] Updating user ${userId} in PostgreSQL with:`, JSON.stringify(testData, null, 2));
 
     const currentMetaRes = await pool.query("SELECT metadata FROM users WHERE id = $1", [userId]);
     const currentMeta = currentMetaRes.rows[0]?.metadata || {};
@@ -68,19 +69,19 @@ async function verifyProfilePersistence() {
       ]
     );
 
-    console.log(`[UPDATE SUCCESS] Row updated in Neon PostgreSQL at: ${updateRes.rows[0].updated_at}`);
+    console.log(`[UPDATE SUCCESS] Row updated in PostgreSQL at: ${updateRes.rows[0].updated_at}`);
 
     // 3. Simulate Server Restart / New DB Session
-    console.log("\n[SIMULATION] Closing connection pool & reconnecting to Neon PostgreSQL to simulate server restart / new session...");
+    console.log("\n[SIMULATION] Closing connection pool & reconnecting to PostgreSQL to simulate server restart / new session...");
     await pool.end();
 
     pool = new Pool({
       connectionString: dbUrl,
-      ssl: { rejectUnauthorized: false },
+      ssl: false,
     });
 
-    // 4. Retrieve fresh data from Neon PostgreSQL (Single Source of Truth)
-    console.log("[FETCH] Fetching fresh profile data from Neon PostgreSQL...");
+    // 4. Retrieve fresh data from PostgreSQL (Single Source of Truth)
+    console.log("[FETCH] Fetching fresh profile data from PostgreSQL...");
     const freshRes = await pool.query("SELECT * FROM users WHERE id = $1", [userId]);
     const row = freshRes.rows[0];
 
@@ -105,7 +106,7 @@ async function verifyProfilePersistence() {
       fetchedAvatar === testData.avatarUrl;
 
     if (allPassed) {
-      console.log("\n>>> ALL PROFILE UPDATES FULLY PERSISTED IN NEON POSTGRESQL! <<<");
+      console.log("\n>>> ALL PROFILE UPDATES FULLY PERSISTED IN POSTGRESQL! <<<");
     } else {
       console.error("\n>>> VERIFICATION FAILED FOR ONE OR MORE FIELDS! <<<");
       process.exit(1);

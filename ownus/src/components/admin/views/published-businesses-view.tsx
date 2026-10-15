@@ -38,6 +38,7 @@ import {
   getAdminActiveFiltersCount,
 } from '@/lib/admin-filter-utils';
 import { AdminActiveFilters } from '@/components/admin/admin-active-filters';
+import { safeHttpHref } from '@/lib/safe-url';
 
 interface PublishedBusinessesViewProps {
   records: AdminBusinessRecord[];
@@ -387,7 +388,7 @@ export const PublishedBusinessesView: React.FC<PublishedBusinessesViewProps> = (
                             <div className="text-[10px] text-[#0A66C2] flex items-center gap-1 truncate max-w-[180px] mt-0.5">
                               <Linkedin className="w-3 h-3" />
                               <a
-                                href={String(record.linkedin || record.linkedin_url || (record as any).linkedInUrl).startsWith('http') ? String(record.linkedin || record.linkedin_url || (record as any).linkedInUrl) : `https://${record.linkedin || record.linkedin_url || (record as any).linkedInUrl}`}
+                                href={safeHttpHref(record.linkedin || record.linkedin_url || (record as any).linkedInUrl)}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="hover:underline truncate"

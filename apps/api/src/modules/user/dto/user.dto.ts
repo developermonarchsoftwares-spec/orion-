@@ -71,6 +71,7 @@ export class UploadAvatarDto {
   @ApiProperty({ description: 'Base64 image string or avatar URL' })
   @IsNotEmpty()
   @IsString()
+  @MaxLength(1500000, { message: 'Image data exceeds maximum allowed size' })
   image!: string;
 }
 
@@ -78,11 +79,13 @@ export class ChangePasswordDto {
   @ApiPropertyOptional({ example: 'CurrentP@ss123' })
   @IsOptional()
   @IsString()
+  @MaxLength(128, { message: 'Password must not exceed 128 characters' })
   currentPassword?: string;
 
   @ApiProperty({ example: 'NewStrongP@ss123' })
   @IsString()
-  @MinLength(8)
+  @MinLength(8, { message: 'Password must be at least 8 characters long' })
+  @MaxLength(128, { message: 'Password must not exceed 128 characters' })
   newPassword!: string;
 }
 

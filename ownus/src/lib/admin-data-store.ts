@@ -1,4 +1,5 @@
 'use client';
+import { adminFetch } from './admin-fetch';
 
 import { 
   AdminBusinessRecord, 
@@ -14,10 +15,10 @@ export const INITIAL_DEFAULT_RECORDS: AdminBusinessRecord[] = [];
 export const INITIAL_DEFAULT_BATCHES: ImportBatch[] = [];
 export const INITIAL_DEFAULT_DUPLICATES: DuplicatePair[] = [];
 
-// API Interaction Helper Functions - Fetching and updating Neon PostgreSQL directly
+// API Interaction Helper Functions - Fetching and updating PostgreSQL directly
 export async function fetchAdminRecordsFromApi(): Promise<AdminBusinessRecord[]> {
   try {
-    const res = await fetch('/api/v1/admin/businesses', { cache: 'no-store' });
+    const res = await adminFetch('/api/v1/admin/businesses', { cache: 'no-store' });
     if (!res.ok) return [];
     const json = await res.json();
     if (json && Array.isArray(json.data)) {
@@ -31,7 +32,7 @@ export async function fetchAdminRecordsFromApi(): Promise<AdminBusinessRecord[]>
 
 export async function saveAdminRecordStatusToApi(records: AdminBusinessRecord[]): Promise<boolean> {
   try {
-    const res = await fetch('/api/v1/admin/businesses', {
+    const res = await adminFetch('/api/v1/admin/businesses', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ businesses: records }),
@@ -45,7 +46,7 @@ export async function saveAdminRecordStatusToApi(records: AdminBusinessRecord[])
 
 export async function deleteAdminRecordsFromApi(ids: string[]): Promise<boolean> {
   try {
-    const res = await fetch('/api/v1/admin/businesses', {
+    const res = await adminFetch('/api/v1/admin/businesses', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids }),
@@ -59,7 +60,7 @@ export async function deleteAdminRecordsFromApi(ids: string[]): Promise<boolean>
 
 export async function fetchImportBatchesFromApi(): Promise<ImportBatch[]> {
   try {
-    const res = await fetch('/api/v1/admin/import/batches', { cache: 'no-store' });
+    const res = await adminFetch('/api/v1/admin/import/batches', { cache: 'no-store' });
     if (!res.ok) return [];
     const json = await res.json();
     if (json && Array.isArray(json.data)) {
@@ -73,7 +74,7 @@ export async function fetchImportBatchesFromApi(): Promise<ImportBatch[]> {
 
 export async function fetchDuplicatePairsFromApi(): Promise<DuplicatePair[]> {
   try {
-    const res = await fetch('/api/v1/admin/duplicates', { cache: 'no-store' });
+    const res = await adminFetch('/api/v1/admin/duplicates', { cache: 'no-store' });
     if (!res.ok) return [];
     const json = await res.json();
     if (json && Array.isArray(json.data)) {

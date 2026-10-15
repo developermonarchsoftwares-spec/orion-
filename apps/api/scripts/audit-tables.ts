@@ -4,13 +4,13 @@ import * as path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 import { Pool } from 'pg';
+import { verifiedConnection } from '../src/database/tls';
+import { assertLocalDatabaseAllowed } from '../src/database/db-guard';
 
 async function main() {
   const directUrl = process.env.DATABASE_URL!.replace('-pooler.', '.');
-  const pool = new Pool({
-    connectionString: directUrl,
-    ssl: { rejectUnauthorized: false },
-  });
+  assertLocalDatabaseAllowed(directUrl); // refuses any local database that is not an Orion database
+  const pool = new Pool(verifiedConnection(directUrl));
 
   const tables = [
     'users',
@@ -48,4 +48,7 @@ async function main() {
   await pool.end();
 }
 
-main().catch(console.error);
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

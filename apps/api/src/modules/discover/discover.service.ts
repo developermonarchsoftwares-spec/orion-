@@ -7,6 +7,24 @@ import { DRIZZLE_DATABASE } from '../../database/database.constants';
 import { DrizzleDb } from '../../database/database.provider';
 import * as schema from '../../database/schema';
 import { eq, and, sql, ilike, or, inArray } from 'drizzle-orm';
+import { PeopleSearchService, hasPeopleFilters, parseSearchIntent, type IPeopleSearchFilters } from '../people/people-search.service';
+import { DECISION_MAKER_TYPES, type DecisionMakerType } from '../people/people.constants';
+import { discloseIdentifier, presentCompanyContact } from '../../common/privacy/data-classification';
+
+/** Escapes LIKE wildcards so user text is matched literally ("%" and "_" are ordinary characters). */
+const escapeLike = (s: string) => s.replace(/[\\%_]/g, (m) => `\\${m}`);
+
+/** Deterministic order of the PostgreSQL search: a supported sort, then name, then id (always a total order). */
+const fallbackOrder = (sortBy?: string) => {
+  const [field, dir] = (sortBy ?? '').split(':');
+  const desc_ = dir === 'desc';
+  return (b: typeof schema.businesses, { asc, desc }: { asc: (c: any) => any; desc: (c: any) => any }) => {
+    const d = desc_ ? desc : asc;
+    if (field === 'created_at') return [d(b.createdAt), asc(b.name), asc(b.id)];
+    if (field === 'name') return [d(b.name), asc(b.id)];
+    return [asc(b.name), asc(b.id)];
+  };
+};
 
 @Injectable()
 export class DiscoverService {
@@ -15,39 +33,10 @@ export class DiscoverService {
   constructor(
     private readonly searchService: SearchService,
     private readonly businessRepo: BusinessRepository,
+    private readonly peopleSearch: PeopleSearchService,
     @Inject(DRIZZLE_DATABASE)
     private readonly db: DrizzleDb,
   ) {}
-
-  /**
-   * Masks email string: "alex.vance@example.com" -> "a***e@e***.com"
-   */
-  private maskEmail(email?: string | null): string | null {
-    if (!email) return null;
-    const parts = email.split('@');
-    if (parts.length !== 2) return '***@***.com';
-    const name = parts[0];
-    const domain = parts[1];
-    const maskedName = name.length > 2 ? `${name[0]}***${name[name.length - 1]}` : '***';
-    const domainParts = domain.split('.');
-    const maskedDomain = domainParts[0].length > 2
-      ? `${domainParts[0][0]}***${domainParts[0][domainParts[0].length - 1]}`
-      : '***';
-    const ext = domainParts.slice(1).join('.');
-    return `${maskedName}@${maskedDomain}.${ext}`;
-  }
-
-  /**
-   * Masks phone string: "+91 9876543210" -> "+91 98*** ***10"
-   */
-  private maskPhone(phone?: string | null): string | null {
-    if (!phone) return null;
-    const clean = phone.trim();
-    if (clean.length < 6) return '***-***-****';
-    const prefix = clean.substring(0, 4);
-    const suffix = clean.substring(clean.length - 2);
-    return `${prefix}*** ***${suffix}`;
-  }
 
   /**
    * Customer-facing Discover search with lead unlock status & masked contacts
@@ -61,6 +50,33 @@ export class DiscoverService {
         .from(schema.leadUnlocks)
         .where(eq(schema.leadUnlocks.userId, userId));
       unlockedBusinessIds = new Set(unlocks.map((u) => u.businessId));
+    }
+
+    // Decision-maker filters (explicit params and phrases like "with a Head of Procurement") are
+    // answered from PostgreSQL: the Typesense index carries no people data.
+    const intent = parseSearchIntent(query.q);
+    const requestedTypes = (query.decisionMakerType ?? '')
+      .split(',')
+      .map((t) => t.trim().toUpperCase())
+      .filter(Boolean);
+    const knownTypes = requestedTypes.filter((t) => (DECISION_MAKER_TYPES as readonly string[]).includes(t));
+    if (requestedTypes.length > 0 && knownTypes.length === 0) {
+      // a filter whose every value is unknown must never be dropped silently (that would return every company)
+      throw new BusinessException('Unknown decisionMakerType. See GET /people/taxonomy for the allowed values', 'INVALID_FILTER', HttpStatus.BAD_REQUEST);
+    }
+    const explicitTypes = knownTypes as DecisionMakerType[]; // unknown values next to known ones are ignored, as before
+    const peopleFilters: IPeopleSearchFilters = {
+      decisionMakerTypes: [...new Set([...explicitTypes, ...(intent.decisionMakerTypes ?? [])])],
+      hasDecisionMaker: query.hasDecisionMaker || intent.hasDecisionMaker,
+      hasVerifiedDecisionMaker: query.hasVerifiedDecisionMaker || intent.hasVerifiedDecisionMaker,
+      hasDecisionMakerContact: query.hasDecisionMakerContact || intent.hasDecisionMakerContact,
+    };
+    if (hasPeopleFilters(peopleFilters)) {
+      return this.searchPostgresFallback(
+        { ...query, q: intent.remainingQuery, city: query.city || intent.city },
+        unlockedBusinessIds,
+        peopleFilters,
+      );
     }
 
     try {
@@ -143,6 +159,7 @@ export class DiscoverService {
   private async searchPostgresFallback(
     query: DiscoverSearchQueryDto,
     unlockedBusinessIds: Set<string>,
+    peopleFilters: IPeopleSearchFilters = {},
   ) {
     const page = query.page || 1;
     const limit = Math.min(query.limit || 20, 100);
@@ -151,7 +168,7 @@ export class DiscoverService {
     const conditions = [eq(schema.businesses.status, 'PUBLISHED')];
 
     if (query.q?.trim()) {
-      const term = `%${query.q.trim()}%`;
+      const term = `%${escapeLike(query.q.trim())}%`;
       conditions.push(or(ilike(schema.businesses.name, term), ilike(schema.businesses.legalName, term))!);
     }
     if (query.industryId) conditions.push(eq(schema.businesses.industryId, query.industryId));
@@ -160,12 +177,38 @@ export class DiscoverService {
     if (query.msmeCategory) conditions.push(eq(schema.businesses.msmeCategory, query.msmeCategory as any));
     if (query.opportunityTier) conditions.push(eq(schema.businesses.opportunityTier, query.opportunityTier as any));
 
+    // Literal aliases on purpose: Drizzle's relational query builder rewrites every Column object
+    // in a where-clause to the root table alias, which would break a sub-select on another table.
+    const locationConditions = [
+      query.state ? sql`LOWER(bl.state) = LOWER(${query.state})` : undefined,
+      query.district ? sql`LOWER(bl.district) = LOWER(${query.district})` : undefined,
+      query.city ? sql`LOWER(bl.city) = LOWER(${query.city})` : undefined,
+      query.pincode ? sql`bl.pincode = ${query.pincode}` : undefined,
+    ].filter((c): c is NonNullable<typeof c> => !!c);
+    if (locationConditions.length > 0) {
+      conditions.push(
+        sql`EXISTS (SELECT 1 FROM business_locations bl WHERE bl.business_id = ${schema.businesses.id} AND ${sql.join(locationConditions, sql` AND `)})`,
+      );
+    }
+    // Contact-availability and score filters, answered here with the same meaning the search index gives them.
+    const bid = sql`${schema.businesses.id}`;
+    if (query.hasEmail) conditions.push(sql`EXISTS (SELECT 1 FROM business_contacts bc WHERE bc.business_id = ${bid} AND bc.email IS NOT NULL AND bc.email <> '')`);
+    if (query.hasPhone) conditions.push(sql`EXISTS (SELECT 1 FROM business_contacts bc WHERE bc.business_id = ${bid} AND bc.phone IS NOT NULL AND bc.phone <> '')`);
+    if (query.hasWebsite) conditions.push(sql`EXISTS (SELECT 1 FROM digital_presences dp WHERE dp.business_id = ${bid} AND dp.platform = 'WEBSITE')`);
+    if (query.hasGstin) conditions.push(sql`EXISTS (SELECT 1 FROM business_identifiers bi WHERE bi.business_id = ${bid} AND bi.type = 'GSTIN')`);
+    if (query.minOrionScore !== undefined) conditions.push(sql`EXISTS (SELECT 1 FROM business_scores bs WHERE bs.business_id = ${bid} AND bs.orion_score >= ${query.minOrionScore})`);
+    if (query.maxOrionScore !== undefined) conditions.push(sql`EXISTS (SELECT 1 FROM business_scores bs WHERE bs.business_id = ${bid} AND bs.orion_score <= ${query.maxOrionScore})`);
+    const peoplePredicate = this.peopleSearch.buildBusinessPredicate(peopleFilters, sql`${schema.businesses.id}`);
+    if (peoplePredicate) conditions.push(peoplePredicate);
+
     const whereClause = and(...conditions);
 
     const [totalRows, rows] = await Promise.all([
       this.db.select({ count: sql<number>`count(*)::int` }).from(schema.businesses).where(whereClause),
       this.db.query.businesses.findMany({
         where: whereClause,
+        // total order: the same query always returns the same page (a bare LIMIT/OFFSET is not stable)
+        orderBy: fallbackOrder(query.sortBy),
         limit,
         offset,
         with: {
@@ -185,8 +228,16 @@ export class DiscoverService {
     let scoresMap: Record<string, number> = {};
     let locationsMap: Record<string, any> = {};
     let contactsMap: Record<string, { hasEmail: boolean; hasPhone: boolean }> = {};
+    const websiteIds = new Set<string>();
+    const gstinIds = new Set<string>();
 
     if (businessIds.length > 0) {
+      const [presence, idents] = await Promise.all([
+        this.db.select({ businessId: schema.digitalPresences.businessId, platform: schema.digitalPresences.platform }).from(schema.digitalPresences).where(inArray(schema.digitalPresences.businessId, businessIds)),
+        this.db.select({ businessId: schema.businessIdentifiers.businessId, type: schema.businessIdentifiers.type }).from(schema.businessIdentifiers).where(inArray(schema.businessIdentifiers.businessId, businessIds)),
+      ]);
+      presence.forEach((d) => { if (d.platform === 'WEBSITE') websiteIds.add(d.businessId); });
+      idents.forEach((i) => { if (i.type === 'GSTIN') gstinIds.add(i.businessId); });
       const [scores, locations, contacts] = await Promise.all([
         this.db.select().from(schema.businessScores).where(inArray(schema.businessScores.businessId, businessIds)),
         this.db.select().from(schema.businessLocations).where(inArray(schema.businessLocations.businessId, businessIds)),
@@ -225,10 +276,10 @@ export class DiscoverService {
           pincode: loc?.pincode || '',
         },
         contactAvailability: {
-          hasWebsite: !!r.metadata,
+          hasWebsite: websiteIds.has(r.id),
           hasEmail: cont.hasEmail,
           hasPhone: cont.hasPhone,
-          hasGstin: true,
+          hasGstin: gstinIds.has(r.id),
         },
         orionScore,
         completenessScore: 80,
@@ -300,44 +351,12 @@ export class DiscoverService {
       isUnlocked = !!unlock;
     }
 
-    // Sanitize Contacts
-    const contacts = (fullProfile.contacts || []).map((c) => {
-      if (isUnlocked) {
-        return {
-          id: c.id,
-          fullName: c.fullName,
-          title: c.title,
-          department: c.department,
-          email: c.email,
-          isEmailVerified: c.isEmailVerified,
-          phone: c.phone,
-          isPhoneVerified: c.isPhoneVerified,
-          linkedinUrl: c.linkedinUrl,
-          isPrimary: c.isPrimary,
-          isDecisionMaker: c.isDecisionMaker,
-          isLocked: false,
-        };
-      } else {
-        return {
-          id: c.id,
-          fullName: c.fullName ? `${c.fullName.split(' ')[0]} ***` : 'Decision Maker',
-          title: c.title || 'Executive',
-          department: c.department,
-          email: this.maskEmail(c.email),
-          isEmailVerified: c.isEmailVerified,
-          phone: this.maskPhone(c.phone),
-          isPhoneVerified: c.isPhoneVerified,
-          linkedinUrl: c.linkedinUrl ? 'https://linkedin.com/in/***' : null,
-          isPrimary: c.isPrimary,
-          isDecisionMaker: c.isDecisionMaker,
-          isLocked: true,
-        };
-      }
-    });
+    // Sanitize Contacts (Phase 10: one shared classifier and disclosure policy; see common/privacy/data-classification.ts)
+    const companyDomains = (fullProfile.digitalPresences || []).map((dp) => dp.domain).filter((d): d is string => !!d);
+    const contacts = (fullProfile.contacts || []).map((c) => presentCompanyContact(c, { unlocked: isUnlocked, companyDomains }));
 
     // Sanitize Locations
     const locations = (fullProfile.locations || []).map((loc) => ({
-      id: loc.id,
       addressLine1: isUnlocked ? loc.addressLine1 : '*** Locked Address ***',
       addressLine2: isUnlocked ? loc.addressLine2 : null,
       city: loc.city,
@@ -352,7 +371,6 @@ export class DiscoverService {
 
     // Sanitize Digital Presence
     const digitalPresence = (fullProfile.digitalPresences || []).map((dp) => ({
-      id: dp.id,
       platform: dp.platform,
       url: dp.url,
       domain: dp.domain,
@@ -361,10 +379,10 @@ export class DiscoverService {
       techStackDetected: dp.techStackDetected,
     }));
 
-    // Sanitize Identifiers (exclude internal/unverified identifiers)
+    // Sanitize Identifiers: a PAN, or a GSTIN that embeds one, of an individual is never shown in full (DISCLOSURE_POLICY)
     const identifiers = (fullProfile.identifiers || []).map((ident) => ({
       type: ident.type,
-      value: isUnlocked || ident.type === 'CIN' ? ident.value : `${ident.value.substring(0, 4)}****`,
+      value: discloseIdentifier(ident.type, ident.value, isUnlocked),
       isVerified: ident.isVerified,
     }));
 
@@ -411,7 +429,7 @@ export class DiscoverService {
       return { suggestions: [] };
     }
 
-    const term = `%${query.trim()}%`;
+    const term = `%${escapeLike(query.trim())}%`;
     const businesses = await this.db
       .select({
         id: schema.businesses.id,
@@ -420,6 +438,7 @@ export class DiscoverService {
       })
       .from(schema.businesses)
       .where(and(eq(schema.businesses.status, 'PUBLISHED'), ilike(schema.businesses.name, term)))
+      .orderBy(schema.businesses.name, schema.businesses.id)
       .limit(6);
 
     const locations = await this.db
@@ -428,7 +447,9 @@ export class DiscoverService {
         state: schema.businessLocations.state,
       })
       .from(schema.businessLocations)
-      .where(or(ilike(schema.businessLocations.city, term), ilike(schema.businessLocations.state, term))!)
+      .innerJoin(schema.businesses, eq(schema.businesses.id, schema.businessLocations.businessId))
+      .where(and(eq(schema.businesses.status, 'PUBLISHED'), or(ilike(schema.businessLocations.city, term), ilike(schema.businessLocations.state, term))!))
+      .orderBy(schema.businessLocations.state, schema.businessLocations.city)
       .limit(4);
 
     return {
@@ -446,7 +467,7 @@ export class DiscoverService {
       ? await this.db.query.businesses.findFirst({ where: eq(schema.businesses.id, identifier) })
       : await this.db.query.businesses.findFirst({ where: eq(schema.businesses.slug, identifier) });
 
-    if (!targetBusiness) {
+    if (!targetBusiness || targetBusiness.status !== 'PUBLISHED') {
       return [];
     }
 
@@ -456,7 +477,8 @@ export class DiscoverService {
         sql`${schema.businesses.id} != ${targetBusiness.id}`,
         targetBusiness.industryId ? eq(schema.businesses.industryId, targetBusiness.industryId) : undefined,
       ),
-      limit: Math.min(limit, 10),
+      orderBy: (b, { asc }) => [asc(b.name), asc(b.id)],
+      limit: Math.min(Math.max(Number(limit) || 4, 1), 10),
       with: {
         industry: true,
       },

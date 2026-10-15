@@ -36,7 +36,7 @@ export interface DispatchNotificationResult {
 }
 
 /**
- * Checks user notification preferences stored in Neon PostgreSQL (users.metadata -> 'notifications').
+ * Checks user notification preferences stored in PostgreSQL (users.metadata -> 'notifications').
  * If the preference for `type` is enabled (true), dispatches the notification and sends email via Resend API.
  * If disabled (false), suppresses dispatch cleanly.
  */
@@ -46,7 +46,7 @@ export async function dispatchUserNotification(
   const { userId, email, type, title, message, link, forceEmail } = params;
 
   try {
-    // 1. Fetch user & metadata from Neon PostgreSQL database
+    // 1. Fetch user & metadata from the PostgreSQL database
     const rows = await queryDb(
       `SELECT id, email, first_name, display_name, metadata FROM users WHERE id = $1 OR (email IS NOT NULL AND LOWER(email) = LOWER($2)) LIMIT 1`,
       [userId || '00000000-0000-0000-0000-000000000000', email ? email.toLowerCase() : '']
@@ -60,7 +60,7 @@ export async function dispatchUserNotification(
     const metadata = (user.metadata as Record<string, any>) || {};
     const userNotifPrefs = metadata.notifications || {};
 
-    // 2. Evaluate preference state from Neon PostgreSQL
+    // 2. Evaluate preference state from PostgreSQL
     const defaultPrefs: Record<NotificationType, boolean> = {
       emailNewBusinesses: true,
       savedSearchAlerts: true,

@@ -3,6 +3,10 @@ import { IOAuthProvider, IOAuthTokens, IOAuthUserProfile } from '../../src/modul
 import { BusinessException } from '../../src/common/errors/business.exception';
 import { OAUTH_FIXTURES } from '../fixtures/oauth.fixtures';
 
+export const UNVERIFIED_GOOGLE_CODE = "unverified-google-email-code";
+export const UNVERIFIED_GOOGLE_TOKEN = "mock-google-unverified-access-token";
+export const UNVERIFIED_GOOGLE_EMAIL = "unverified.victim@orion-test.io";
+
 @Injectable()
 export class MockGoogleOAuthProvider implements IOAuthProvider {
   readonly name = 'GOOGLE';
@@ -35,6 +39,10 @@ export class MockGoogleOAuthProvider implements IOAuthProvider {
       );
     }
 
+    // Phase 32: a provider that reports the e-mail as NOT verified (account-takeover scenario)
+    if (code === UNVERIFIED_GOOGLE_CODE) {
+      return { accessToken: UNVERIFIED_GOOGLE_TOKEN, idToken: "mock-google-unverified-id", tokenType: "Bearer", expiresIn: 3600 };
+    }
     if (code === OAUTH_FIXTURES.google.newUser.code) {
       return OAUTH_FIXTURES.google.newUser.tokens;
     }
@@ -55,6 +63,9 @@ export class MockGoogleOAuthProvider implements IOAuthProvider {
   }
 
   async getUserProfile(accessToken: string, _idToken?: string): Promise<IOAuthUserProfile> {
+    if (accessToken === UNVERIFIED_GOOGLE_TOKEN) {
+      return { provider: "GOOGLE", providerId: "google-test-id-unverified-1", email: UNVERIFIED_GOOGLE_EMAIL, firstName: "Un", lastName: "Verified", displayName: "Un Verified", avatarUrl: "", isEmailVerified: false };
+    }
     if (accessToken === OAUTH_FIXTURES.google.newUser.tokens.accessToken) {
       return OAUTH_FIXTURES.google.newUser.profile;
     }

@@ -1,0 +1,78 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Phase 14: the workflow token can read the repository and nothing else
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  # a newer push to a pull request replaces the older run; a run on main is never cancelled, so a failure there is always reported
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  fast:
+    name: unit · integration · security · performance · api e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # @scarf/scarf (a dependency of the API documentation package) runs an install script that reports usage; switched off
+      SCARF_ANALYTICS: 'false'
+    steps:
+      # Third-party actions are pinned to the commit of an exact release (read from the public repositories on 2026-10-13), not to a
+      # moving tag. The token is not kept in the checkout, so the install scripts of dependencies cannot read it.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install web dependencies (ownus is not a workspace, it has its own lockfile)
+        run: npm --prefix ownus ci
+      - name: Package integrity (registry signatures and provenance of every installed package)
+        run: |
+          npm audit signatures
+          npm --prefix ownus audit signatures
+      - name: Secret scan (tracked files, git remotes, NEXT_PUBLIC names; values are never printed)
+        run: |
+          node ops/security/scan-secrets.mjs --self-test
+          node ops/security/scan-secrets.mjs
+      - name: Dependency audit (production dependencies; fails on high or critical)
+        run: |
+          npm audit --omit=dev --audit-level=high
+          npm --prefix ownus audit --omit=dev --audit-level=high
+      - name: Dependency audit, build tooling included (fails on critical only; high findings in development tools are reviewed, not gated)
+        run: |
+          npm audit --audit-level=critical
+          npm --prefix ownus audit --audit-level=critical
+      - name: Migration journal (ordering, timestamps, applied baseline)
+        run: npm run db:migration:check --prefix apps/api
+      - name: Classification check (every test file belongs to a class)
+        run: npm run test:inventory -- --check
+      - name: Build the shared package (the API type-check imports its compiled output)
+        run: npm --prefix packages/shared run build
+      - name: Type-check API and web
+        run: |
+          npx tsc --noEmit -p apps/api/tsconfig.json
+          npx tsc --noEmit -p ownus/tsconfig.json
+      - name: Production builds (shared, API, web)
+        run: |
+          npm --prefix packages/shared run build
+          npm --prefix apps/api run build
+          npm --prefix ownus run build
+      - name: Unit
+        run: npm run test:unit
+      - name: Integration
+        run: npm run test:integration
+      - name: Security
+        run: npm run test:security
+      - name: Performance budgets
+        run: npm run test:perf
+      - name: API end-to-end
+        run: npm run test:e2e

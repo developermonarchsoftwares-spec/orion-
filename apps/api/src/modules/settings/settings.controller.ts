@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  ParseUUIDPipe,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -108,7 +109,7 @@ export class SettingsController {
   @ApiResponse({ status: 200, description: 'API key revoked successfully' })
   async revokeApiKey(
     @CurrentUser() user: IJwtPayload,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     return this.apiKeyService.revokeApiKey(user.sub, id);
   }

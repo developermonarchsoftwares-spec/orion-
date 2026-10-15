@@ -15,6 +15,8 @@ import { UnlockBusinessDto } from './dto/unlock.dto';
 import { CurrentUser } from '../../auth/decorators';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { IJwtPayload } from '@orion/shared';
+import { boundedPage } from '../../common/utils/pagination.util';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Lead Unlock')
 @Controller('unlock')
@@ -23,6 +25,7 @@ import { IJwtPayload } from '@orion/shared';
 export class UnlockController {
   constructor(private readonly unlockService: UnlockService) {}
 
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @Post('business')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Unlock verified contact intelligence for a business using credits' })
@@ -45,7 +48,8 @@ export class UnlockController {
     @Query('page') page = 1,
     @Query('limit') limit = 20,
   ) {
-    return this.unlockService.getUnlockHistory(user.sub, Number(page), Number(limit));
+    const p = boundedPage(page, limit);
+    return this.unlockService.getUnlockHistory(user.sub, p.page, p.limit);
   }
 
   @Get('status/:businessId')

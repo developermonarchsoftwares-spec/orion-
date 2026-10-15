@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  ParseUUIDPipe,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -47,7 +48,7 @@ export class SavedSearchesController {
   @ApiResponse({ status: 200, description: 'Saved search' })
   async findById(
     @CurrentUser() user: IJwtPayload,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     return this.savedSearchesService.findById(user.sub, id);
   }
@@ -57,7 +58,7 @@ export class SavedSearchesController {
   @ApiResponse({ status: 200, description: 'Updated search' })
   async update(
     @CurrentUser() user: IJwtPayload,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateSavedSearchDto,
   ) {
     return this.savedSearchesService.update(user.sub, id, dto);
@@ -68,7 +69,7 @@ export class SavedSearchesController {
   @ApiResponse({ status: 200, description: 'Deleted' })
   async delete(
     @CurrentUser() user: IJwtPayload,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     return this.savedSearchesService.delete(user.sub, id);
   }
@@ -79,7 +80,7 @@ export class SavedSearchesController {
   @ApiResponse({ status: 200, description: 'Search results' })
   async runSearch(
     @CurrentUser() user: IJwtPayload,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     return this.savedSearchesService.runSearch(user.sub, id);
   }

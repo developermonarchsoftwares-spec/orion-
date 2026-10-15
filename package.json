@@ -15,7 +15,18 @@
     "test": "npm run test --workspaces --if-present",
     "test:qa": "npm run test:e2e:all --prefix apps/api && npm run test --prefix ownus",
     "start:api": "npm --prefix apps/api run start:prod",
-    "start:web": "npm --prefix ownus run dev"
+    "start:web": "npm --prefix ownus run dev",
+    "test:unit": "npm run test:unit --prefix apps/api && npm run test --prefix ownus",
+    "test:integration": "npm run test:integration --prefix apps/api",
+    "test:security": "npm run test:security --prefix apps/api",
+    "test:perf": "npm run test:perf --prefix apps/api",
+    "test:e2e": "npm run test:e2e:all --prefix apps/api",
+    "test:browser": "playwright test",
+    "test:load": "node ops/testing/load-test.mjs",
+    "test:regression": "npm run test:regression --prefix apps/api && npm run test --prefix ownus",
+    "test:inventory": "node ops/testing/inventory.mjs",
+    "test:secrets": "node ops/security/scan-secrets.mjs",
+    "test:secrets:history": "node ops/security/scan-secrets.mjs --history --report-only"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
@@ -24,6 +35,9 @@
     "typescript": "^5.7.3"
   },
   "overrides": {
-    "shell-quote": "^1.11.0"
+    "shell-quote": "^1.11.0",
+    "@nestjs/swagger": {
+      "js-yaml": "5.4.3"
+    }
   }
 }

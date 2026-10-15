@@ -1,6 +1,7 @@
 const { Pool } = require('pg');
+const { requireLocalDatabaseUrl } = require('./scratch_target');
 
-const dbUrl = "postgresql://neondb_owner:npg_CFOGv20pEALD@ep-weathered-surf-aefvqpls-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require";
+const dbUrl = requireLocalDatabaseUrl();
 
 async function runMasterE2EVerification() {
   console.log("==========================================================================================");
@@ -10,7 +11,7 @@ async function runMasterE2EVerification() {
 
   let pool = new Pool({
     connectionString: dbUrl,
-    ssl: { rejectUnauthorized: false },
+    ssl: false,
   });
 
   let totalTests = 0;
@@ -28,10 +29,10 @@ async function runMasterE2EVerification() {
 
   try {
     // -------------------------------------------------------------------------------------
-    // MODULE 1: Neon PostgreSQL Database Connection & User Profile Synchronization
+    // MODULE 1: PostgreSQL Database Connection & User Profile Synchronization
     // -------------------------------------------------------------------------------------
     console.log("------------------------------------------------------------------------------------------");
-    console.log("MODULE 1: NEON POSTGRESQL & USER PROFILE PERSISTENCE (SINGLE SOURCE OF TRUTH)");
+    console.log("MODULE 1: POSTGRESQL & USER PROFILE PERSISTENCE (SINGLE SOURCE OF TRUTH)");
     console.log("------------------------------------------------------------------------------------------");
 
     const e2eEmail = "e2e_master_user@monarchsoftwares.com";
@@ -88,7 +89,7 @@ async function runMasterE2EVerification() {
     await pool.end();
     pool = new Pool({
       connectionString: dbUrl,
-      ssl: { rejectUnauthorized: false },
+      ssl: false,
     });
 
     const freshUserRes = await pool.query("SELECT * FROM users WHERE id = $1", [userId]);

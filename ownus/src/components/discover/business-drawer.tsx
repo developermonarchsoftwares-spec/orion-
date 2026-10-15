@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { Business } from '@/lib/types';
 import { isLeadUnlocked } from '@/lib/unlocked-leads-store';
+import { safeHttpHref } from '@/lib/safe-url';
 
 interface BusinessDrawerProps {
   business: Business | null;
@@ -49,6 +50,19 @@ export function BusinessDrawer({
   if (!isOpen || !business) return null;
 
   const isUnlocked = Boolean(business.isUnlocked || isLeadUnlocked(business.id));
+
+  // The search list only carries availability hints ("Contact Available (Unlock to view)").
+  // Treat those as "no value" so they are never shown as if they were real contact data.
+  const realValue = (v?: string | null): string | null =>
+    v && !/unlock to view/i.test(v) && v.trim() !== '' ? v : null;
+  const phoneValue = realValue(business.phone);
+  const emailValue = realValue(business.email);
+  const entityDetails = [
+    { label: 'Registration Number', value: business.registrationNumber, mono: true },
+    { label: 'MSME Classification', value: business.msmeCategory },
+    { label: 'Team Size', value: business.employeeCount },
+    { label: 'Est. Revenue', value: business.revenue },
+  ].filter((d) => d.value);
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -213,35 +227,20 @@ export function BusinessDrawer({
                   Entity Details
                 </h3>
 
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div className="p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-                    <span className="text-[11px] text-zinc-400 block">Registration Number</span>
-                    <span className="font-mono font-medium text-zinc-800 dark:text-zinc-200">
-                      {business.registrationNumber || 'CIN-9482910'}
-                    </span>
+                {entityDetails.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    {entityDetails.map((d) => (
+                      <div key={d.label} className="p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                        <span className="text-[11px] text-zinc-400 block">{d.label}</span>
+                        <span className={`${d.mono ? 'font-mono ' : ''}font-medium text-zinc-800 dark:text-zinc-200`}>
+                          {d.value}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-
-                  <div className="p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-                    <span className="text-[11px] text-zinc-400 block">MSME Classification</span>
-                    <span className="font-medium text-zinc-800 dark:text-zinc-200">
-                      {business.msmeCategory || 'Micro Enterprise'}
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-                    <span className="text-[11px] text-zinc-400 block">Team Size</span>
-                    <span className="font-medium text-zinc-800 dark:text-zinc-200">
-                      {business.employeeCount || '1-10 employees'}
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-                    <span className="text-[11px] text-zinc-400 block">Est. Revenue</span>
-                    <span className="font-medium text-zinc-800 dark:text-zinc-200">
-                      {business.revenue || '₹25L - ₹1 Cr'}
-                    </span>
-                  </div>
-                </div>
+                ) : (
+                  <p className="text-xs text-zinc-500">No additional entity details on record yet.</p>
+                )}
               </div>
 
               {/* Description */}
@@ -300,18 +299,18 @@ export function BusinessDrawer({
                 {isUnlocked ? (
                   <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
                     <span className="text-sm font-mono font-medium text-zinc-900 dark:text-zinc-100">
-                      {business.phone || '+91 98450 12345'}
+                      {phoneValue || 'Not available'}
                     </span>
-                    <div className="flex items-center gap-1">
+                    <div className={`flex items-center gap-1 ${phoneValue ? '' : 'hidden'}`}>
                       <button
-                        onClick={() => copyToClipboard(business.phone || '+91 98450 12345', 'phone')}
+                        onClick={() => phoneValue && copyToClipboard(phoneValue, 'phone')}
                         className="p-1.5 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
                         title="Copy Phone"
                       >
                         {copiedField === 'phone' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                       <a
-                        href={`https://wa.me/${(business.phone || '919845012345').replace(/[^0-9]/g, '')}`}
+                        href={`https://wa.me/${(phoneValue || '').replace(/[^0-9]/g, '')}`}
                         target="_blank"
                         rel="noreferrer"
                         className="p-1.5 text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
@@ -353,11 +352,11 @@ export function BusinessDrawer({
                 {isUnlocked ? (
                   <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
                     <span className="text-sm font-mono font-medium text-zinc-900 dark:text-zinc-100 truncate pr-2">
-                      {business.email || 'contact@' + (business.name.toLowerCase().replace(/[^a-z]/g, '') || 'company') + '.in'}
+                      {emailValue || 'Not available'}
                     </span>
                     <button
-                      onClick={() => copyToClipboard(business.email || 'contact@company.in', 'email')}
-                      className="p-1.5 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                      onClick={() => emailValue && copyToClipboard(emailValue, 'email')}
+                      className={`${emailValue ? '' : 'hidden '}p-1.5 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer`}
                       title="Copy Email"
                     >
                       {copiedField === 'email' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
@@ -396,7 +395,7 @@ export function BusinessDrawer({
                   </div>
                   {business.website ? (
                     <a
-                      href={business.website}
+                      href={safeHttpHref(business.website)}
                       target="_blank"
                       rel="noreferrer"
                       className="text-xs text-zinc-900 dark:text-zinc-100 underline flex items-center gap-1 font-medium"
@@ -465,7 +464,7 @@ export function BusinessDrawer({
             </button>
           ) : (
             <button
-              onClick={() => copyToClipboard(`${business.name} | ${business.phone} | ${business.email}`, 'full')}
+              onClick={() => copyToClipboard([business.name, phoneValue, emailValue].filter(Boolean).join(' | '), 'full')}
               className="px-5 py-2 text-xs font-semibold bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:opacity-90 rounded-lg shadow-xs transition-all flex items-center gap-2 cursor-pointer"
             >
               <Copy className="w-3.5 h-3.5" />

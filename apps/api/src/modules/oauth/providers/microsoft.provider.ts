@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { IOAuthProvider, IOAuthTokens, IOAuthUserProfile } from '../interfaces/oauth-provider.interface';
 import { BusinessException } from '../../../common/errors/business.exception';
+import { oauthSimulationAllowed } from '../oauth-simulation';
 
 @Injectable()
 export class MicrosoftOAuthProvider implements IOAuthProvider {
@@ -73,16 +74,19 @@ export class MicrosoftOAuthProvider implements IOAuthProvider {
   }
 
   async exchangeCode(code: string, codeVerifier?: string): Promise<IOAuthTokens> {
-    // Support development / testing simulation code
-    if (code.startsWith('sim_ms_') || !this.isConfigured()) {
+    // Simulation exists for automated tests only (see oauth-simulation.ts); it never runs elsewhere.
+    if (oauthSimulationAllowed() && (code.startsWith('sim_ms_') || !this.isConfigured())) {
       const emailPart = code.startsWith('sim_ms_') ? code.replace('sim_ms_', '') : '';
-      this.logger.log(`Using simulation mode for Microsoft OAuth exchange (code: ${code})`);
+      this.logger.log('Using simulation mode for Microsoft OAuth exchange (test environment)');
       return {
         accessToken: `ms_sim_access_${emailPart || Date.now()}`,
         idToken: `ms_sim_id_${Date.now()}`,
         tokenType: 'Bearer',
         expiresIn: 3600,
       };
+    }
+    if (code.startsWith('sim_ms_') || !this.isConfigured()) {
+      throw new BusinessException('Microsoft sign-in is not available', 'MICROSOFT_OAUTH_UNAVAILABLE', HttpStatus.SERVICE_UNAVAILABLE);
     }
 
     try {
@@ -126,8 +130,10 @@ export class MicrosoftOAuthProvider implements IOAuthProvider {
   }
 
   async getUserProfile(accessToken: string, idToken?: string): Promise<IOAuthUserProfile> {
-    // Support development / testing simulation
     if (accessToken.startsWith('ms_sim_access_')) {
+      if (!oauthSimulationAllowed()) {
+        throw new BusinessException('Microsoft sign-in is not available', 'MICROSOFT_OAUTH_UNAVAILABLE', HttpStatus.SERVICE_UNAVAILABLE);
+      }
       const simEmail = accessToken.replace('ms_sim_access_', '');
       const email = (simEmail.includes('@') ? simEmail : null) || this.configService.get<string>('SIM_MS_EMAIL') || 'user.microsoft@orion.ai';
       const providerId = `ms_entra_user_${Buffer.from(email).toString('hex').slice(0, 16)}`;

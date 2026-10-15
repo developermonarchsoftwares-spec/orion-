@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { ORION_SUPPORTED_FIELDS } from '@/lib/admin-mock-data';
 import { apiClient } from '@/lib/api-client';
+import { getAdminAccessToken, ADMIN_SESSION_EXPIRED_EVENT } from '@/lib/admin-fetch';
 import { cn } from '@/lib/utils';
 import { AdminBusinessRecord, DuplicatePair } from '@/types/admin';
 
@@ -531,13 +532,26 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
     setErrorMessage(null);
     setIsLoadingPreview(true);
     try {
-      const response = await apiClient.request('/admin/import/preview', {
+      const token = getAdminAccessToken() || apiClient.getAccessToken();
+      const res = await fetch(`${apiClient.getBaseUrl()}/admin/import/preview`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           rows: parsedRows,
           customMapping: fieldMappings,
         }),
       });
+
+      const response = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 401 && typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent(ADMIN_SESSION_EXPIRED_EVENT));
+        }
+        throw new Error(response?.message || `Preview failed (${res.status})`);
+      }
 
       const data = response?.data || response;
       if (data && typeof data.total === 'number') {
@@ -639,8 +653,13 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
     });
 
     try {
-      const res = await apiClient.request('/admin/import/submit', {
+      const token = getAdminAccessToken() || apiClient.getAccessToken();
+      const fetchRes = await fetch(`${apiClient.getBaseUrl()}/admin/import/submit`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           batchName: filename,
           filename,
@@ -649,6 +668,20 @@ export function ImportDataView({ onImportComplete }: ImportDataViewProps) {
           autoPublish: false,
         }),
       });
+
+      const res = await fetchRes.json().catch(() => ({}));
+
+      if (!fetchRes.ok) {
+        if (fetchRes.status === 401 && typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent(ADMIN_SESSION_EXPIRED_EVENT));
+          throw new Error('Your administrator session has expired or is invalid. Please sign in again.');
+        }
+        if (fetchRes.status === 403) {
+          throw new Error('You do not have permission to do this. Administrator privileges (ADMIN or SUPER_ADMIN) are required.');
+        }
+        const msg = Array.isArray(res?.message) ? res.message.join(', ') : res?.message || `Database Ingestion failed (${fetchRes.status})`;
+        throw new Error(msg);
+      }
 
       clearInterval(progressInterval);
       setProgress(100);

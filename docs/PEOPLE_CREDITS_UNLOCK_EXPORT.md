@@ -1,0 +1,18 @@
+# Credits, unlock & export hardening (Phase 6.16)
+
+No new credit system and no pricing change (unlock still costs the existing credit amount; daily credits are used first, then purchased).
+
+## Credit / unlock paths audited
+1. Person unlock (`PeopleUnlockService`) 2. Business lead unlock (`UnlockService`) 3. `CreditService.deductCredits` (wallet row `FOR UPDATE`) 4. People export 5. Saved leads (no credits) 6. The web gateway's native fallback `unlock/business` (used only when the NestJS API is unreachable).
+
+## Findings and fixes
+* **Race in both unlock services.** The "already unlocked?" check ran before the wallet lock, so a concurrent request deducted and was then undone by the unique index (net one charge, but only by accident, and the loser could surface a 500 if the driver wrapped the error). Now each unlock takes a transaction advisory lock per (customer, target) first; the second request waits, sees the first unlock and is never charged. The 23505 handler also reads `err.cause.code`.
+* **Visibility re-checked inside the transaction (person unlock).** The pre-check could be stale: a person suppressed, rejected, unpublished or moved to a draft company between the check and the charge is now refused (`PERSON_NOT_FOUND`) inside the locked transaction, and the person lock is the same one suppression takes, so the two serialise. Nothing is charged; contacts available are re-checked there too.
+* **Business unlock charged for hidden companies.** A DRAFT / archived company could be unlocked and charged, then 404 on its profile. Now refused before and inside the transaction.
+* **Gateway fallback `unlock/business` was unsafe:** identity came from an unsigned (decoded, not verified) token, a request-body user id, or a hard-coded default account; the wallet was updated before the unlock insert with the insert error swallowed (a failed or concurrent unlock still charged); there was no published-company check. It now requires a signature-verified, unexpired access token, and the unlock plus its single deduction are one atomic SQL statement (`lib/unlock-business.ts`): wallet locked, company published, wallet funded, unlock inserted once, deduction only if inserted, ledger row. Tested on a real schema with concurrent requests.
+* **After the unlock** the profile is fetched outside the transaction; if the person was hidden in the meantime the (committed) unlock still returns success with `person: null` instead of an error for a real charge.
+* **Export:** ordered newest-unlock first with an id tie-break (deterministic bytes), bounded to 5 000 people, duplicate requested ids counted once, request ids capped at 1 000. Contact values only for the caller's own unlocks and only published ones; the CSV carries no internal ids, source, evidence, reviewer, conflict, quarantine or suppression data; formula-leading values are neutralised.
+* **Hidden after unlocking:** an unlocked person whose role is unpublished, who is suppressed, or whose company becomes a draft disappears from the unlocked list, detail and export, cannot be unlocked again (404, not "already unlocked"), and is never charged again. The access row is kept: if the role is approved again, the earlier purchase is honoured and nothing is charged twice. There is no automatic refund (unchanged).
+
+## Not changed / out of scope (reported)
+Gateway fallbacks that read the user from an unsigned token or a default account for other endpoints, the fallback "payment verified" handler that credits a wallet without verifying a payment, and the hard-coded JWT fallback secrets in the gateway are existing weaknesses outside unlock / export; they are listed in the phase report for a decision.

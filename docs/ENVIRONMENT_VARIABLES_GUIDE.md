@@ -178,3 +178,33 @@ Essential for dispatching real 6-digit verification codes to administrator email
 | **Transactional Email** | [Resend.com](https://resend.com) | 3,000 emails/month free |
 | **Payment Gateway** | [Razorpay](https://razorpay.com) | Free sandbox testing |
 | **Web & API Hosting** | [Vercel](https://vercel.com) | Unlimited deployments |
+
+### Database limits (added in Phase 27)
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `DB_STATEMENT_TIMEOUT_MS` | No | `60000` | The server cancels a statement that runs longer. `0` switches it off. |
+| `DB_IDLE_IN_TRANSACTION_TIMEOUT_MS` | No | `60000` | The server closes a connection whose transaction sits idle longer (a stalled request holding locks). `0` switches it off. |
+| `DB_LOCK_TIMEOUT_MS` | No | `5000` | The server gives up waiting for a row or table lock after this long (changed from 30000 in Phase 29: every waiter holds a pooled connection). The caller gets a retryable 503. `0` switches it off. |
+
+### Recovery and encryption (added in Phase 30)
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `RESTORE_MODE` | No | unset | `true` starts the API with no queue worker, scheduled export, webhook delivery, credit rollover, retention or token clean-up. Use it for the first start after restoring a database; remove it afterwards. |
+| `MFA_ENCRYPTION_KEY` | Strongly recommended in production | falls back to `JWT_ACCESS_SECRET` | Encrypts stored MFA secrets. If it is empty, rotating the JWT access secret makes every stored MFA secret unreadable. Keep it in the secret store, escrowed apart from backups; never store it in a backup. |
+| `INTEGRATIONS_ENCRYPTION_KEY` | Strongly recommended in production | falls back to `JWT_ACCESS_SECRET` | Same, for webhook signing secrets and CRM credentials. |
+
+### Sign-up e-mail verification code (see `EMAIL_OTP_VERIFICATION.md`)
+
+Apply to the API **and** the web gateway; set the same values on both.
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `REQUIRE_REGISTRATION_OTP` | No | on | New accounts need a 6-digit code e-mailed to the address typed. **Always on in production: this setting is ignored there.** Outside production `false` switches it off (local development without a mail relay). |
+| `EMAIL_OTP_SECRET` | No | derived from `JWT_ACCESS_SECRET` | Key for hashing codes. Must be identical on the API and the gateway. Changing it invalidates codes in flight (users request a new one). |
+| `APP_NAME` | No | `Orion` | Name shown in the code e-mail. |
+| `MAIL_TRANSPORT`, `MAIL_WEBHOOK_URL`, `MAIL_WEBHOOK_TOKEN` | Yes in production (API) | none | How the API sends the code (`webhook` posts `{to, subject, text, html, sensitive}`). In production without a transport nobody can register. The development `log` transport never prints a code. There is no SMTP client: point the relay at Gmail/SMTP if that is your provider. |
+| `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Yes in production (web) | none | How the gateway sends the code when it answers sign-up itself. |
+
+The migration `0026_email_otp_challenges` must be applied before this is deployed; until then the code routes answer 503 and registration is refused.

@@ -22,6 +22,174 @@
       "when": 1789061231383,
       "tag": "0002_typical_clint_barton",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789100000000,
+      "tag": "0003_seed_packages",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790000000000,
+      "tag": "0004_decision_maker_people",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790500000000,
+      "tag": "0005_people_ingestion",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791000000000,
+      "tag": "0006_import_people_report",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791500000000,
+      "tag": "0007_people_review",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792000000000,
+      "tag": "0008_people_verification",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792500000000,
+      "tag": "0009_people_sources",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793000000000,
+      "tag": "0010_people_observations",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793500000000,
+      "tag": "0011_people_suppression",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794000000000,
+      "tag": "0012_people_classification_versioning",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794500000000,
+      "tag": "0013_people_contact_provenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795000000000,
+      "tag": "0014_people_freshness",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1795500000000,
+      "tag": "0015_people_conflicts",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1796000000000,
+      "tag": "0016_people_acquisition_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1796500000000,
+      "tag": "0017_queue_jobs_admin_otps",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1797000000000,
+      "tag": "0018_auth_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1797500000000,
+      "tag": "0019_billing",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1798000000000,
+      "tag": "0020_exports",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1798500000000,
+      "tag": "0021_integrations",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1799000000000,
+      "tag": "0022_traffic_control",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1799500000000,
+      "tag": "0023_privacy_compliance",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1799500000001,
+      "tag": "0024_data_subject_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1799500000002,
+      "tag": "0025_source_trust",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1799500000003,
+      "tag": "0026_email_otp_challenges",
+      "breakpoints": true
     }
   ]
 }

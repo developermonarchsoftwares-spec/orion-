@@ -35,11 +35,19 @@ import { SavedLeadsModule } from './modules/saved-leads/saved-leads.module';
 import { SavedSearchesModule } from './modules/saved-searches/saved-searches.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { PeopleModule } from './modules/people/people.module';
 
 // Credit, Unlock & Payment Modules (Sprint 5)
 import { CreditModule } from './modules/credit/credit.module';
 import { UnlockModule } from './modules/unlock/unlock.module';
 import { PaymentModule } from './modules/payment/payment.module';
+import { ExportModule } from './modules/export/export.module';
+import { IntegrationsModule } from './modules/integrations/integrations.module';
+import { TrafficModule } from './modules/traffic/traffic.module';
+import { PrivacyModule } from './modules/privacy/privacy.module';
+import { MonitoringModule } from './modules/monitoring/monitoring.module';
+import { ObservabilityMiddleware } from './common/observability/observability.middleware';
+import { TrafficMiddleware } from './modules/traffic/traffic.middleware';
 
 // OAuth & Enterprise Identity (Sprint 16)
 import { OAuthModule } from './modules/oauth/oauth.module';
@@ -50,6 +58,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
+import { InputGuardMiddleware } from './common/middleware/input-guard.middleware';
 import { AuthenticationMiddleware } from './auth/auth.middleware';
 import { AppController } from './app.controller';
 
@@ -78,7 +87,7 @@ import { AppController } from './app.controller';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => [
         {
-          ttl: config.get<number>('throttler.ttl', 60),
+          ttl: config.get<number>('throttler.ttl', 60000),
           limit: config.get<number>('throttler.limit', 100),
         },
       ],
@@ -105,11 +114,17 @@ import { AppController } from './app.controller';
     SavedSearchesModule,
     DashboardModule,
     SettingsModule,
+    PeopleModule,
 
     // Credit Engine & Unlock System
     CreditModule,
     UnlockModule,
     PaymentModule,
+    ExportModule,
+    IntegrationsModule,
+    TrafficModule,
+    PrivacyModule,
+    MonitoringModule,
 
     // OAuth & Enterprise Identity
     OAuthModule,
@@ -145,7 +160,7 @@ import { AppController } from './app.controller';
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
-      .apply(RequestIdMiddleware, AuthenticationMiddleware)
+      .apply(RequestIdMiddleware, InputGuardMiddleware, ObservabilityMiddleware, AuthenticationMiddleware, TrafficMiddleware)
       .forRoutes('*');
   }
 }

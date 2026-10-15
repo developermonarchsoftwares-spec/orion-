@@ -13,6 +13,7 @@ import { DrizzleDb } from '../../database/database.provider';
 import * as schema from '../../database/schema';
 import { eq } from 'drizzle-orm';
 import { UserRole, UserStatus } from '@orion/shared';
+import { auditValues } from '../../common/services/audit-values';
 
 export interface IOAuthAuthResult {
   user: {
@@ -115,6 +116,24 @@ export class OAuthService {
     // 3. Retrieve user profile
     const profile = await provider.getUserProfile(tokens.accessToken, tokens.idToken);
 
+    // SG-03: OAuth sign-in and account linking requires a verified email address from the provider
+    if (!profile.email || typeof profile.email !== 'string' || profile.email.trim().length === 0) {
+      throw new BusinessException(
+        'OAuth provider did not return a valid email address.',
+        'OAUTH_EMAIL_MISSING',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!profile.isEmailVerified) {
+      this.logger.warn(`Unverified OAuth email rejected for provider ${providerKey}: ${profile.email}`);
+      throw new BusinessException(
+        'OAuth account email must be verified by the provider before signing in or linking.',
+        'OAUTH_EMAIL_UNVERIFIED',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
     // 4. Handle account linking or provisioning
     let user: any = null;
     let isNewUser = false;
@@ -155,6 +174,14 @@ export class OAuthService {
             user = await this.userRepo.linkGoogle(existingByEmail.id, profile.providerId, profile.avatarUrl);
           } else {
             user = await this.userRepo.linkMicrosoft(existingByEmail.id, profile.providerId, profile.avatarUrl);
+          }
+
+          if (!user.isEmailVerified) {
+            await this.userRepo.updateById(user.id, {
+              isEmailVerified: true,
+              emailVerifiedAt: new Date(),
+            });
+            user.isEmailVerified = true;
           }
 
           linkedExisting = true;
@@ -287,7 +314,7 @@ export class OAuthService {
         action: 'OAUTH_REGISTRATION',
         entityType: 'user',
         entityId: newUser.id,
-        newValues: { provider: profile.provider, email: newUser.email },
+        newValues: auditValues({ provider: profile.provider }), // the account id is the reference: no e-mail address in the audit trail
         ipAddress: context?.ipAddress,
         userAgent: context?.userAgent,
       });
@@ -350,7 +377,7 @@ export class OAuthService {
         action,
         entityType,
         entityId,
-        newValues: metadata,
+        newValues: auditValues(metadata as Record<string, unknown> | null),
         ipAddress: context?.ipAddress,
         userAgent: context?.userAgent,
       });

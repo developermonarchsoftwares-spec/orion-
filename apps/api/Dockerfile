@@ -24,6 +24,10 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+# Release identification: the monitoring overview reports this value. Build with
+#   docker build --build-arg GIT_SHA=$(git rev-parse HEAD) -f apps/api/Dockerfile .
+ARG GIT_SHA=unknown
+ENV GIT_SHA=$GIT_SHA
 
 COPY package.json ./
 COPY packages/shared/package.json ./packages/shared/

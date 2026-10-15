@@ -1,3 +1,4 @@
+import { BusinessException } from '../../../common/errors/business.exception';
 import { Injectable, Logger } from '@nestjs/common';
 import { ImportBatchRepository, ImportRecordRepository, ValidationLogRepository } from '../repositories/import.repositories';
 import { DuplicateRepository, ReviewQueueRepository, PublishQueueRepository } from '../repositories/duplicate-review.repositories';
@@ -5,6 +6,7 @@ import { NormalizationService } from './normalization.service';
 import { ValidationService } from './validation.service';
 import { DuplicateDetectionService } from './duplicate-detection.service';
 import { PublishingService } from './publishing.service';
+import { emptyPeopleSummary, IPeopleIngestionSummary } from '../people/import-people.types';
 
 @Injectable()
 export class ImportPipelineService {
@@ -114,10 +116,20 @@ export class ImportPipelineService {
       status: 'PENDING',
     });
 
-    // 5. Automated Publication Execution
-    const publishedBusiness = await this.publishingService.publishRecord(publishItem.id);
-
-    return { status: 'PUBLISHED', businessId: publishedBusiness.id };
+    // 5. Publication is an explicit administrator step (Phase 15). The record waits in the publish queue; it is published here only when the
+    // batch asked for automatic publication AND its source is approved. A refusal (unreviewed source, revoked source, failed re-validation)
+    // leaves the record queued for an administrator and is audited by the publisher.
+    const batch = await this.batchRepo.findById(record.batchId);
+    if ((batch?.options as { autoPublish?: boolean } | null)?.autoPublish === true) {
+      try {
+        const publishedBusiness = await this.publishingService.publishRecord(publishItem.id, { via: 'AUTO' });
+        return { status: 'PUBLISHED', businessId: publishedBusiness.id };
+      } catch (err) {
+        if (!(err instanceof BusinessException)) throw err;
+        return { status: 'AWAITING_PUBLISH', reason: err.errorCode };
+      }
+    }
+    return { status: 'AWAITING_PUBLISH', reason: 'ADMIN_PUBLISH_REQUIRED' };
   }
 
   /**
@@ -136,12 +148,14 @@ export class ImportPipelineService {
     let successful = 0;
     let failed = 0;
     let duplicates = 0;
+    let queued = 0;
 
     for (const rec of records) {
       try {
         const result = await this.processRecord(rec.id);
         if (result.status === 'PUBLISHED') successful++;
         else if (result.status === 'FLAGGED_DUPLICATE') duplicates++;
+        else if (result.status === 'AWAITING_PUBLISH') queued++;
         else failed++;
       } catch (err) {
         this.logger.error(`Error processing record ${rec.id}: ${(err as Error).message}`);
@@ -159,15 +173,25 @@ export class ImportPipelineService {
     });
 
     this.logger.log(
-      `Completed batch ${batch.id}: ${successful} published, ${duplicates} duplicates, ${failed} failed`,
+      `Completed batch ${batch.id}: ${successful} published, ${queued} awaiting publication, ${duplicates} duplicates, ${failed} failed`,
     );
+
+    // People-stage outcome (written per record by ImportPeopleBridge). When no row reached the People stage the summary is still
+    // persisted (all zero) so it is never null for a processed batch.
+    let finished = await this.batchRepo.findById(batch.id);
+    if (!finished?.peopleSummary) {
+      await this.batchRepo.setPeopleSummary(batch.id, emptyPeopleSummary());
+      finished = await this.batchRepo.findById(batch.id);
+    }
 
     return {
       batchId,
       total: records.length,
       successful,
+      queued,
       duplicates,
       failed,
+      people: (finished?.peopleSummary as IPeopleIngestionSummary | null) ?? emptyPeopleSummary(),
     };
   }
 }

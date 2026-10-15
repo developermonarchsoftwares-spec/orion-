@@ -61,6 +61,22 @@ const TAB_TITLES: Record<AdminTab, { title: string; subtitle: string }> = {
     title: 'Publish Queue & Approval Pipeline',
     subtitle: 'Final verification gate: approve, publish, reject or draft businesses for Discover'
   },
+  data_quality: {
+    title: 'Data Quality & Pipeline Metrics',
+    subtitle: 'Factual counts over uploads, People, review, verification, conflicts and pipeline health'
+  },
+  upload_ops: {
+    title: 'Upload Operations',
+    subtitle: 'Batch status, row outcomes and People results of manual uploads: counts and reason codes only'
+  },
+  people_import: {
+    title: 'People Import',
+    subtitle: 'Import a People Pipeline export (CSV or JSON): dry run, background progress and history, with counts and reason codes only'
+  },
+  people_review: {
+    title: 'People Review & Publishing',
+    subtitle: 'Review decision makers found by ingestion: approve roles one by one, correct data, quarantine or suppress'
+  },
   enrichment: {
     title: 'Data Enrichment Pipeline',
     subtitle: 'Queue workers for automated web scraping, GST lookup, and social intelligence'

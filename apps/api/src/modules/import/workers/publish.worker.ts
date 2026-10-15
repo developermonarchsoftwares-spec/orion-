@@ -20,6 +20,8 @@ export class PublishWorker extends BaseWorker<IPublishJobData, unknown> {
   async processJob(job: IWorkerJob<IPublishJobData>): Promise<unknown> {
     const { publishQueueId } = job.data;
     this.logger.log(`Worker publishing record: ${publishQueueId}`);
-    return this.publishingService.publishRecord(publishQueueId);
+    // Phase 15: a queue job carries no administrator, so the publisher refuses it. Publication is only ever an administrator's explicit action
+    // (publish-batch) or an approved automatic import; this worker cannot be used to publish around either.
+    return this.publishingService.publishRecord(publishQueueId, undefined);
   }
 }

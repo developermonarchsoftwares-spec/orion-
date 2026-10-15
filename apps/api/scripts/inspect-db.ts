@@ -1,9 +1,12 @@
 import { Pool } from 'pg';
 import * as dotenv from 'dotenv';
+import { verifiedConnection } from '../src/database/tls';
+import { assertLocalDatabaseAllowed } from '../src/database/db-guard';
 dotenv.config();
 
 async function testQueries() {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+  assertLocalDatabaseAllowed(process.env.DATABASE_URL);
+  const pool = new Pool(verifiedConnection(process.env.DATABASE_URL ?? ''));
 
   const bRes = await pool.query(`
     SELECT b.id, b.name, b.slug, b.status, b.created_at, b.updated_at,
@@ -48,4 +51,7 @@ async function testQueries() {
 
   await pool.end();
 }
-testQueries().catch(console.error);
+testQueries().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

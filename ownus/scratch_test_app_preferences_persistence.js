@@ -1,15 +1,16 @@
 const { Pool } = require('pg');
+const { requireLocalDatabaseUrl } = require('./scratch_target');
 
-const dbUrl = "postgresql://neondb_owner:npg_CFOGv20pEALD@ep-weathered-surf-aefvqpls-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require";
+const dbUrl = requireLocalDatabaseUrl();
 
 async function verifyAppPreferencesPersistence() {
   console.log("==================================================================");
-  console.log("STARTING APP PREFERENCES NEON POSTGRESQL PERSISTENCE TEST");
+  console.log("STARTING APP PREFERENCES POSTGRESQL PERSISTENCE TEST");
   console.log("==================================================================");
 
   let pool = new Pool({
     connectionString: dbUrl,
-    ssl: { rejectUnauthorized: false },
+    ssl: false,
   });
 
   try {
@@ -39,7 +40,7 @@ async function verifyAppPreferencesPersistence() {
       dateFormat: "YYYY-MM-DD"
     };
 
-    console.log("\n[UPDATE] Saving App Preferences to Neon PostgreSQL:", JSON.stringify(newPreferences, null, 2));
+    console.log("\n[UPDATE] Saving App Preferences to PostgreSQL:", JSON.stringify(newPreferences, null, 2));
 
     const currentMetaRes = await pool.query("SELECT metadata FROM users WHERE id = $1", [userId]);
     const currentMeta = currentMetaRes.rows[0]?.metadata || {};
@@ -50,7 +51,7 @@ async function verifyAppPreferencesPersistence() {
       [JSON.stringify(updatedMeta), userId]
     );
 
-    console.log(`[UPDATE SUCCESS] Updated metadata in Neon DB at: ${updateRes.rows[0].updated_at}`);
+    console.log(`[UPDATE SUCCESS] Updated metadata in the database at: ${updateRes.rows[0].updated_at}`);
 
     // 2. Simulate Connection Tear-down & Page Reload / New Session
     console.log("\n[SIMULATION] Closing DB pool & reconnecting to simulate page refresh / browser restart / new session...");
@@ -58,11 +59,11 @@ async function verifyAppPreferencesPersistence() {
 
     pool = new Pool({
       connectionString: dbUrl,
-      ssl: { rejectUnauthorized: false },
+      ssl: false,
     });
 
-    // 3. Fetch fresh data from Neon PostgreSQL (Single Source of Truth)
-    console.log("[FETCH] Retrieving fresh metadata from Neon PostgreSQL...");
+    // 3. Fetch fresh data from PostgreSQL (Single Source of Truth)
+    console.log("[FETCH] Retrieving fresh metadata from PostgreSQL...");
     const freshRes = await pool.query("SELECT metadata FROM users WHERE id = $1", [userId]);
     const fetchedPreferences = freshRes.rows[0]?.metadata?.preferences || {};
 
@@ -79,7 +80,7 @@ async function verifyAppPreferencesPersistence() {
       fetchedPreferences.dateFormat === newPreferences.dateFormat;
 
     if (allPassed) {
-      console.log("\n>>> ALL APP PREFERENCES FULLY PERSISTED IN NEON POSTGRESQL! <<<");
+      console.log("\n>>> ALL APP PREFERENCES FULLY PERSISTED IN POSTGRESQL! <<<");
     } else {
       console.error("\n>>> VERIFICATION FAILED FOR ONE OR MORE PREFERENCE FIELDS! <<<");
       process.exit(1);

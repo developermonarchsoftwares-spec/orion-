@@ -1,19 +1,14 @@
 const { Pool } = require('pg');
+const { requireLocalDatabaseUrl } = require('./scratch_target');
 
-const dbUrls = [
-  "postgresql://neondb_owner:npg_CFOGv20pEALD@ep-weathered-surf-aefvqpls-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require",
-  "postgresql://neondb_owner:npg_CFOGv20pEALD@ep-weathered-surf-aefvqpls.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require",
-  "postgresql://postgres:postgres@localhost:5432/orion_db",
-  "postgresql://postgres:postgres@127.0.0.1:5432/orion_db",
-  "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
-];
+const dbUrls = [requireLocalDatabaseUrl()];
 
 async function testAll() {
   for (const url of dbUrls) {
     console.log("\nTesting URL:", url.replace(/:[^:@]+@/, ':****@'));
     const pool = new Pool({
       connectionString: url,
-      ssl: url.includes('neon.tech') ? { rejectUnauthorized: false } : false,
+      ssl: false,
       connectionTimeoutMillis: 3000,
     });
     try {

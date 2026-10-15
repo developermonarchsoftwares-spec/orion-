@@ -74,6 +74,18 @@ export class ValidationService {
       }
     }
 
+    // 1b. URLs that were supplied but are not a safe public web address were not stored: say so, without blocking the record
+    for (const rejected of record.rejectedUrls ?? []) {
+      logs.push({
+        ruleName: 'UNSAFE_OR_INVALID_URL',
+        field: rejected.field,
+        severity: ValidationSeverity.WARNING,
+        message: `The ${rejected.field} value is not a usable public http(s) address (${rejected.reason}) and was not stored`,
+        passed: false,
+        metadata: { reason: rejected.reason },
+      });
+    }
+
     // 2. Email Validation
     for (const contact of record.contacts) {
       if (contact.email) {
@@ -83,7 +95,7 @@ export class ValidationService {
             ruleName: 'INVALID_EMAIL_FORMAT',
             field: 'contacts.email',
             severity: ValidationSeverity.WARNING,
-            message: `Email '${contact.email}' is malformed`,
+            message: 'Email is malformed', // the value itself is not copied into the log; it stays in the import record
             passed: false,
           });
         }
@@ -97,7 +109,7 @@ export class ValidationService {
             ruleName: 'INVALID_PHONE_FORMAT',
             field: 'contacts.phone',
             severity: ValidationSeverity.WARNING,
-            message: `Phone '${contact.phone}' is not a valid Indian phone format (+91XXXXXXXXXX)`,
+            message: 'Phone is not a valid Indian phone format (+91XXXXXXXXXX)',
             passed: false,
           });
         }

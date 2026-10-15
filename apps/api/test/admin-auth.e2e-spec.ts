@@ -15,6 +15,7 @@ describe('Sprint 16: Admin Authentication & Security E2E Tests', () => {
     app = await testApp.init();
 
     await testApp.cleanupUsers([validAdminEmail]);
+    await testApp.provisionAdmin(validAdminEmail, 'SUPER_ADMIN');
   });
 
   afterAll(async () => {

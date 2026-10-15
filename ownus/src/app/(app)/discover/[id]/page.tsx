@@ -41,6 +41,8 @@ import { useAuth } from '@/lib/auth-context';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
 import { addUnlockedLeadId, isLeadUnlocked } from '@/lib/unlocked-leads-store';
+import { CompanyPeopleSection } from '@/components/people/company-people-section';
+import { safeHttpHref } from '@/lib/safe-url';
 
 export default function BusinessDetailPage() {
   const params = useParams();
@@ -55,6 +57,7 @@ export default function BusinessDetailPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [notes, setNotes] = useState<Array<{ id: number; text: string; timestamp: string }>>([]);
+  const [activeTab, setActiveTab] = useState<'overview' | 'people'>('overview');
 
   useEffect(() => {
     async function loadData() {
@@ -237,32 +240,53 @@ export default function BusinessDetailPage() {
       <div className="flex flex-col lg:flex-row gap-6 items-start">
         {/* Left Column - 2/3 */}
         <div className="w-full lg:w-2/3 space-y-6">
-          
+          <div role="tablist" aria-label="Company sections" className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
+            {([['overview', 'Overview'], ['people', 'People']] as const).map(([key, label]) => (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={activeTab === key}
+                onClick={() => setActiveTab(key)}
+                className={cn(
+                  '-mb-px px-4 py-2 text-xs font-semibold border-b-2 transition-colors cursor-pointer',
+                  activeTab === key
+                    ? 'border-zinc-900 dark:border-white text-zinc-900 dark:text-white'
+                    : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100',
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === 'people' && <CompanyPeopleSection businessId={business.id} businessName={business.name} />}
+
+          <div className={activeTab === 'overview' ? 'space-y-6' : 'hidden'}>
           {/* Overview Card */}
           <section className="bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xs p-6 space-y-6">
             <div>
               <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100 mb-2">Executive Summary</h2>
               <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed text-xs">
-                {business.description || `${business.name} is an active commercial entity registered and operating in ${primaryLocation.city || 'India'}, ${primaryLocation.state || ''}. The entity maintains verified commercial operations within the ${business.industry?.name || 'commercial'} sector.`}
+                {business.description || 'No description on record yet.'}
               </p>
             </div>
             
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 text-xs">
               <div>
                 <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-semibold">Entity Type</span>
-                <p className="mt-1 font-medium text-zinc-900 dark:text-zinc-100">{business.businessType || 'Private Limited'}</p>
+                <p className="mt-1 font-medium text-zinc-900 dark:text-zinc-100">{business.businessType || 'Not available'}</p>
               </div>
               <div>
                 <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-semibold">MSME Classification</span>
-                <p className="mt-1 font-medium text-zinc-900 dark:text-zinc-100">{business.msmeCategory || 'Micro Enterprise'}</p>
+                <p className="mt-1 font-medium text-zinc-900 dark:text-zinc-100">{business.msmeCategory || 'Not available'}</p>
               </div>
               <div>
                 <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-semibold">Team Size</span>
-                <p className="mt-1 font-medium text-zinc-900 dark:text-zinc-100">{business.employeeCountRange || '10-50'}</p>
+                <p className="mt-1 font-medium text-zinc-900 dark:text-zinc-100">{business.employeeCountRange || 'Not available'}</p>
               </div>
               <div>
                 <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-semibold">Revenue Range</span>
-                <p className="mt-1 font-medium text-zinc-900 dark:text-zinc-100">{business.annualRevenueRange || '₹5 Cr - ₹25 Cr'}</p>
+                <p className="mt-1 font-medium text-zinc-900 dark:text-zinc-100">{business.annualRevenueRange || 'Not available'}</p>
               </div>
             </div>
 
@@ -272,7 +296,7 @@ export default function BusinessDetailPage() {
                 business.businessType,
                 business.msmeCategory ? `MSME ${business.msmeCategory}` : null,
                 websitePresence ? 'Web Established' : 'No Web Domain',
-                'Verified Lead',
+                business.isVerified ? 'Verified Lead' : null,
               ].filter(Boolean).map((tag: any) => (
                 <span
                   key={tag}
@@ -298,7 +322,7 @@ export default function BusinessDetailPage() {
                   <h3 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Website Infrastructure</h3>
                   <div className="mt-1 flex items-center text-xs text-zinc-600 dark:text-zinc-400">
                     {websitePresence ? (
-                      <a href={websitePresence.url} target="_blank" rel="noreferrer" className="underline font-mono text-xs hover:text-zinc-900 dark:hover:text-white">
+                      <a href={safeHttpHref(websitePresence.url)} target="_blank" rel="noreferrer" className="underline font-mono text-xs hover:text-zinc-900 dark:hover:text-white">
                         {websitePresence.url}
                       </a>
                     ) : (
@@ -351,7 +375,7 @@ export default function BusinessDetailPage() {
                 <div className="flex justify-between">
                   <dt className="text-zinc-500">Registration ID / CIN</dt>
                   <dd className="font-mono font-medium text-zinc-900 dark:text-zinc-100">
-                    {business.identifiers?.[0]?.value || 'U72900KA2021PTC148902'}
+                    {business.identifiers?.find((i: any) => i.type === 'CIN')?.value || 'Not available'}
                   </dd>
                 </div>
                 <div className="flex justify-between">
@@ -364,7 +388,7 @@ export default function BusinessDetailPage() {
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-zinc-500">Verification Status</dt>
-                  <dd className="font-medium text-zinc-900 dark:text-zinc-100">Verified Legal Entity</dd>
+                  <dd className="font-medium text-zinc-900 dark:text-zinc-100">{business.isVerified ? 'Verified Legal Entity' : 'Not yet verified'}</dd>
                 </div>
               </dl>
             </section>
@@ -415,6 +439,7 @@ export default function BusinessDetailPage() {
               </div>
             </section>
           )}
+          </div>
 
         </div>
 
@@ -481,11 +506,11 @@ export default function BusinessDetailPage() {
                         <div className="space-y-1 text-zinc-600 dark:text-zinc-400 font-mono text-[11px]">
                           <div className="flex items-center gap-2">
                             <Phone className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                            <span>{c.phone || '+91 98450 12345'}</span>
+                            <span>{c.phone || 'Not available'}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <Mail className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                            <span>{c.email || 'contact@company.in'}</span>
+                            <span>{c.email || 'Not available'}</span>
                           </div>
                         </div>
                       </div>
@@ -494,11 +519,11 @@ export default function BusinessDetailPage() {
                     <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 space-y-1 font-mono text-xs">
                       <div className="flex items-center gap-2">
                         <Phone className="w-3.5 h-3.5 text-zinc-400" />
-                        <span>+91 98450 12345</span>
+                        <span>Not available</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Mail className="w-3.5 h-3.5 text-zinc-400" />
-                        <span>contact@company.in</span>
+                        <span>Not available</span>
                       </div>
                     </div>
                   )}

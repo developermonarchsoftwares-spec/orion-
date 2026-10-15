@@ -39,6 +39,8 @@ export const users = pgTable(
     metadata: jsonb('metadata').default({}),
     lastLoginProvider: varchar('last_login_provider', { length: 50 }),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+    /** Set when the account was erased: the row stays (anonymised) so billing records keep their foreign key. */
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -63,6 +65,8 @@ export const refreshTokens = pgTable(
     tokenHash: varchar('token_hash', { length: 255 }).notNull(),
     familyId: uuid('family_id').defaultRandom().notNull(),
     isRevoked: boolean('is_revoked').default(false).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedReason: varchar('revoked_reason', { length: 32 }),
     userAgent: text('user_agent'),
     ipAddress: varchar('ip_address', { length: 45 }),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
@@ -74,6 +78,41 @@ export const refreshTokens = pgTable(
     index('refresh_tokens_hash_idx').on(table.tokenHash),
     index('refresh_tokens_expires_idx').on(table.expiresAt),
   ]
+);
+
+/** Opaque, single-use, hashed tokens for password reset and email verification. Only the SHA-256 is stored. */
+export const authActionTokens = pgTable(
+  'auth_action_tokens',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    purpose: varchar('purpose', { length: 32 }).notNull(),
+    tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('auth_action_tokens_hash_idx').on(table.tokenHash),
+    index('auth_action_tokens_user_purpose_idx').on(table.userId, table.purpose),
+  ]
+);
+
+/** One-time MFA recovery codes (account recovery when the authenticator device is lost). Only hashes are stored. */
+export const userRecoveryCodes = pgTable(
+  'user_recovery_codes',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    codeHash: varchar('code_hash', { length: 64 }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index('user_recovery_codes_user_idx').on(table.userId)]
 );
 
 export const apiKeys = pgTable(

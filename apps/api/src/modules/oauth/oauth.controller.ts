@@ -19,6 +19,8 @@ import { OAuthService } from './oauth.service';
 import { Public, CurrentUser } from '../../auth/decorators';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { IJwtPayload } from '@orion/shared';
+import { Throttle } from '@nestjs/throttler';
+import { OAuthProviderDto, OAuthTokenDto } from './dto/oauth.dto';
 
 @ApiTags('OAuth & Enterprise Identity')
 @Controller('auth')
@@ -52,6 +54,7 @@ export class OAuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Get('google/callback')
   @ApiOperation({ summary: 'Handle Google OAuth 2.0 authorization callback' })
   async googleCallback(
@@ -102,6 +105,7 @@ export class OAuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Get('microsoft/callback')
   @ApiOperation({ summary: 'Handle Microsoft Entra ID authorization callback' })
   async microsoftCallback(
@@ -135,11 +139,12 @@ export class OAuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Post('oauth/token')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Direct JSON exchange endpoint for OAuth code & state' })
   async exchangeOAuthToken(
-    @Body() body: { provider: 'google' | 'microsoft'; code: string; state: string },
+    @Body() body: OAuthTokenDto,
     @Req() req: Request,
   ) {
     const userAgent = req.headers['user-agent'];
@@ -158,7 +163,7 @@ export class OAuthController {
   @ApiOperation({ summary: 'Initiate OAuth account linking for current authenticated user' })
   async linkProvider(
     @CurrentUser() user: IJwtPayload,
-    @Body() body: { provider: 'google' | 'microsoft' },
+    @Body() body: OAuthProviderDto,
   ) {
     const authUrl = this.oauthService.getAuthorizationUrl(body.provider, user.sub);
     return { authUrl };
@@ -171,7 +176,7 @@ export class OAuthController {
   @ApiOperation({ summary: 'Unlink an identity provider from current account' })
   async unlinkProvider(
     @CurrentUser() user: IJwtPayload,
-    @Body() body: { provider: string },
+    @Body() body: OAuthProviderDto,
     @Req() req: Request,
   ) {
     const userAgent = req.headers['user-agent'];

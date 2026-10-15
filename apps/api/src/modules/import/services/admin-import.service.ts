@@ -9,8 +9,13 @@ import { DuplicateDetectionService } from './duplicate-detection.service';
 import { PublishingService } from './publishing.service';
 import { ImportPipelineService } from './import-pipeline.service';
 import { ImportBatchRepository, ImportRecordRepository } from '../repositories/import.repositories';
+import { PublishQueueRepository } from '../repositories/duplicate-review.repositories';
+import { BusinessException } from '../../../common/errors/business.exception';
 import { CsvSecurityUtil } from '../../../common/utils/csv-security.util';
 import { AuditLogService } from '../../../common/services/audit-log.service';
+import { PEOPLE_TEMPLATE_COLUMNS } from '../people/import-people.types';
+import { assertUploadRows } from './upload-validation';
+import { assessBatchIntegrity } from './batch-integrity';
 
 export interface IAdminImportPreviewRecord {
   rowNumber: number;
@@ -78,6 +83,7 @@ export class AdminImportService {
     private readonly pipelineService: ImportPipelineService,
     private readonly batchRepo: ImportBatchRepository,
     private readonly recordRepo: ImportRecordRepository,
+    private readonly publishQueueRepo: PublishQueueRepository,
     @Optional() private readonly auditLogService?: AuditLogService,
   ) {}
 
@@ -107,7 +113,12 @@ export class AdminImportService {
       'category',
       'description',
       'founding_year',
+      // People (decision makers). Person 1 = contact_person + contact_title above, plus these:
+      ...PEOPLE_TEMPLATE_COLUMNS,
     ];
+    // The sample rows are real companies with their publicly known principal only; person-level
+    // contact columns are left blank on purpose (nothing is invented for real people).
+    const noPeopleColumns = PEOPLE_TEMPLATE_COLUMNS.map(() => '');
 
     const sampleRow1 = [
       'Tata Consultancy Services',
@@ -157,7 +168,7 @@ export class AdminImportService {
       '1981',
     ];
 
-    return `${headers.join(',')}\n${CsvSecurityUtil.formatCsvRow(sampleRow1)}\n${CsvSecurityUtil.formatCsvRow(sampleRow2)}\n`;
+    return `${headers.join(',')}\n${CsvSecurityUtil.formatCsvRow([...sampleRow1, ...noPeopleColumns])}\n${CsvSecurityUtil.formatCsvRow([...sampleRow2, ...noPeopleColumns])}\n`;
   }
 
   /**
@@ -248,13 +259,7 @@ export class AdminImportService {
     rows: Array<Record<string, unknown>>,
     customMapping?: Record<string, string>,
   ): Promise<IAdminImportPreviewResult> {
-    if (!rows || rows.length === 0) {
-      throw new BadRequestException('No rows provided for import preview');
-    }
-
-    if (rows.length > 5000) {
-      throw new BadRequestException('Batch exceeds maximum allowed limit of 5,000 records per upload to prevent server memory exhaustion.');
-    }
+    assertUploadRows(rows, 'preview'); // shape and size first: nothing below runs on an unsafe batch
 
     const previewRecords: IAdminImportPreviewRecord[] = [];
     const duplicates: Array<{ rowNumber: number; reason: string; matchedBusinessId?: string }> = [];
@@ -400,15 +405,17 @@ export class AdminImportService {
     rows: Array<Record<string, unknown>>;
     createdById?: string;
     mapping?: Record<string, string>;
+    /** Honoured only when the batch's source is approved. Default false: records wait for an administrator to publish them. */
     autoPublish?: boolean;
+    /** The registered data source of this file. Absent = unknown provenance (stated as such, never guessed). */
+    sourceId?: string;
   }) {
-    if (!params.rows || params.rows.length === 0) {
-      throw new BadRequestException('Cannot submit empty import batch');
-    }
-
-    if (params.rows.length > 5000) {
-      throw new BadRequestException('Batch size exceeds maximum limit of 5,000 records per upload to prevent server memory exhaustion.');
-    }
+    assertUploadRows(params.rows, 'import');
+    if (params.sourceId !== undefined) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(params.sourceId))) throw new BadRequestException('sourceId must be the id of a registered data source');
+      const found = await this.db.select({ id: schema.dataSources.id }).from(schema.dataSources).where(eq(schema.dataSources.id, params.sourceId)).limit(1);
+      if (!found.length) throw new BadRequestException('That data source is not registered');
+    } // shape and size first: nothing is stored or processed from an unsafe batch
 
     // Sanitize filename against directory traversal attacks
     const sanitizedFilename = (params.filename || 'import_batch.csv')
@@ -425,8 +432,9 @@ export class AdminImportService {
       status: 'PROCESSING',
       totalRecords: params.rows.length,
       createdById: params.createdById,
+      sourceId: params.sourceId,
       mappingConfig: params.mapping || {},
-      options: { autoPublish: params.autoPublish ?? true },
+      options: { autoPublish: params.autoPublish === true },
       startedAt: new Date(),
     });
 
@@ -435,7 +443,7 @@ export class AdminImportService {
       action: 'IMPORT_BATCH_SUBMITTED',
       entityType: 'IMPORT_BATCH',
       entityId: batch.id,
-      newValues: { filename: sanitizedFilename, totalRecords: params.rows.length },
+      newValues: { filename: sanitizedFilename, totalRecords: params.rows.length, sourceId: params.sourceId ?? null, autoPublishRequested: params.autoPublish === true },
     });
 
     // 2. Insert records in chunks
@@ -459,21 +467,45 @@ export class AdminImportService {
     // 3. Process records through pipeline
     const processResult = await this.pipelineService.processBatch(batch.id);
 
+    // 4. Integrity: what the batch reports must match what is stored. A mismatch is logged and recorded on the batch, never silent.
+    const totals = await this.batchRepo.recordTotals(batch.id);
+    const integrity = assessBatchIntegrity({
+      totalRows: params.rows.length,
+      recordCount: totals.total,
+      successful: processResult.successful,
+      queued: processResult.queued,
+      duplicates: processResult.duplicates,
+      failed: processResult.failed,
+      businessesPublished: totals.published,
+      peopleSummary: processResult.people,
+    });
+    if (!integrity.ok) {
+      const message = `Integrity check failed: ${integrity.issues.join('; ')}`;
+      this.logger.error(`Batch ${batch.id} (${sanitizedFilename}): ${message}`);
+      await this.batchRepo.updateStats(batch.id, { errorMessage: message });
+    }
+
     return {
       batchId: batch.id,
       filename: batch.filename,
       status: 'COMPLETED',
       totalRecords: params.rows.length,
       publishedCount: processResult.successful,
+      /** Clean rows waiting in the publish queue for an administrator (publish-batch). */
+      awaitingPublishCount: processResult.queued,
       duplicateCount: processResult.duplicates,
       failedCount: processResult.failed,
+      people: processResult.people,
+      integrity,
     };
   }
 
   /**
-   * Publishes all approved/clean records from a specific batch into production PostgreSQL
+   * Publishes the approved records of one batch. This is THE explicit administrator publication step (Phase 15): it needs an administrator,
+   * checks the source of the batch, re-validates every record and records the outcome. A batch whose source is not approved is refused
+   * unless the administrator passes allowUnreviewedSource, which is audited as an override; a revoked source is always refused.
    */
-  async publishBatch(batchId: string) {
+  async publishBatch(batchId: string, actor: { id: string; ip?: string | null; userAgent?: string | null }, opts: { allowUnreviewedSource?: boolean } = {}) {
     const batch = await this.batchRepo.findById(batchId);
     if (!batch) {
       throw new NotFoundException(`Import batch '${batchId}' not found`);
@@ -481,27 +513,56 @@ export class AdminImportService {
 
     const records = await this.recordRepo.findByBatchId(batch.id, 1000);
     let newlyPublished = 0;
+    let failed = 0;
+    let skipped = 0;
+    let refused = 0;
+    const refusalCodes: Record<string, number> = {};
 
     for (const rec of records) {
-      if (rec.status === 'APPROVED' || rec.status === 'NORMALIZED') {
-        try {
-          const payload = (rec.normalizedPayload || rec.rawPayload) as unknown as INormalizedRecordResult;
-          await this.publishingService.publishRecord(rec.id);
-          newlyPublished++;
-        } catch (err: any) {
-          this.logger.warn(`Failed to publish record ${rec.id}: ${err.message}`);
-        }
+      // Only APPROVED (or reviewer-MERGED) records have a publish-queue item (created after duplicate checks). NORMALIZED
+      // records never went through duplicate detection, so they are not published from here.
+      if (rec.status !== 'APPROVED' && rec.status !== 'MERGED') {
+        skipped++;
+        continue;
+      }
+      // publishRecord takes the PUBLISH QUEUE id, not the import record id.
+      const queued = await this.publishQueueRepo.findLatestByRecordId(rec.id);
+      if (!queued || (queued.status !== 'PENDING' && queued.status !== 'FAILED')) {
+        skipped++;
+        continue;
+      }
+      try {
+        await this.publishingService.publishRecord(queued.id, { via: 'ADMIN', actorId: actor.id, allowUnreviewedSource: opts.allowUnreviewedSource === true, ip: actor.ip, userAgent: actor.userAgent });
+        newlyPublished++;
+      } catch (err: any) {
+        if (err instanceof BusinessException) {
+          refused++;
+          refusalCodes[err.errorCode] = (refusalCodes[err.errorCode] ?? 0) + 1;
+        } else failed++;
+        this.logger.warn(`Failed to publish record ${rec.id}: ${err.message}`);
       }
     }
 
-    await this.batchRepo.updateStats(batch.id, {
-      status: 'COMPLETED',
-      completedAt: new Date(),
+    await this.batchRepo.updateStats(batch.id, { status: 'COMPLETED', completedAt: new Date() });
+
+    await this.auditLogService?.record({
+      userId: actor.id,
+      action: 'IMPORT_BATCH_PUBLISH_RUN',
+      entityType: 'IMPORT_BATCH',
+      entityId: batch.id,
+      outcome: refused + failed === 0 ? 'SUCCESS' : 'FAILURE',
+      ipAddress: actor.ip,
+      userAgent: actor.userAgent,
+      newValues: { newlyPublished, failed, refused, skipped, refusalCodes, overrideRequested: opts.allowUnreviewedSource === true },
     });
 
     return {
       batchId,
       newlyPublished,
+      failed,
+      refused,
+      refusalCodes,
+      skipped,
       totalBatchRecords: records.length,
     };
   }
