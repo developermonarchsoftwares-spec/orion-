@@ -1,0 +1,28 @@
+# Files that must never be uploaded in a CLI deployment (git-based deployments only see what is committed).
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+node_modules
+.next
+.git
+.claude
+
+# media and generated output (about 100 MB, not part of the app)
+brag-output*
+showreel*
+playwright-report
+test-results
+
+# tests, tooling and local scratch are not part of either service
+# (apps/ and ownus/ ARE the two services; apps/api needs its sources and the root package files)
+tests
+ops
+docs
+scratch
+**/scratch
+**/scratch_*.js
+**/before*.json
+**/after*.json

@@ -1,6 +1,10 @@
 export const runtime = 'nodejs';
+// Vercel: this gateway proxies to the Orion API and runs its own database queries (imports, exports, searches), so the platform's
+// default function timeout is too short. 60 s fits every plan. Requests larger than 4.5 MB are refused by Vercel before this code runs.
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
+import { backendBaseUrl, hasRemoteBackend } from '@/lib/backend-url';
 import { isPublishStatus, PUBLISH_REFUSED_REASON, refusedLookupSql, statusUpdateSql } from '@/lib/publish-guard';
 import crypto from 'crypto';
 import { findAdminAccount, fixedOtpAllowed } from '@/lib/admin-account';
@@ -1208,11 +1212,7 @@ async function forwardImportSubmit(req: NextRequest): Promise<NextResponse> {
 }
 
 function getBackendUrl(): string {
-  const envUrl = process.env.BACKEND_API_URL || process.env.NEST_API_URL;
-  if (envUrl) {
-    return envUrl.replace(/\/$/, '');
-  }
-  return 'http://127.0.0.1:4000/api/v1';
+  return backendBaseUrl();
 }
 
 /** S-19: the verified admin acting on a request, for the audit trail (null if the token is not a persisted user id). */
@@ -2670,11 +2670,7 @@ async function proxyRequest(
 
   // Admin Auth - Send OTP
   if (fullPath === 'admin/auth/send-otp') {
-    if (
-      process.env.BACKEND_API_URL &&
-      !process.env.BACKEND_API_URL.includes('127.0.0.1') &&
-      !process.env.BACKEND_API_URL.includes('localhost')
-    ) {
+    if (hasRemoteBackend()) {
       try {
         const backendBase = getBackendUrl();
         const targetUrl = new URL(`${backendBase}/${fullPath}${req.nextUrl.search}`);
@@ -2693,11 +2689,7 @@ async function proxyRequest(
 
   // Admin Auth - Verify OTP
   if (fullPath === 'admin/auth/verify-otp') {
-    if (
-      process.env.BACKEND_API_URL &&
-      !process.env.BACKEND_API_URL.includes('127.0.0.1') &&
-      !process.env.BACKEND_API_URL.includes('localhost')
-    ) {
+    if (hasRemoteBackend()) {
       try {
         const backendBase = getBackendUrl();
         const targetUrl = new URL(`${backendBase}/${fullPath}${req.nextUrl.search}`);
@@ -2726,11 +2718,7 @@ async function proxyRequest(
 
   // Admin Import Preview - Validate rows and duplicate check
   if (fullPath === 'admin/import/preview') {
-    if (
-      process.env.BACKEND_API_URL &&
-      !process.env.BACKEND_API_URL.includes('127.0.0.1') &&
-      !process.env.BACKEND_API_URL.includes('localhost')
-    ) {
+    if (hasRemoteBackend()) {
       try {
         const backendBase = getBackendUrl();
         const targetUrl = new URL(`${backendBase}/${fullPath}${req.nextUrl.search}`);
@@ -3627,11 +3615,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
   }
 
   if ((fullPath === 'auth/login' || fullPath === 'auth/jwt/login') && req.method === 'POST') {
-    if (
-      process.env.BACKEND_API_URL &&
-      !process.env.BACKEND_API_URL.includes('127.0.0.1') &&
-      !process.env.BACKEND_API_URL.includes('localhost')
-    ) {
+    if (hasRemoteBackend()) {
       try {
         const backendBase = getBackendUrl();
         const targetUrl = new URL(`${backendBase}/${fullPath}${req.nextUrl.search}`);
@@ -3650,11 +3634,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
   }
 
   if (fullPath === 'auth/register' && req.method === 'POST') {
-    if (
-      process.env.BACKEND_API_URL &&
-      !process.env.BACKEND_API_URL.includes('127.0.0.1') &&
-      !process.env.BACKEND_API_URL.includes('localhost')
-    ) {
+    if (hasRemoteBackend()) {
       try {
         const backendBase = getBackendUrl();
         const targetUrl = new URL(`${backendBase}/${fullPath}${req.nextUrl.search}`);
@@ -3673,11 +3653,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
   }
 
   if (fullPath === 'auth/send-otp' && req.method === 'POST') {
-    if (
-      process.env.BACKEND_API_URL &&
-      !process.env.BACKEND_API_URL.includes('127.0.0.1') &&
-      !process.env.BACKEND_API_URL.includes('localhost')
-    ) {
+    if (hasRemoteBackend()) {
       try {
         const backendBase = getBackendUrl();
         const targetUrl = new URL(`${backendBase}/${fullPath}${req.nextUrl.search}`);
@@ -3696,11 +3672,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
   }
 
   if (fullPath === 'auth/verify-otp' && req.method === 'POST') {
-    if (
-      process.env.BACKEND_API_URL &&
-      !process.env.BACKEND_API_URL.includes('127.0.0.1') &&
-      !process.env.BACKEND_API_URL.includes('localhost')
-    ) {
+    if (hasRemoteBackend()) {
       try {
         const backendBase = getBackendUrl();
         const targetUrl = new URL(`${backendBase}/${fullPath}${req.nextUrl.search}`);
@@ -3719,11 +3691,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
   }
 
   if (fullPath === 'auth/refresh' && req.method === 'POST') {
-    if (
-      process.env.BACKEND_API_URL &&
-      !process.env.BACKEND_API_URL.includes('127.0.0.1') &&
-      !process.env.BACKEND_API_URL.includes('localhost')
-    ) {
+    if (hasRemoteBackend()) {
       try {
         const backendBase = getBackendUrl();
         const targetUrl = new URL(`${backendBase}/${fullPath}${req.nextUrl.search}`);
@@ -3751,11 +3719,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
 
   // Google OAuth Initiation
   if (fullPath === 'auth/google') {
-    if (
-      process.env.BACKEND_API_URL &&
-      !process.env.BACKEND_API_URL.includes('127.0.0.1') &&
-      !process.env.BACKEND_API_URL.includes('localhost')
-    ) {
+    if (hasRemoteBackend()) {
       try {
         const backendBase = getBackendUrl();
         const targetUrl = new URL(`${backendBase}/${fullPath}${req.nextUrl.search}`);
@@ -3777,11 +3741,7 @@ async function handleDiscoverExport(req: NextRequest): Promise<NextResponse> {
 
   // Google OAuth Callback
   if (fullPath === 'auth/google/callback') {
-    if (
-      process.env.BACKEND_API_URL &&
-      !process.env.BACKEND_API_URL.includes('127.0.0.1') &&
-      !process.env.BACKEND_API_URL.includes('localhost')
-    ) {
+    if (hasRemoteBackend()) {
       try {
         const backendBase = getBackendUrl();
         const targetUrl = new URL(`${backendBase}/${fullPath}${req.nextUrl.search}`);
